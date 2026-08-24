@@ -1,15 +1,15 @@
 :root{
-  --cyan:#f472b6; --cyan-l:#f9a8d4; --cyan-dim:#4a1a2e;
-  --pink:#ec4899; --pink-l:#f472b6; --purple:#8b5cf6; --violet:#c084fc;
-  --blue:#8b5cf6; --mint:#c084fc; --mint-soft:rgba(192,132,252,.28); --success:#8b5cf6;
+  --cyan:#93C5FD; --cyan-l:#BFDBFE; --cyan-dim:#0F1B3D;
+  --pink:#1D4ED8; --pink-l:#2563EB; --purple:#2563EB; --violet:#1E3A8A;
+  --blue:#2563EB; --mint:#3B82F6; --mint-soft:rgb(37 99 235 / .22); --success:#2563EB;
   --text:#f1f5f9; --muted:#94a3b8; --dim:#64748b;
   --gold:#FBBF24; --red:#F87171;
-  --bg:#0b0719; --bg-2:#0f0a1e;
-  --panel:rgba(15,10,30,0.72);
-  --panel-solid:rgba(15,10,30,0.94);
-  --border:rgba(139,92,246,0.18);
-  --border-strong:rgba(192,132,252,0.35);
-  --primary:linear-gradient(90deg,#ec4899 0%,#8b5cf6 55%,#c084fc 100%);
+  --bg:#0A0F1E; --bg-2:#0D1526;
+  --panel:rgba(13,21,38,0.72);
+  --panel-solid:rgba(13,21,38,0.94);
+  --border:rgb(37 99 235 / .20);
+  --border-strong:rgb(37 99 235 / .32);
+  --primary:linear-gradient(90deg,#1E3A8A 0%,#1D4ED8 48%,#2563EB 72%,#3B82F6 100%);
 }
 
 *{margin:0;padding:0;box-sizing:border-box}
@@ -17,7 +17,11 @@ html,body{width:100%;min-height:100vh}
 body{
   font-family:'Manrope',system-ui,sans-serif;
   color:var(--text);
-  background:#0b0719;
+  background-color:#0A0F1E;
+  background-image:linear-gradient(rgba(10,15,30,.68), rgba(10,15,30,.84)), url('/blue_var_bg.jpg');
+  background-size:cover;
+  background-position:center;
+  background-attachment:fixed;
   overflow-x:hidden;
   -webkit-font-smoothing:antialiased;
 }
@@ -43,33 +47,33 @@ input,textarea,select{font-family:inherit;color:inherit}
 }
 
 .gradient-text{
-  background:linear-gradient(90deg,#f472b6 0%,#c084fc 45%,#ec4899 100%);
+  background:linear-gradient(90deg,#60A5FA 0%,#93C5FD 45%,#3B82F6 100%);
   -webkit-background-clip:text;
   background-clip:text;
   color:transparent;
 }
 
 .btn-primary{
-  font-family:'Orbitron',sans-serif;
+  font-family:'Marcellus','Cinzel',serif;
   font-size:11px; letter-spacing:.14em; text-transform:uppercase;
   padding:12px 22px; border-radius:10px;
-  background:linear-gradient(90deg,#ec4899 0%,#8b5cf6 55%,#c084fc 100%);
+  background:linear-gradient(90deg,#1E3A8A 0%,#1D4ED8 48%,#2563EB 72%,#3B82F6 100%);
   color:#fff; font-weight:700;
-  box-shadow:0 8px 28px rgba(236,72,153,.35), 0 0 22px rgba(139,92,246,.28);
+  box-shadow:0 8px 28px rgb(30 58 138 / .38), 0 0 22px rgb(37 99 235 / .28);
   transition:transform .15s ease,box-shadow .15s ease;
 }
-.btn-primary:hover{transform:translateY(-2px);box-shadow:0 12px 36px rgba(236,72,153,.45), 0 0 28px rgba(139,92,246,.38)}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 12px 36px rgb(30 58 138 / .48), 0 0 28px rgb(37 99 235 / .38)}
 .btn-primary:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:none}
 .btn-primary.sm{ padding:10px 16px; font-size:10.5px; border-radius:999px }
 
 .btn-ghost{
-  font-family:'Orbitron',sans-serif;
+  font-family:'Marcellus','Cinzel',serif;
   font-size:10.5px; letter-spacing:.14em; text-transform:uppercase;
   padding:11px 18px; border-radius:999px;
-  border:1px solid rgba(192,132,252,.28); color:#e9d5ff;
-  background:rgba(139,92,246,.06); transition:background .15s ease, border-color .15s;
+  border:1px solid rgb(37 99 235 / .32); color:#DBEAFE;
+  background:rgb(30 58 138 / .08); transition:background .15s ease, border-color .15s;
 }
-.btn-ghost:hover{background:rgba(139,92,246,.12); border-color:rgba(192,132,252,.42)}
+.btn-ghost:hover{background:rgb(30 58 138 / .14); border-color:rgb(37 99 235 / .42)}
 .btn-ghost.sm{ padding:10px 14px; font-size:10.5px }
 
 .pill{
@@ -77,15 +81,15 @@ input,textarea,select{font-family:inherit;color:inherit}
   font-family:'JetBrains Mono',monospace;
   font-size:10px; letter-spacing:.22em; text-transform:uppercase;
   padding:7px 16px; border-radius:999px;
-  border:1px solid rgba(139,92,246,.32);
-  color:#e9d5ff;
-  background:rgba(139,92,246,.08);
+  border:1px solid rgb(37 99 235 / .32);
+  color:#DBEAFE;
+  background:rgb(37 99 235 / .08);
 }
 
 @keyframes pulse-ring{
-  0%{box-shadow:0 0 0 0 rgba(236,72,153,.45)}
-  70%{box-shadow:0 0 0 18px rgba(236,72,153,0)}
-  100%{box-shadow:0 0 0 0 rgba(236,72,153,0)}
+  0%{box-shadow:0 0 0 0 rgba(59,130,246,.45)}
+  70%{box-shadow:0 0 0 18px rgba(59,130,246,0)}
+  100%{box-shadow:0 0 0 0 rgba(59,130,246,0)}
 }
 @keyframes flow{
   to{stroke-dashoffset:-180}

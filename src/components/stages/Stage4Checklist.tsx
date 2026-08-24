@@ -26,26 +26,33 @@ export function Stage4Checklist({ }: Props) {
       <style>{`
         .checklist{ margin-bottom:6px }
         .quick{
-          display:grid; grid-template-columns:1fr 1fr; gap:8px;
+          display:grid; grid-template-columns:1fr; gap:10px;
         }
         .quick-row{
-          display:flex; align-items:center; gap:9px;
-          padding:9px 11px;
+          display:flex; align-items:center; gap:10px;
+          padding:10px 12px;
           background:rgba(255,255,255,.02);
           border:1px solid var(--border);
           border-radius:9px;
           font-size:11.5px;
           transition:background .15s ease;
+          min-height:44px;
+          font-family:'Open Sans',sans-serif;
         }
-        .quick-row:hover{ background:rgba(244,114,182,.06) }
+        .quick-row:hover{ background:rgba(59,130,246,.06) }
         .q-icon{
-          width:24px; height:24px; border-radius:6px;
-          background:rgba(244,114,182,.1);
+          width:26px; height:26px; border-radius:6px;
+          background:rgba(59,130,246,.1);
           color:var(--cyan-l); font-size:12px;
-          display:grid; place-items:center;
+          display:grid; place-items:center; flex-shrink:0;
         }
-        .q-label{ color:var(--text); font-weight:500 }
-        .q-hint{ font-size:10px; color:var(--muted); margin-top:1px }
+        .q-body{ min-width:0; flex:1; }
+        .q-label{ color:var(--text); font-weight:600; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .q-hint{ font-size:12px; color:var(--muted); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        @media (min-width:861px){
+          .quick{ grid-template-columns:1fr 1fr; gap:8px; }
+          .q-label{ font-size:12px; }
+        }
       `}</style>
     </div>
   );

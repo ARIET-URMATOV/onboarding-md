@@ -7,12 +7,12 @@ interface Props { stageId: StageId }
 const POSTER = `data:image/svg+xml;utf8,${encodeURIComponent(
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180">
     <defs><linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
-      <stop offset="0%" stop-color="#4a1a2e"/><stop offset="100%" stop-color="#8b5cf6"/>
+      <stop offset="0%" stop-color="#4a1a2e"/><stop offset="100%" stop-color="#2563EB"/>
     </linearGradient></defs>
     <rect width="320" height="180" fill="url(#g)"/>
     <circle cx="160" cy="90" r="40" fill="rgba(255,255,255,0.95)"/>
     <polygon points="150,75 150,105 178,90" fill="#4a1a2e"/>
-    <text x="160" y="155" font-family="Orbitron" font-size="11" fill="#fff" text-anchor="middle" letter-spacing="2">MDIGITAL · ПРИВЕТСТВИЕ</text>
+    <text x="160" y="155" font-family="Open Sans" font-size="11" fill="#fff" text-anchor="middle" letter-spacing="2">MDIGITAL · ПРИВЕТСТВИЕ</text>
   </svg>`,
 )}`;
 
@@ -45,16 +45,17 @@ export function Stage3Video({ }: Props) {
           border:1px solid var(--border-strong);
           border-radius:10px; overflow:hidden;
           background:#02060d;
-          box-shadow:0 0 24px rgba(244,114,182,.18);
+          box-shadow:0 0 24px rgba(59,130,246,.18);
         }
         .video-hint{
           margin-top:8px; padding:9px 12px;
           font-size:11px; color:var(--muted);
           border:1px dashed var(--border); border-radius:8px;
-          background:rgba(244,114,182,.04);
+          background:rgba(59,130,246,.04);
+          font-family:'Open Sans',sans-serif;
         }
         .video-hint.is-done{
-          color:var(--mint); border-color:rgba(192,132,252,.4); background:rgba(192,132,252,.06);
+          color:var(--mint); border-color:rgba(96,165,250,.4); background:rgba(96,165,250,.06);
         }
       `}</style>
     </div>

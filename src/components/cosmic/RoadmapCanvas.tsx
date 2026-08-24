@@ -33,7 +33,7 @@ function radialTexture(inner: string, outer: string) {
   return t;
 }
 function makeGlow(color: string, size: number) {
-  const m = new THREE.SpriteMaterial({ map: radialTexture(color, 'rgba(244,114,182,0)'), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+  const m = new THREE.SpriteMaterial({ map: radialTexture(color, 'rgba(59,130,246,0)'), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
   const s = new THREE.Sprite(m); s.scale.set(size, size, 1); return s;
 }
 function makeCrystal(color: number, isLocked: boolean) {
@@ -79,7 +79,7 @@ function makeCrystal(color: number, isLocked: boolean) {
   const orbits: THREE.Sprite[] = [];
   for (let i = 0; i < 3; i++) {
     const r = 1.05 + i * 0.42;
-    const sp = makeGlow(isLocked ? 'rgba(74,96,117,0.22)' : (i === 1 ? 'rgba(244,114,182,0.22)' : 'rgba(139,92,246,0.14)'), r * 1.9);
+    const sp = makeGlow(isLocked ? 'rgba(74,96,117,0.22)' : (i === 1 ? 'rgba(59,130,246,0.22)' : 'rgba(37,99,235,0.14)'), r * 1.9);
     (sp.material as THREE.SpriteMaterial).opacity = isLocked ? 0.18 : 0.32 - i * 0.06;
     // store radius for rotation
     (sp as any).orbitR = r;
@@ -137,9 +137,9 @@ export const RoadmapCanvas = forwardRef<RoadmapHandle, Props>(function RoadmapCa
     for(let i=0;i<starCount;i++){ const r=55+Math.random()*90, th=Math.random()*Math.PI*2, ph=Math.acos(2*Math.random()-1); starPos[i*3]=r*Math.sin(ph)*Math.cos(th); starPos[i*3+1]=r*Math.sin(ph)*Math.sin(th); starPos[i*3+2]=r*Math.cos(ph);}
     starGeo.setAttribute('position', new THREE.BufferAttribute(starPos,3));
     const stars=new THREE.Points(starGeo,new THREE.PointsMaterial({color:0x9fd8ff,size: isLow?1.0:1.15,sizeAttenuation:true,transparent:true,opacity:0.72,fog:false})); scene.add(stars);
-    function nebula(color:string,x:number,y:number,z:number,s:number,o:number){ const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:radialTexture(color,'rgba(139,92,246,0)'),transparent:true,opacity:o,blending:THREE.AdditiveBlending,depthWrite:false,fog:false})); sp.position.set(x,y,z); sp.scale.set(s,s,1); scene.add(sp);}
-    nebula('rgba(244,114,182,0.26)',-14,7,-30,42, isLow?0.36:0.48); nebula('rgba(139,92,246,0.18)',16,10,-26,40, isLow?0.30:0.42);
-    if(!isLow){ nebula('rgba(139,92,246,0.11)',8,-6,-32,48,0.36); nebula('rgba(249,168,212,0.15)',-4,12,-34,34,0.36); }
+    function nebula(color:string,x:number,y:number,z:number,s:number,o:number){ const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:radialTexture(color,'rgba(37,99,235,0)'),transparent:true,opacity:o,blending:THREE.AdditiveBlending,depthWrite:false,fog:false})); sp.position.set(x,y,z); sp.scale.set(s,s,1); scene.add(sp);}
+    nebula('rgba(59,130,246,0.26)',-14,7,-30,42, isLow?0.36:0.48); nebula('rgba(37,99,235,0.18)',16,10,-26,40, isLow?0.30:0.42);
+    if(!isLow){ nebula('rgba(37,99,235,0.11)',8,-6,-32,48,0.36); nebula('rgba(147,197,253,0.15)',-4,12,-34,34,0.36); }
     const gridSize = isMobile ? 42 : 74;
     const grid=new THREE.GridHelper(gridSize, isMobile? 36:74, 0x3b1f5a,0x1e1b4b); grid.position.y=-0.5; (grid.material as any).transparent=true; (grid.material as any).opacity= isMobile? 0.28:0.34; scene.add(grid);
     const ground=new THREE.Mesh(new THREE.PlaneGeometry(120,120),new THREE.MeshBasicMaterial({color:0x0b0719,transparent:true,opacity:0.38})); ground.rotation.x=-Math.PI/2; ground.position.y=-0.52; scene.add(ground);
@@ -166,7 +166,7 @@ export const RoadmapCanvas = forwardRef<RoadmapHandle, Props>(function RoadmapCa
     const dimLine=new THREE.Line(new THREE.BufferGeometry().setFromPoints(dimPts),new THREE.LineBasicMaterial({color:0x2a1f45,transparent:true,opacity:0.9})); scene.add(dimLine);
     let actLine:THREE.Line|null=null; if(activeT>0){ const total=curve.getPoints(260); const cnt=Math.max(2,Math.floor(total.length*activeT)); const pts=total.slice(0,cnt); actLine=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:0xf472b6,transparent:true,opacity:0.92})); scene.add(actLine); }
     const Np=isLow ? 72 : 120; const pGeo=new THREE.BufferGeometry(); const pPos=new Float32Array(Np*3); pGeo.setAttribute('position',new THREE.BufferAttribute(pPos,3)); const pMat=new THREE.PointsMaterial({color:0x9be8ff,size:0.09,sizeAttenuation:true,transparent:true,opacity:0.92,blending:THREE.AdditiveBlending,depthWrite:false}); const pnt=new THREE.Points(pGeo,pMat); scene.add(pnt);
-    const comet=new THREE.Group(); const core=new THREE.Mesh(new THREE.SphereGeometry(0.16,16,16),new THREE.MeshBasicMaterial({color:0xdffbff})); const cg=makeGlow('rgba(249,168,212,0.9)',1.45); comet.add(core,cg); scene.add(comet); const cometT0=Math.max(0,activeT-0.02);
+    const comet=new THREE.Group(); const core=new THREE.Mesh(new THREE.SphereGeometry(0.16,16,16),new THREE.MeshBasicMaterial({color:0xdffbff})); const cg=makeGlow('rgba(147,197,253,0.9)',1.45); comet.add(core,cg); scene.add(comet); const cometT0=Math.max(0,activeT-0.02);
 
     const nodeGroups:THREE.Group[]=[]; const hitSpheres:THREE.Mesh[]=[]; const crystals:THREE.Mesh[]=[]; const outerRings:THREE.Mesh[]=[]; const innerRings:THREE.Mesh[]=[]; const orbitGroups: THREE.Group[] = [];
     for(let i=0;i<NODE_DEFS.length;i++){
@@ -250,7 +250,7 @@ export const RoadmapCanvas = forwardRef<RoadmapHandle, Props>(function RoadmapCa
       const trailGeo=new THREE.BufferGeometry().setFromPoints(trailPts);
       const trailMat=new THREE.LineBasicMaterial({ color:0xf472b6, transparent:true, opacity:0.9 });
       const trail=new THREE.Line(trailGeo, trailMat); scene.add(trail);
-      const scan=makeGlow('rgba(244,114,182,0.95)', 2.6); scan.position.copy(fromTar); scan.position.y=0.06; scene.add(scan);
+      const scan=makeGlow('rgba(59,130,246,0.95)', 2.6); scan.position.copy(fromTar); scan.position.y=0.06; scene.add(scan);
       let ft=0; const dur=1.1;
       const tick=()=>{
         ft+=0.016/dur;

@@ -33,6 +33,8 @@ export const STAGES: StageDef[] = [
       { id: '1-docs', title: 'Заполнить документы', xp: 40 },
       { id: '1-lead', title: 'Ознакомиться с руководителем', xp: 40 },
       { id: '1-mplus', title: 'Скачать и установить mPLuse', xp: 50 },
+      { id: '1-jira', title: 'Доступ к Jira', xp: 30 },
+      { id: '1-confluence', title: 'Доступ к Confluence', xp: 30 },
     ],
   },
   {
@@ -109,7 +111,7 @@ export const STAGE_ICONS: Record<StageDef['iconKey'], string> = {
 export const STAGE_TOTAL_XP = STAGES.reduce((sum, s) => sum + s.xpReward, 0);
 
 export const ROLES: { id: Role; title: string; subtitle: string; color: string }[] = [
-  { id: 'frontend', title: 'Frontend', subtitle: 'React · TypeScript · Vite', color: '#f472b6' },
-  { id: 'backend', title: 'Backend', subtitle: 'Node · Python · SQL', color: '#8B5CF6' },
-  { id: 'design', title: 'Design', subtitle: 'Figma · UX · UI', color: '#F472B6' },
+  { id: 'frontend', title: 'Frontend', subtitle: 'React · TypeScript · Vite', color: '#3B82F6' },
+  { id: 'backend', title: 'Backend', subtitle: 'Node · Python · SQL', color: '#2563EB' },
+  { id: 'design', title: 'Design', subtitle: 'Figma · UX · UI', color: '#3B82F6' },
 ];

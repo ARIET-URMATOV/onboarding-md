@@ -1,87 +1,69 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { STAGES } from '../../data/stages';
 import type { StageId } from '../../data/stages';
 import type { StageStatus } from '../../store/useOnboarding';
+import { useOnboarding } from '../../store/useOnboarding';
+import { Stage1Documents } from '../stages/Stage1Documents';
+import { Stage2Team } from '../stages/Stage2Team';
+import { Stage3Video } from '../stages/Stage3Video';
+import { Stage4Checklist } from '../stages/Stage4Checklist';
+import { Stage5Test } from '../stages/Stage5Test';
 
 type Props = {
   statuses: Record<StageId, StageStatus>;
-  onSelect: (id: StageId) => void;
+  onSelect?: (id: StageId) => void; // kept for compat, not used as modal
   done: number;
 };
 
-// компактный зигзаг — всё внутри безопасной зоны 780×620
-const POS: { id: StageId; x: number; y: number }[] = [
-  { id: 1, x: 190, y: 470 },
-  { id: 2, x: 320, y: 395 },
-  { id: 3, x: 450, y: 455 },
-  { id: 4, x: 585, y: 375 },
-  { id: 5, x: 465, y: 175 },
+const TABS: { id: string; label: string; path?: string; d: string }[] = [
+  { id: 'dash', label: 'Dashboard', path: '/dashboard', d: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z' },
+  { id: 'map', label: 'Этапы', d: 'M9 20l-5.5 2V6L9 4l6 2 5.5-2v16L15 22l-6-2zM9 4v16M15 6v16' },
+  { id: 'check', label: 'Чек-лист', d: 'M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11' },
+  { id: 'test', label: 'Тест', d: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M9 13h6M9 17h6' },
 ];
 
-const IS_LOW = typeof navigator !== 'undefined'
-  ? (navigator.hardwareConcurrency !== undefined && navigator.hardwareConcurrency <= 4)
-  : false;
-
-function playBeep() {
-  try {
-    const Ctx = window.AudioContext || (window as any).webkitAudioContext;
-    if (!Ctx) return;
-    const ctx = new Ctx();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sine'; osc.frequency.value = 820;
-    gain.gain.setValueAtTime(0.06, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.09);
-    osc.connect(gain).connect(ctx.destination);
-    osc.start(); osc.stop(ctx.currentTime + 0.1);
-    setTimeout(() => ctx.close(), 200);
-  } catch { /* silent */ }
-}
-function playWhoosh() {
-  try {
-    const Ctx = window.AudioContext || (window as any).webkitAudioContext;
-    if (!Ctx) return;
-    const ctx = new Ctx();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(140, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(640, ctx.currentTime + 0.32);
-    gain.gain.setValueAtTime(0.05, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.36);
-    osc.connect(gain).connect(ctx.destination);
-    osc.start(); osc.stop(ctx.currentTime + 0.38);
-    setTimeout(() => ctx.close(), 500);
-  } catch { /* silent */ }
-}
-
-export function IsometricRoadmap({ statuses, onSelect, done }: Props) {
+export function IsometricRoadmap({ statuses, done }: Props) {
   const nav = useNavigate();
-  const [portalOpen, setPortalOpen] = useState(false);
-  const [finale, setFinale] = useState(false);
-  const [soundOn, setSoundOn] = useState(false);
-  const prevDoneRef = useRef(done);
+  const doneTasks = useOnboarding((s) => s.doneTasks);
+  const toggleTask = useOnboarding((s) => s.toggleTask);
+  const completeStage = useOnboarding((s) => s.completeStage);
 
-  // anchored zoom к порталу — ничего не уезжает
-  const zoom = useMemo(() => 1 + done * 0.02, [done]);
-
-  const currentId = useMemo<StageId>(() => {
+  const [selected, setSelected] = useState<StageId>(() => {
     for (let i = 1 as StageId; i <= 5; i = (i + 1) as StageId) {
       if (statuses[i] === 'current') return i;
     }
-    return 5;
-  }, [statuses]);
-  const currentStage = STAGES.find((s) => s.id === currentId)!;
+    return 1;
+  });
+  // keep selected in sync when status changes (e.g. after completion)
+  useEffect(() => {
+    if (statuses[selected] === 'locked') {
+      // fallback to current
+      for (let i = 1 as StageId; i <= 5; i = (i + 1) as StageId) if (statuses[i] === 'current') { setSelected(i); return; }
+    }
+  }, [statuses, selected]);
 
+  const [shakeId, setShakeId] = useState<StageId | null>(null);
+  const [finale, setFinale] = useState(false);
+  const [unlockingId, setUnlockingId] = useState<StageId | null>(null);
+  const [xpToast, setXpToast] = useState<{ id: number; val: number } | null>(null);
+  const prevDoneRef = useRef(done);
+
+  const sel = STAGES.find((s) => s.id === selected)!;
+  const selStatus = statuses[selected];
+  const selDoneTasks = useMemo(() => STAGES.find((s) => s.id === selected)!.subTasks, [selected]);
+  const selDoneIds = doneTasks[selected] || [];
+  const allDoneForGate = sel.subTasks.every((t) => selDoneIds.includes(t.id));
+  const hasNext = selected < 5;
+
+  // finale when 5/5
   useEffect(() => {
     if (done === 5 && prevDoneRef.current < 5) {
-      setPortalOpen(true);
-      if (soundOn) playWhoosh();
-      setTimeout(() => setFinale(true), 700);
+      setTimeout(() => setFinale(true), 500);
       const end = Date.now() + 1800;
-      const colors = ['#e052a0', '#8b5cf6', '#c084fc', '#f472b6'];
+      const colors = ['#2563EB', '#1E3A8A', '#3B82F6', '#3B82F6'];
       const frame = () => {
         confetti({ particleCount: 3, angle: 60, spread: 70, origin: { x: 0, y: 0.7 }, colors });
         confetti({ particleCount: 3, angle: 120, spread: 70, origin: { x: 1, y: 0.7 }, colors });
@@ -91,518 +73,618 @@ export function IsometricRoadmap({ statuses, onSelect, done }: Props) {
       confetti({ particleCount: 80, spread: 90, origin: { y: 0.6 }, colors, scalar: 1.1 });
     }
     prevDoneRef.current = done;
-  }, [done, soundOn]);
+  }, [done]);
 
-  // swipe
-  const touchX = useRef<number | null>(null);
-  const onTouchStart = (e: React.TouchEvent) => { touchX.current = e.touches[0].clientX; };
-  const onTouchEnd = (e: React.TouchEvent) => {
-    if (touchX.current === null) return;
-    const dx = e.changedTouches[0].clientX - touchX.current;
-    touchX.current = null;
-    if (Math.abs(dx) < 48) return;
-    const curIdx = Math.max(0, done - 1);
-    const nextIdx = dx < 0 ? Math.min(4, curIdx + 1) : Math.max(0, curIdx - 1);
-    const id = POS[nextIdx].id as StageId;
-    if (statuses[id] !== 'locked') { onSelect(id); if (soundOn) playBeep(); }
+  // unlocking animation when progress increments
+  const prevStatusesRef = useRef(statuses);
+  useEffect(() => {
+    const prev = prevStatusesRef.current;
+    for (let i = 1 as StageId; i <= 5; i = (i + 1) as StageId) {
+      if (prev[i] === 'locked' && statuses[i] !== 'locked') {
+        setUnlockingId(i);
+        setTimeout(() => setUnlockingId(null), 1400);
+        const reward = STAGES.find((s) => s.id === (i - 1) as StageId)?.xpReward || 100;
+        setXpToast({ id: Date.now(), val: reward });
+        setTimeout(() => setXpToast(null), 1700);
+        confetti({ particleCount: 40, spread: 70, origin: { y: 0.65 }, colors: ['#2563EB', '#3B82F6', '#3B82F6'], scalar: 1.0, ticks: 140 });
+        break;
+      }
+    }
+    prevStatusesRef.current = statuses;
+  }, [statuses]);
+
+  const pick = (id: StageId) => {
+    if (statuses[id] === 'locked') {
+      setShakeId(id);
+      setTimeout(() => setShakeId(null), 450);
+      return;
+    }
+    setSelected(id);
   };
 
-  const segTraveled = (b: StageId) => statuses[b] === 'done' || statuses[b] === 'current';
-  const segD = (i: number) => `M${POS[i].x} ${POS[i].y} L${POS[i + 1].x} ${POS[i + 1].y}`;
-  const portalActive = statuses[5] !== 'locked';
-  const ffCount = IS_LOW ? 5 : 8;
-  const starCount = IS_LOW ? 8 : 14;
+  const handleComplete = () => {
+    completeStage(selected);
+    // next will be unlocked via effect
+  };
+  const handleNext = () => {
+    const next = (selected + 1) as StageId;
+    if (next <= 5 && statuses[next] !== 'locked') setSelected(next);
+    else if (next <= 5) {
+      // try to trigger complete then jump
+      setSelected(next);
+    }
+  };
 
   return (
-    <div className="iso-root" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
-      {/* ===== сцена-руины: единый остров ===== */}
-      <svg viewBox="0 0 780 620" className="iso-scene" preserveAspectRatio="xMidYMid meet" aria-hidden>
-        <defs>
-          <linearGradient id="skyG" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#120e2e" />
-            <stop offset="60%" stopColor="#0d0a20" />
-            <stop offset="100%" stopColor="#0b0719" stopOpacity="0" />
-          </linearGradient>
-          <linearGradient id="colL" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="#241640" />
-            <stop offset="62%" stopColor="#2d1c4e" />
-            <stop offset="100%" stopColor="#3a2765" />
-          </linearGradient>
-          <linearGradient id="rayG" x1="1" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#f472b6" stopOpacity=".10" />
-            <stop offset="100%" stopColor="#f472b6" stopOpacity="0" />
-          </linearGradient>
-        </defs>
+    <div className="gm-root">
+      {/* ================= ЛЕВАЯ ПАНЕЛЬ ================= */}
+      <aside className="gm-left">
+        <div className="gl-brand">
+          <span className="gl-mark">
+            <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2l3 4-3 4-3-4 3-4z" /><path d="M4 7l4 3v7l-4-3V7z" /><path d="M20 7l-4 3v7l4-3V7z" /><path d="M8 17l4 3 4-3" />
+            </svg>
+          </span>
+          <div className="gl-brandtxt">
+            <div className="gl-eyebrow">MDIGITAL</div>
+            <div className="gl-sub">Онбординг · Цифровая вселенная</div>
+          </div>
+        </div>
 
-        {/* небо + звёзды */}
-        <rect width="780" height="420" fill="url(#skyG)" />
-        <g className="stars">
-          {Array.from({ length: starCount }).map((_, i) => {
-            const sx = 40 + ((i * 97) % 700);
-            const sy = 26 + ((i * 53) % 130);
-            const r = i % 3 === 0 ? 1.6 : 1.1;
-            return <circle key={i} cx={sx} cy={sy} r={r} fill="#e9d5ff" opacity={0.35 + (i % 4) * 0.12} className={i % 2 ? 'starTw' : undefined} style={{ animationDelay: `${i * 0.7}s` }} />;
-          })}
-        </g>
-
-        {/* луч света сверху-справа */}
-        <path d="M780 40 L520 300 L300 620 L780 620 Z" fill="url(#rayG)" />
-
-        {/* ===== ОСТРОВ-ОСНОВА ===== */}
-        <path d="M60 430 Q90 400 150 392 L600 380 Q680 384 720 420 Q750 452 730 480 L690 560 Q540 600 380 592 Q200 586 110 540 Q70 505 60 430 Z"
-          fill="#17102c" stroke="#241a3e" strokeWidth="1.5" />
-        {/* тёмный низ острова (висит в пустоте как на референсе) */}
-        <path d="M120 520 Q180 566 320 574 Q480 582 640 552 L600 596 Q450 618 300 606 Q170 594 120 520 Z" fill="#0d0918" />
-
-        {/* ===== КОЛОННАДА СЛЕВА ===== */}
-        <g>
-          {/* колонна A (целая) */}
-          <rect x="118" y="205" width="34" height="230" fill="url(#colL)" stroke="#3a2a5c" strokeWidth="1" />
-          <line x1="128" y1="210" x2="128" y2="430" stroke="#463073" strokeWidth="1.4" opacity=".7" />
-          <line x1="140" y1="210" x2="140" y2="430" stroke="#463073" strokeWidth="1.4" opacity=".5" />
-          <rect x="109" y="191" width="52" height="13" rx="2" fill="#33215a" stroke="#3a2a5c" strokeWidth="1" />
-          <rect x="113" y="434" width="44" height="11" rx="2" fill="#2c1c4e" stroke="#3a2a5c" strokeWidth="1" />
-          {/* мох у подножия */}
-          <ellipse cx="132" cy="448" rx="22" ry="6" fill="rgba(20,184,166,.32)" />
-          {/* колонна B (обломанная) */}
-          <path d="M186 260 h30 v175 h-30 Z M186 260 l5 -16 l9 9 l8 -11 l8 18 Z" fill="#281848" stroke="#3a2a5c" strokeWidth="1" />
-          <path d="M196 262 l4 -22 l3 22" stroke="#120c22" strokeWidth="1.4" fill="none" />
-          <ellipse cx="201" cy="442" rx="16" ry="5" fill="rgba(20,184,166,.25)" />
-          {/* обломки капители рядом */}
-          <rect x="222" y="436" width="20" height="10" rx="2" fill="#2c1c4e" stroke="#3a2a5c" strokeWidth="0.8" transform="rotate(-14 232 441)" />
-          {/* листва магента над колоннадой */}
-          <g className="foliageSway" opacity=".32">
-            <ellipse cx="150" cy="180" rx="34" ry="17" fill="#d946ef" />
-            <ellipse cx="186" cy="163" rx="24" ry="12" fill="#f472b6" />
-            <ellipse cx="120" cy="199" rx="20" ry="10" fill="#a21caf" />
-          </g>
-        </g>
-
-        {/* ===== КОЛОННАДА СПРАВА ===== */}
-        <g>
-          <rect x="628" y="235" width="34" height="200" fill="url(#colL)" stroke="#3a2a5c" strokeWidth="1" />
-          <line x1="638" y1="240" x2="638" y2="430" stroke="#463073" strokeWidth="1.4" opacity=".7" />
-          <rect x="619" y="222" width="52" height="13" rx="2" fill="#33215a" stroke="#3a2a5c" strokeWidth="1" />
-          {/* колонна D ниже */}
-          <rect x="676" y="290" width="30" height="145" fill="url(#colL)" stroke="#3a2a5c" strokeWidth="1" />
-          <rect x="668" y="278" width="46" height="12" rx="2" fill="#33215a" stroke="#3a2a5c" strokeWidth="1" />
-          {/* упавшая колонна набок */}
-          <g transform="rotate(8 560 452)">
-            <rect x="498" y="444" width="118" height="22" rx="4" fill="#2a1a4a" stroke="#3a2a5c" strokeWidth="1" />
-            <rect x="498" y="440" width="24" height="30" rx="3" fill="#33215a" stroke="#3a2a5c" strokeWidth="1" />
-          </g>
-          <ellipse cx="648" cy="446" rx="20" ry="5" fill="rgba(20,184,166,.28)" />
-          {/* малая листва справа */}
-          <g className="foliageSway" style={{ animationDelay: '1.3s' }} opacity=".24">
-            <ellipse cx="706" cy="206" rx="22" ry="11" fill="#d946ef" />
-            <ellipse cx="682" cy="192" rx="14" ry="8" fill="#f472b6" />
-          </g>
-        </g>
-
-        {/* ===== ЛЕСТНИЦА ИЗ БЛОКОВ от узла 1 вверх ===== */}
-        <g fill="#231541" stroke="#322457" strokeWidth="1">
-          {[
-            [128, 512], [152, 494], [176, 476], [200, 458], [226, 440], [252, 422],
-          ].map(([bx, by], idx) => (
-            <g key={idx}>
-              <rect x={bx} y={by} width={44} height={15} rx={2} />
-              <line x1={bx + 22} y1={by} x2={bx + 22} y2={by + 15} stroke="#1a1030" strokeWidth="1" />
-              <rect x={bx} y={by + 15} width={44} height={6} rx={1} fill="#1c1236" stroke="none" />
-            </g>
-          ))}
-        </g>
-
-        {/* алтарь между узлами 2 и 3 */}
-        <g>
-          <rect x="376" y="478" width="34" height="26" rx="2" fill="#2a1a4a" stroke="#3a2a5c" strokeWidth="1" />
-          <rect x="370" y="470" width="46" height="9" rx="2" fill="#33215a" stroke="#3a2a5c" strokeWidth="1" />
-          <circle cx="393" cy="464" r="3.4" fill="#67E8F9" opacity=".85" className="gemPulse" />
-        </g>
-
-        {/* ===== АРКА-ПОРТАЛ на узле 5 — кладка из блоков ===== */}
-        <g className={`iso-portal ${portalOpen ? 'open' : ''} ${statuses[5]}`} transform={`translate(${POS[4].x} ${POS[4].y})`}>
-          {/* тёмный проём */}
-          <path d="M-42 -58 v88 a42 46 0 0 1 84 0 v-88 h-84 Z M-30 -58 v82 a30 34 0 0 1 60 0 v-82 Z"
-            fillRule="evenodd" fill="#0d0918" className="portalHole" />
-          {/* кладка: левые блоки */}
-          <g fill="#2a1a4a" stroke="#3a2a5c" strokeWidth="1">
-            <rect x="-56" y="-58" width="15" height="34" /><rect x="-56" y="-24" width="15" height="34" /><rect x="-56" y="10" width="15" height="34" />
-            <rect x="41" y="-58" width="15" height="34" /><rect x="41" y="-24" width="15" height="34" /><rect x="41" y="10" width="15" height="34" />
-          </g>
-          {/* арочные блоки-клинья */}
-          <g fill="#2f1e54" stroke="#3a2a5c" strokeWidth="1">
-            <path d="M-56 -58 L-44 -92 L-30 -74 Z" />
-            <path d="M-30 -74 L-16 -98 L-2 -72 L-2 -64 L-30 -64 Z" />
-            <path d="M-2 -72 L14 -100 L30 -76 L30 -64 L-2 -64 Z" />
-            <path d="M30 -76 L46 -94 L56 -58 L41 -58 Z" />
-            <path d="M-16 -98 L14 -104 L14 -100 L-2 -72 Z" opacity=".95" />
-          </g>
-          {/* замковый камень */}
-          <path d="M-8 -102 L8 -102 L12 -86 L-12 -86 Z" fill="#3d2a68" stroke="#8b5cf6" strokeWidth="1.2" />
-          {/* лианы свисают */}
-          <g className="vines" stroke="#d946ef" strokeWidth="2" fill="none" opacity=".65" strokeLinecap="round">
-            <path d="M-34 -70 q-4 16 2 30 q4 10 -2 22" />
-            <path d="M28 -66 q5 14 -1 26 q-4 9 2 18" />
-          </g>
-          {/* рунное кольцо внутри проёма */}
-          {portalActive && (
-            <g className="runeRingWrap">
-              <circle cx="0" cy="-8" r="30" fill="none" stroke="#f472b6" strokeWidth="1.6"
-                strokeDasharray="4 9" strokeLinecap="round" opacity=".8" />
-              <circle cx="0" cy="-8" r="22" fill="none" stroke="#c084fc" strokeWidth="1"
-                strokeDasharray="2 7" opacity=".55" />
-            </g>
-          )}
-          {/* двери */}
-          <g className="portal-doors">
-            <rect x="-30" y="-58" width="30" height="82" className="door left" rx="2" />
-            <rect x="0" y="-58" width="30" height="82" className="door right" rx="2" />
-            <line x1="0" y1="-58" x2="0" y2="24" className="door-line" />
-          </g>
-          {/* навес / топ */}
-          <rect x="-60" y="-112" width="120" height="11" rx="3" className="portal-top" />
-          <text x="0" y="-120" textAnchor="middle" className="portal-label">MDIGITAL HQ</text>
-        </g>
-
-        {/* ===== факелы у пути ===== */}
-        {!IS_LOW && (
-          <g className="torch" transform="translate(160 330)">
-            <rect x="-2.5" y="0" width="5" height="34" rx="2" fill="#3a2a5c" />
-            <ellipse className="flame f1" cx="0" cy="-8" rx="5" ry="9" fill="#fb923c" />
-            <ellipse className="flame f2" cx="0" cy="-6" rx="3.2" ry="6.5" fill="#fbbf24" />
-            <ellipse className="flame f3" cx="0" cy="-4" rx="1.8" ry="4" fill="#fff7ed" />
-            <circle cx="0" cy="-6" r="26" fill="rgba(251,146,60,.08)" />
-          </g>
-        )}
-        <g className="torch t2" transform="translate(612 300)">
-          <rect x="-2.5" y="0" width="5" height="34" rx="2" fill="#3a2a5c" />
-          <ellipse className="flame f1" cx="0" cy="-8" rx="5" ry="9" fill="#fb923c" />
-          <ellipse className="flame f2" cx="0" cy="-6" rx="3.2" ry="6.5" fill="#fbbf24" />
-          {!IS_LOW && <ellipse className="flame f3" cx="0" cy="-4" rx="1.8" ry="4" fill="#fff7ed" />}
-          <circle cx="0" cy="-6" r="24" fill="rgba(251,146,60,.08)" />
-        </g>
-
-        {/* ===== вода за валунами ===== */}
-        <g>
-          <ellipse className="water w1" cx="250" cy="566" rx="150" ry="17" fill="#14b8a6" />
-          <ellipse className="water w2" cx="520" cy="576" rx="170" ry="15" fill="#0ea5a4" />
-        </g>
-        {/* передние валуны группами у колонн */}
-        <path d="M84 620 q18 -44 78 -42 q62 2 76 42 Z" fill="#0d0918" />
-        <path d="M300 620 q16 -36 66 -33 q52 2 62 33 Z" fill="#100a1e" />
-        <path d="M560 620 q20 -46 84 -43 q66 3 82 43 Z" fill="#0d0918" />
-
-        {/* круг-виньетка поверх сцены, центр на пути */}
-        <circle cx="390" cy="310" r="340" fill="rgba(20,16,46,.36)" />
-        <circle cx="390" cy="310" r="340" fill="none" stroke="rgba(148,163,184,.05)" strokeWidth="1.5" />
-      </svg>
-
-      {/* светлячки */}
-      <div className="fireflies" aria-hidden>
-        {Array.from({ length: ffCount }).map((_, i) => (
-          <span
-            key={i}
-            className={`ff ff${i % 4}`}
-            style={{ left: `${22 + ((i * 29) % 56)}%`, top: `${30 + ((i * 37) % 45)}%`, animationDelay: `${i * 1.1}s` }}
-          />
-        ))}
-      </div>
-
-      <div className="iso-scanline" aria-hidden />
-
-      <button
-        className="iso-sound font-mono"
-        onClick={() => setSoundOn((v) => !v)}
-        aria-label={soundOn ? 'Выключить звук' : 'Включить звук'}
-        title={soundOn ? 'Звук вкл' : 'Звук выкл'}
-      >
-        {soundOn ? '🔊' : '🔇'}
-      </button>
-
-      {/* шапка карты */}
-      <div className="iso-head">
-        <div className="ih-eyebrow font-mono">MDIGITAL · ONBOARDING</div>
-        <div className="ih-title">Roadmap</div>
-      </div>
-
-      {/* игровой слой: путь+узлы, zoom к порталу */}
-      <div
-        className="iso-stage"
-        style={{ transform: `scale(${zoom})`, transformOrigin: '58% 28%' } as any}
-      >
-        <svg viewBox="0 0 780 620" className="iso-svg" preserveAspectRatio="xMidYMid meet">
-          <path
-            d={`M${POS.map((p) => `${p.x} ${p.y}`).join(' L')}`}
-            className="iso-path"
-          />
-          {[0, 1, 2, 3].map((i) => {
-            const b = POS[i + 1];
-            if (!segTraveled(b.id as StageId)) return null;
-            return <path key={i} d={segD(i)} className="iso-path-done" />;
-          })}
-        </svg>
-
-        {POS.map((p) => {
-          const st = statuses[p.id as StageId];
-          return (
-            <button
-              key={p.id}
-              className={`iso-node ${st}`}
-              style={{ left: `${(p.x / 780) * 100}%`, top: `${(p.y / 620) * 100}%` } as any}
-              onClick={() => { onSelect(p.id as StageId); if (soundOn) playBeep(); }}
-              aria-label={`Этап ${p.id}: ${STAGES.find((s) => s.id === p.id)!.title}`}
+        <motion.div className="gm-tabs" initial="hidden" animate="visible" variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.06 } } }}>
+          {TABS.map((t, i) => (
+            <motion.button
+              key={t.id}
+              className={`gm-tab ${i === 1 ? 'on' : ''}`}
+              title={t.label}
+              onClick={() => t.path && nav(t.path)}
+              variants={{ hidden: { opacity: 0, scale: 0.7, y: 6 }, visible: { opacity: 1, scale: 1, y: 0 } }}
+              whileHover={{ scale: 1.08, y: -2 }}
+              whileTap={{ scale: 0.92 }}
+              transition={{ type: 'spring', stiffness: 420, damping: 18 }}
             >
-              {st === 'done' && <span className="node-check">✓</span>}
-              <span className="node-face font-serif">
-                {st === 'locked' ? '🔒' : p.id}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+                <path d={t.d} />
+              </svg>
+              {i === 1 && <motion.span layoutId="activeTab" className="gm-tabActive" />}
+            </motion.button>
+          ))}
+        </motion.div>
 
-      {/* инфо-карточка текущего этапа */}
-      <button type="button" className="iso-info" key={currentId} onClick={() => onSelect(currentId)}>
-        <div className="info-title">{currentId}. {currentStage.title}</div>
-        <div className="info-desc">{currentStage.description}</div>
-        <span className="info-open font-mono">Открыть этап →</span>
-      </button>
+        <div className="gm-sect">
+          <div className="gs-title">Онбординг</div>
+          <div className="gs-rule" />
+          <div className="gs-meta font-mono">
+            <span>Прогресс</span>
+            <motion.span key={done} initial={{ scale: 1.25, color: '#fff' }} animate={{ scale: 1, color: '#3B82F6' }} transition={{ duration: 0.35 }} className="gs-count">{done}/5</motion.span>
+          </div>
+        </div>
 
+        <div className="gm-list">
+          {STAGES.map((s, idx) => {
+            const st = statuses[s.id];
+            const isSel = selected === s.id && st !== 'locked';
+            const isUnlocking = unlockingId === s.id;
+            return (
+              <div key={s.id} className="gm-itemWrap">
+                {idx > 0 && <i className="gm-connector" aria-hidden />}
+                <motion.div
+                  layout
+                  className={`gm-cardWrap ${st} ${isSel ? 'sel' : ''} ${shakeId === s.id ? 'shake' : ''} ${isUnlocking ? 'unlocking' : ''}`}
+                  animate={isUnlocking ? { scale: [0.96, 1.06, 1], rotate: [0, 0.6, 0] } : {}}
+                  transition={{ duration: 0.9, ease: 'easeOut' }}
+                >
+                  <button
+                    className={`gm-card ${st}`}
+                    onClick={() => pick(s.id as StageId)}
+                    aria-label={`Этап ${s.id}: ${s.title}`}
+                    disabled={st === 'locked'}
+                  >
+                    <span className="gc-ico">
+                      {st === 'locked' ? (
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
+                          <rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" />
+                        </svg>
+                      ) : st === 'done' ? (
+                        <motion.svg initial={{ scale: 0 }} animate={{ scale: 1 }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="20 6 9 17 4 12" />
+                        </motion.svg>
+                      ) : (
+                        <span className="gc-spark">✦</span>
+                      )}
+                    </span>
+                    <span className="gc-body">
+                      <span className="gc-name">{s.shortLabel}</span>
+                      <span className="gc-state">{st === 'locked' ? 'Закрыто' : st === 'current' ? 'Сейчас' : 'Пройдено'}</span>
+                    </span>
+                    <span className="gc-num font-mono">0{s.id}</span>
+                    {isUnlocking && <span className="gc-shine" aria-hidden />}
+                  </button>
+                </motion.div>
+              </div>
+            );
+          })}
+        </div>
+      </aside>
+
+      {/* ================= ПРАВАЯ ПАНЕЛЬ — INLINE CONTENT ================= */}
+      <AnimatePresence mode="wait">
+        <motion.section
+          key={selected}
+          className="gm-right"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          transition={{ duration: 0.26, ease: [0.16, 1, 0.3, 1] }}
+        >
+          <div className="gr-head">
+            <div className="gr-headtxt">
+              <div className="gr-title">{selected}. {sel.title}</div>
+              <div className="gr-subtitle">
+                {selStatus === 'locked' ? 'Этап закрыт' : selStatus === 'current' ? 'Текущий этап' : 'Этап пройден'}
+              </div>
+            </div>
+            <motion.div layout className={`gr-emblem ${selStatus}`} animate={unlockingId === selected ? { scale: [1, 1.12, 1] } : {}} transition={{ duration: 0.6 }}>
+              <span className="ge-ring" />
+              <span className="ge-core font-orbitron">{selected}</span>
+            </motion.div>
+          </div>
+
+          <div className="gr-divider" />
+
+          <div className="gr-body">
+            <p className="gr-desc">{sel.description}</p>
+
+            {selected === 1 && selStatus !== 'locked' && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.12 }}>
+                <Stage1Documents stageId={selected} />
+              </motion.div>
+            )}
+            {selected === 2 && selStatus !== 'locked' && (
+              <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+                <Stage2Team stageId={selected} />
+                {/* generic checklist for stage 2 */}
+              </motion.div>
+            )}
+            {selected === 3 && selStatus !== 'locked' && (
+              <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+                <Stage3Video stageId={selected} />
+              </motion.div>
+            )}
+            {selected === 4 && selStatus !== 'locked' && (
+              <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+                <Stage4Checklist stageId={selected} />
+              </motion.div>
+            )}
+            {selected === 5 && selStatus !== 'locked' && (
+              <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+                <Stage5Test stageId={selected} />
+              </motion.div>
+            )}
+
+            {selected !== 1 && selStatus !== 'locked' && (
+              <div className="sub-tasks" style={{ marginTop: 14 }}>
+                {sel.subTasks.map((t, i) => {
+                  const done = selDoneIds.includes(t.id);
+                  return (
+                    <motion.label
+                      key={t.id}
+                      className={`task-row ${done ? 'is-done' : ''}`}
+                      initial={{ opacity: 0, x: -8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.05 }}
+                      whileHover={{ x: 2 }}
+                    >
+                      <span className="task-box">
+                        {done && (
+                          <motion.svg initial={{ scale: 0 }} animate={{ scale: 1 }} viewBox="0 0 24 24" fill="none" strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12" />
+                          </motion.svg>
+                        )}
+                      </span>
+                      <span className="task-title">{t.title}</span>
+                      <span className="task-xp">+{t.xp} XP</span>
+                      <input type="checkbox" checked={done} onChange={() => toggleTask(selected, t.id)} style={{ display: 'none' }} />
+                    </motion.label>
+                  );
+                })}
+                <motion.div className="reward" initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.3 }}>
+                  <svg viewBox="0 0 24 24" fill="none" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
+                    <path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" />
+                    <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" />
+                    <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
+                  </svg>
+                  <div>
+                    <b className="font-orbitron">Ачивка «{sel.rewardName.replace('Ачивка «', '').replace('»', '')}»</b>
+                    <span>{sel.rewardDesc}</span>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+
+            {selStatus === 'locked' && (
+              <div className="locked-body">
+                <div className="locked-icon">🔒</div>
+                <div className="locked-title">Этот этап пока недоступен</div>
+                <div className="locked-desc">Пройди предыдущий этап, чтобы открыть «{sel.title}».</div>
+              </div>
+            )}
+
+            {selected === 1 && selStatus === 'current' && !allDoneForGate && (
+              <div className="gr-gate">Открой каждый документ и пролистай до конца — иначе этап не засчитается.</div>
+            )}
+
+            <div className="gr-tasksLabel font-mono" style={{ marginTop: 16 }}>Задачи этапа</div>
+            <div className="gr-chips">
+              {selDoneTasks.map((t, i) => (
+                <motion.span
+                  key={t.id}
+                  className={`gr-chip ${selDoneIds.includes(t.id) || selStatus === 'done' ? 'is-done' : ''}`}
+                  title={t.title}
+                  initial={{ opacity: 0, scale: 0.6 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: i * 0.06, type: 'spring', stiffness: 420, damping: 18 }}
+                >
+                  {selDoneIds.includes(t.id) || selStatus === 'done' ? '✓' : i + 1}
+                </motion.span>
+              ))}
+              <span className="gr-chipLabel">{selDoneTasks.length} задач{selDoneTasks.length === 1 ? 'а' : selDoneTasks.length < 5 ? 'и' : ''}</span>
+            </div>
+          </div>
+
+          <div className="gr-foot">
+            <span className="gr-hint font-mono">
+              {selStatus === 'locked' ? 'Пройди предыдущий этап' : selStatus === 'current' && !allDoneForGate ? 'Выполни все задачи' : selStatus === 'done' && hasNext ? 'Готово → следующий этап' : selStatus === 'done' ? 'Все этапы пройдены' : 'Готов к завершению'}
+            </span>
+            {selStatus === 'locked' ? (
+              <button className="gr-cta" disabled>Этап закрыт</button>
+            ) : selStatus === 'current' ? (
+              allDoneForGate ? (
+                hasNext ? (
+                  <motion.button className="gr-cta" onClick={handleComplete} whileHover={{ scale: 1.02, y: -1 }} whileTap={{ scale: 0.98 }}>
+                    Завершить →
+                  </motion.button>
+                ) : (
+                  <motion.button className="gr-cta" onClick={handleComplete} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>Завершить →</motion.button>
+                )
+              ) : (
+                <button className="gr-cta" disabled>Сначала задачи</button>
+              )
+            ) : (
+              hasNext ? (
+                <motion.button className="gr-cta" onClick={handleNext} whileHover={{ scale: 1.02, y: -1 }} whileTap={{ scale: 0.98 }}>
+                  Следующий →
+                </motion.button>
+              ) : (
+                <button className="gr-cta" onClick={() => nav('/complete')}>Достижения →</button>
+              )
+            )}
+          </div>
+        </motion.section>
+      </AnimatePresence>
+
+      {/* XP toast gamified */}
+      <AnimatePresence>
+        {xpToast && (
+          <motion.div
+            key={xpToast.id}
+            className="xp-toast"
+            initial={{ opacity: 0, y: 12, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -18, scale: 0.9 }}
+            transition={{ type: 'spring', stiffness: 420, damping: 20 }}
+          >
+            +{xpToast.val} XP
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* финал */}
       {finale && (
-        <div className="finale-overlay">
-          <div className="finale-flash" />
-          <div className="finale-banner">
-            <div className="finale-title">Добро пожаловать в ряды MDIGITAL</div>
-            <div className="finale-sub">Ты — часть команды. Поехали!</div>
-            <button className="btn-primary" onClick={() => nav('/dashboard')}>
-              Перейти в кабинет →
-            </button>
+        <div className="gm-finale">
+          <div className="gf-flash" />
+          <div className="gf-banner">
+            <div className="gf-title">Добро пожаловать в ряды MDIGITAL</div>
+            <div className="gf-sub">Ты — часть команды. Поехали!</div>
+            <button className="gf-cta" onClick={() => nav('/dashboard')}>Перейти в кабинет →</button>
           </div>
         </div>
       )}
 
       <style>{`
-        .iso-root{
-          position:relative; width:100%; height:620px; overflow:hidden; border-radius:18px;
+        /* ===== ROADMAP — MOBILE-FIRST · BLUE · Cinzel/ABeeZee/Marcellus ===== */
+        .gm-root .font-orbitron{ font-family:'Open Sans',sans-serif !important; letter-spacing:.06em }
+        .gm-root .font-mono{ font-family:'Open Sans',sans-serif !important }
+        .gm-root{ font-family:'Open Sans',sans-serif; }
+        .gm-root{
+          position:relative; display:grid; grid-template-columns:1fr; gap:10px; align-items:start;
+          min-height:0; height:auto;
           background:
-            radial-gradient(600px 360px at 30% 20%, rgba(139,92,246,.10), transparent 62%),
-            radial-gradient(520px 340px at 74% 78%, rgba(236,72,153,.09), transparent 62%),
-            linear-gradient(180deg, #120e2e 0%, #0b0719 70%);
-          border:1px solid rgba(139,92,246,.12);
-          touch-action: pan-y;
+            radial-gradient(560px 340px at 18% 12%, rgba(30,58,138,.13), transparent 62%),
+            radial-gradient(480px 320px at 84% 88%, rgba(59,130,246,.10), transparent 62%),
+            linear-gradient(165deg, #0D1526 0%, #0A0F1E 70%);
+          border:1px solid rgba(30,58,138,.14); border-radius:14px; overflow:hidden;
         }
-        .iso-scene{ position:absolute; inset:0; width:100%; height:100%; }
-
-        .starTw{ animation:starTw 2.6s ease-in-out infinite alternate }
-        @keyframes starTw{ from{opacity:.25} to{opacity:.75} }
-
-        .foliageSway{ animation:sway 5s ease-in-out infinite; transform-box:fill-box; transform-origin:top center }
-        @keyframes sway{ 0%,100%{ transform:rotate(-1.6deg) } 50%{ transform:rotate(1.8deg) } }
-
-        .water{ animation:waterShim 4s ease-in-out infinite alternate }
-        .w2{ animation-delay:1.6s }
-        @keyframes waterShim{ from{opacity:.10} to{opacity:.20} }
-
-        .gemPulse{ animation:gemP 2s ease-in-out infinite; transform-box:fill-box; transform-origin:center }
-        @keyframes gemP{ 0%,100%{ opacity:.55; transform:scale(1) } 50%{ opacity:1; transform:scale(1.25) } }
-
-        /* факелы */
-        .flame{ transform-box:fill-box; transform-origin:50% 100% }
-        .f1{ animation:flick .9s ease-in-out infinite alternate }
-        .f2{ animation:flick .7s ease-in-out infinite alternate-reverse }
-        .f3{ animation:flick 1.3s ease-in-out infinite alternate }
-        @keyframes flick{
-          0%{ transform:scaleY(.92) scaleX(1) translateY(0) }
-          50%{ transform:scaleY(1.12) scaleX(.92) translateY(-1.5px) }
-          100%{ transform:scaleY(.96) scaleX(1.05) translateY(-.5px) }
-        }
-
-        /* лианы */
-        .vines{ transform-box:fill-box; transform-origin:top center; animation:vineSway 5s ease-in-out infinite }
-        @keyframes vineSway{ 0%,100%{ transform:rotate(-2deg) } 50%{ transform:rotate(2.4deg) } }
-
-        /* рунное кольцо портала */
-        .runeRingWrap circle{
-          transform-box:fill-box; transform-origin:center;
-          animation:runeSpin 12s linear infinite;
-        }
-        .runeRingWrap circle:last-child{ animation-duration:18s; animation-direction:reverse }
-        @keyframes runeSpin{ to{ transform:rotate(360deg) } }
-        .portalHole{ animation:holePulse 2.4s ease-in-out infinite }
-        @keyframes holePulse{ 0%,100%{ opacity:.92 } 50%{ opacity:.72 } }
-
-        .iso-scanline{
-          position:absolute; inset:0; pointer-events:none; z-index:2; opacity:.16;
+        .gm-root::after{
+          content:''; position:absolute; inset:0; pointer-events:none; z-index:1; opacity:.14;
           background:repeating-linear-gradient(0deg, transparent 0 2px, rgba(10,7,25,.5) 2px 4px);
         }
-        .iso-sound{
-          position:absolute; top:12px; right:12px; z-index:6;
-          width:34px; height:34px; border-radius:999px; display:grid; place-items:center;
-          background:rgba(15,10,30,.62); border:1px solid rgba(139,92,246,.2); color:#fff; font-size:14px;
-        }
-        .iso-head{ position:absolute; top:18px; left:24px; z-index:6; text-align:left; }
-        .ih-eyebrow{ font-size:10px; letter-spacing:.3em; text-transform:uppercase; color:#94a3b8; margin-bottom:6px; }
-        .ih-title{ font-family:'Unbounded',sans-serif; font-weight:800; font-size:28px; color:#fff; line-height:1; }
 
-        .iso-stage{
-          position:absolute; inset:0; width:100%; height:100%; z-index:3;
-          will-change:transform; transition:transform .9s cubic-bezier(.2,.8,.2,1);
+        .gm-left{
+          position:static; align-self:start; z-index:2;
+          display:flex; flex-direction:column;
+          padding:14px 12px 10px;
+          border-right:none; border-bottom:1px solid rgba(30,58,138,.12);
+          background:linear-gradient(180deg, rgba(13,21,38,.48), rgba(10,15,30,.28));
+          min-height:0; max-height:none; overflow:visible;
+          border-radius:14px 14px 0 0;
         }
-        .iso-svg{ position:absolute; inset:0; width:100%; height:100%; overflow:visible; }
+        .gl-brand{ display:flex; align-items:center; gap:10px; margin-bottom:10px }
+        .gl-mark{
+          width:26px; height:26px; border-radius:7px; display:grid; place-items:center; flex-shrink:0;
+          background:linear-gradient(135deg,#1E3A8A,#1E3A8A); box-shadow:0 0 16px rgba(37,99,235,.45);
+        }
+        .gl-mark svg{ width:14px; height:14px; stroke:#fff }
+        .gl-eyebrow{ font-family:'Open Sans',sans-serif; font-size:11px; font-weight:800; letter-spacing:.14em; color:#fff }
+        .gl-sub{ font-family:'Open Sans',sans-serif; font-size:10px; color:#a9a6c2; letter-spacing:.06em; margin-top:2px }
 
-        .iso-path{
-          fill:none; stroke:rgba(255,255,255,.85); stroke-width:3;
-          stroke-dasharray:14 12; stroke-linecap:round;
-          filter:drop-shadow(0 1px 3px rgba(0,0,0,.5));
-          animation:dashFlow 3.2s linear infinite;
+        .gm-tabs{ display:flex; gap:8px; margin-bottom:12px }
+        .gm-tab{
+          width:34px; height:34px; border-radius:50%; display:grid; place-items:center; position:relative;
+          background:rgba(255,255,255,.04); border:1px solid rgba(30,58,138,.22);
+          color:#8c88a6; cursor:pointer; transition:all .18s ease;
         }
-        @keyframes dashFlow{ to{ stroke-dashoffset:-26 } }
-        .iso-path-done{
-          fill:none; stroke:#c084fc; stroke-width:3;
-          stroke-dasharray:14 12; stroke-linecap:round;
-          filter:drop-shadow(0 0 6px rgba(192,132,252,.55));
-          animation:pathBreathe 2.6s ease-in-out infinite;
-        }
-        @keyframes pathBreathe{ 0%,100%{ filter:drop-shadow(0 0 4px rgba(192,132,252,.4)) } 50%{ filter:drop-shadow(0 0 9px rgba(192,132,252,.75)) } }
+        .gm-tab svg{ width:14px; height:14px; position:relative; z-index:2; }
+        .gm-tab:hover{ color:#DBEAFE; border-color:rgba(37,99,235,.5) }
+        .gm-tab.on{ color:#fff; border-color:#2563EB; box-shadow:0 0 0 3px rgba(30,58,138,.18), 0 0 16px rgba(30,58,138,.45); background:rgba(30,58,138,.14); }
+        .gm-tabActive{ position:absolute; inset:0; border-radius:50%; background:rgba(30,58,138,.16); z-index:1; }
 
-        /* портал стили */
-        .portal-top{ fill:#e052a0; filter:drop-shadow(0 0 10px rgba(224,82,160,.7)); }
-        .portal-label{ font-family:'Orbitron',sans-serif; font-size:9px; letter-spacing:.2em; fill:#fff; opacity:.92; }
-        .portal-doors .door{
-          fill:#17102c; stroke:rgba(224,82,160,.5); stroke-width:1.2;
-          transition:transform .7s cubic-bezier(.2,.8,.2,1); will-change:transform;
-        }
-        .iso-stage .iso-portal.open .door.left{ transform:translate3d(-34px,0,0); }
-        .iso-stage .iso-portal.open .door.right{ transform:translate3d(34px,0,0); }
-        .door-line{ stroke:rgba(224,82,160,.35); stroke-width:1; }
-        .iso-portal.done .portal-top{ fill:#c084fc; filter:drop-shadow(0 0 12px rgba(192,132,252,.75)); animation:portalGlow 1.6s ease-in-out infinite; }
-        @keyframes portalGlow{ 0%,100%{ filter:drop-shadow(0 0 8px rgba(192,132,252,.5)) } 50%{ filter:drop-shadow(0 0 16px rgba(192,132,252,.85)) } }
+        .gm-sect{ margin-bottom:12px }
+        .gs-title{ font-family:'Open Sans',sans-serif; font-size:14px; font-weight:800; color:#fff; letter-spacing:.02em }
+        .gs-rule{ height:1px; margin:8px 0; background:linear-gradient(90deg, rgba(37,99,235,.55), transparent) }
+        .gs-meta{ display:flex; justify-content:space-between; font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:#8c88a6 }
+        .gs-count{ color:#3B82F6 }
 
-        /* чипы */
-        .iso-node{
-          position:absolute; transform:translate(-50%,-50%);
-          width:88px; height:88px; border-radius:50%;
-          display:grid; place-items:center; padding:0;
-          background:transparent; cursor:pointer;
-          will-change:transform,opacity; transition:transform .16s ease;
+        .gm-list{ flex:1; display:flex; flex-direction:column; min-height:0; overflow:visible; padding-right:0; gap:6px; max-width:100%; width:100%; }
+        .gm-itemWrap{ flex:0 0 auto; width:100%; display:flex; flex-direction:column; align-items:stretch; }
+        .gm-connector{ width:1px; height:8px; margin:0 0 0 13px; align-self:flex-start; background:linear-gradient(180deg, rgba(37,99,235,.30), rgba(37,99,235,.10)) }
+
+        .gm-cardWrap{ filter:none; transition:filter .18s ease; position:relative; overflow:hidden; width:100%; }
+        .gm-cardWrap.sel{ filter:drop-shadow(0 0 14px rgba(30,58,138,.45)) }
+        .gm-cardWrap.shake{ animation:gmShake .42s ease }
+        .gm-cardWrap.unlocking .gc-shine{
+          position:absolute; inset:0; pointer-events:none; z-index:5;
+          background:linear-gradient(100deg, transparent 30%, rgba(255,255,255,.55) 50%, transparent 70%);
+          transform: translateX(-110%); animation: shineSweep 0.9s ease 0.15s;
         }
-        .iso-node:hover{ transform:translate(-50%,-50%) scale(1.07); z-index:5; }
-        .iso-node:active{ transform:translate(-50%,-50%) scale(.97); }
-        .node-face{
-          width:72px; height:72px; border-radius:50%;
+        @keyframes shineSweep{ to{ transform: translateX(110%) } }
+        @keyframes gmShake{ 0%,100%{transform:translateX(0)} 20%{transform:translateX(-5px)} 40%{transform:translateX(5px)} 60%{transform:translateX(-3px)} 80%{transform:translateX(3px)} }
+
+        .gm-card{
+          display:flex; align-items:center; gap:10px; width:100%;
+          padding:13px 14px; text-align:left; cursor:pointer;
+          background:rgba(13,21,38,.6);
+          clip-path:none; border-radius:10px; border:1px solid rgba(30,58,138,.18);
+          color:inherit; font-family:inherit;
+          transition:background .18s ease, transform .18s ease;
+        }
+        .gm-card:hover{ transform:none }
+        .gm-card:disabled{ cursor:not-allowed }
+        .gm-card.locked{ background:rgba(13,21,38,.5); opacity:.6 }
+        .gm-card.locked:hover{ transform:none }
+        .gm-card.done{ background:rgba(16,26,48,.72) }
+
+        .gc-ico{
+          width:32px; height:32px; border-radius:50%; flex-shrink:0;
           display:grid; place-items:center;
-          font-weight:800; font-size:26px; color:#fff;
-          background:rgba(22,17,44,.78);
-          border:2px solid rgba(167,139,250,.55);
-          backdrop-filter:blur(6px);
-          box-shadow:0 6px 18px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.08);
+          background:rgba(255,255,255,.06); border:1px solid rgba(37,99,235,.42); color:#3B82F6;
         }
-        .iso-node.current .node-face{
-          background:linear-gradient(135deg,#a78bfa,#7c3aed);
-          border-color:rgba(255,255,255,.35);
-          box-shadow:0 0 0 0 rgba(167,139,250,.5), 0 8px 22px rgba(124,58,237,.45);
-          animation:chipPulse 1.9s ease-out infinite;
-        }
-        @keyframes chipPulse{
-          0%{ box-shadow:0 0 0 0 rgba(167,139,250,.45), 0 8px 22px rgba(124,58,237,.45) }
-          70%{ box-shadow:0 0 0 18px rgba(167,139,250,0), 0 8px 22px rgba(124,58,237,.45) }
-          100%{ box-shadow:0 0 0 0 rgba(167,139,250,0), 0 8px 22px rgba(124,58,237,.45) }
-        }
-        .iso-node.done .node-face{ border-color:#c084fc; background:rgba(22,17,44,.82); }
-        .iso-node.locked{ cursor:not-allowed; }
-        .iso-node.locked .node-face{
-          background:rgba(15,10,30,.6); border-color:rgba(139,92,246,.22);
-          color:#94a3b8; opacity:.6; font-size:20px;
-        }
-        .node-check{
-          position:absolute; top:4px; right:6px; width:20px; height:20px; border-radius:50%;
-          display:grid; place-items:center; font-size:11px; font-weight:700;
-          color:#080711; background:#c084fc; box-shadow:0 2px 8px rgba(0,0,0,.4);
+        .gc-ico svg{ width:14px; height:14px }
+        .gm-card.done .gc-ico{ background:rgba(37,99,235,.16); border-color:#3B82F6; color:#3B82F6 }
+        .gm-card.locked .gc-ico{ color:#64748b; border-color:rgba(100,116,139,.3) }
+
+        .gc-spark{ font-size:14px; color:#fff; display:inline-block; animation:sparkTw 1.6s ease-in-out infinite; }
+        @keyframes sparkTw{ 0%,100%{ transform:scale(1) rotate(0deg); opacity:.85 } 50%{ transform:scale(1.25) rotate(90deg); opacity:1 } }
+
+        .gc-body{ flex:1; min-width:0; display:flex; flex-direction:column; gap:3px }
+        .gc-name{ font-family:'Open Sans',sans-serif; font-size:14px; font-weight:800; color:#f1f5f9; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .gc-state{ font-family:'Open Sans',sans-serif; font-size:9.5px; letter-spacing:.11em; text-transform:uppercase; color:#c4c0db }
+        .gc-num{ align-self:center; font-size:9px; opacity:.62; flex-shrink:0 }
+
+        .gm-card.current{ background:linear-gradient(100deg, rgba(37,99,235,.9), rgba(30,58,138,.85)) }
+        .gm-card.current .gc-name{ color:#fff }
+        .gm-card.current .gc-state{ color:rgba(255,255,255,.8) }
+        .gm-card.current .gc-ico{ background:rgba(255,255,255,.18); border-color:rgba(255,255,255,.5); color:#fff }
+        .gm-cardWrap.sel:not(:has(.gm-card.current)) .gm-card:not(.locked){ background:linear-gradient(100deg, rgba(30,58,138,.28), rgba(37,99,235,.28)); }
+        .gm-card.done .gc-name{ color:#DBEAFE }
+
+        /* ---------- ПРАВАЯ ---------- */
+        .gm-right{
+          position:relative; z-index:2;
+          display:flex; flex-direction:column; min-height:0;
+          padding:12px 10px 10px;
+          overflow:hidden; max-width:100%;
         }
 
-        /* инфо-карточка */
-        .iso-info{
-          position:absolute; left:20px; top:33%; z-index:6;
-          width:min(320px, calc(100% - 40px));
-          text-align:left; padding:18px 20px; border-radius:16px;
-          background:linear-gradient(160deg, rgba(14,26,38,.84), rgba(18,16,44,.84));
-          border:1px solid rgba(148,163,184,.1);
-          backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
-          box-shadow:0 18px 42px rgba(0,0,0,.45);
-          cursor:pointer;
-          animation:cardIn .28s cubic-bezier(.2,.8,.2,1), cardFloat 6s ease-in-out 0.4s infinite;
+        .gr-head{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px }
+        .gr-title{ font-family:'Open Sans',sans-serif; font-size:15px; font-weight:800; color:#fff; line-height:1.2; text-shadow:0 1px 8px rgba(0,0,0,.3) }
+        .gr-subtitle{ font-family:'Open Sans',sans-serif; font-size:10px; letter-spacing:.13em; text-transform:uppercase; color:#93C5FD; margin-top:3px }
+        .gr-emblem{ position:relative; width:40px; height:40px; flex-shrink:0 }
+        .ge-ring{
+          position:absolute; inset:0; border-radius:50%;
+          background:conic-gradient(from 0deg, transparent 0 70%, rgba(37,99,235,.8) 85%, transparent 100%);
+          animation:geSpin 3.2s linear infinite;
+          -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+          mask:radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
         }
-        @keyframes cardIn{ from{ opacity:0; transform:translateY(10px) } to{ opacity:1; transform:none } }
-        @keyframes cardFloat{ 0%,100%{ transform:translateY(0) } 50%{ transform:translateY(-3px) } }
-        .info-title{ font-family:'Manrope',sans-serif; font-size:17px; font-weight:700; color:#fff; margin-bottom:8px; line-height:1.25; }
-        .info-desc{
-          font-family:'Manrope',sans-serif; font-size:13px; line-height:1.6; color:#cbd5e1;
-          display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
+        @keyframes geSpin{ to{ transform:rotate(360deg) } }
+        .ge-core{
+          position:absolute; inset:5px; border-radius:50%;
+          display:grid; place-items:center; font-size:12px; font-weight:800; color:#DBEAFE;
+          background:rgba(30,58,138,.12); border:1px solid rgba(37,99,235,.3);
+          box-shadow:inset 0 0 18px rgba(30,58,138,.2);
         }
-        .info-open{ display:block; margin-top:10px; font-size:10px; letter-spacing:.12em; color:#c084fc; }
+        .gr-emblem.done .ge-core{ color:#3B82F6; border-color:rgba(37,99,235,.45) }
 
-        /* светлячки */
-        .fireflies{ position:absolute; inset:0; pointer-events:none; z-index:4; overflow:hidden; }
-        .ff{
-          position:absolute; width:4px; height:4px; border-radius:50%;
-          will-change:transform,opacity; animation:ffDrift 9s ease-in-out infinite;
+        .gr-divider{ height:1px; margin:12px 0; background:linear-gradient(90deg, rgba(37,99,235,.4), rgba(37,99,235,.06)) }
+
+        .gr-body{ flex:1; min-height:0; overflow:visible; padding-right:4px; padding-bottom:8px; }
+        .gr-desc{ font-family:'Open Sans',sans-serif; font-size:13.5px; line-height:1.55; color:#E2E8F0; margin:0 0 12px; word-break:break-word; }
+        .gr-gate{
+          padding:8px 10px; border-radius:10px; margin-bottom:10px;
+          background:rgba(59,130,246,.06); border:1px dashed rgba(59,130,246,.3);
+          color:#93C5FD; font-size:11.5px; line-height:1.5; font-family:'Open Sans',sans-serif;
         }
-        .ff0{ background:#f472b6; box-shadow:0 0 8px #f472b6 }
-        .ff1{ background:#c084fc; box-shadow:0 0 8px #c084fc; width:3px; height:3px }
-        .ff2{ background:#f9a8d4; box-shadow:0 0 7px #f9a8d4; width:3px; height:3px }
-        .ff3{ background:#ec4899; box-shadow:0 0 9px #ec4899 }
-        @keyframes ffDrift{
-          0%{ transform:translateY(0); opacity:0 }
-          15%{ opacity:.9 }
-          55%{ opacity:.35; transform:translateY(-26px) translateX(6px) }
-          80%{ opacity:.8 }
-          100%{ transform:translateY(-58px) translateX(-4px); opacity:0 }
+        .gr-tasksLabel{ font-size:9.5px; letter-spacing:.18em; text-transform:uppercase; color:#b8b5cc; margin-bottom:6px }
+        .gr-chips{ display:flex; align-items:center; gap:6px; flex-wrap:wrap }
+        .gr-chip{
+          width:30px; height:30px; border-radius:50%; display:grid; place-items:center;
+          font-family:'Open Sans',sans-serif; font-size:10.5px; font-weight:700; color:#3B82F6;
+          background:rgba(30,58,138,.08); border:1px solid rgba(37,99,235,.35);
+        }
+        .gr-chip.is-done{ background:rgba(37,99,235,.14); border-color:#3B82F6; color:#fff; box-shadow:0 0 10px rgba(37,99,235,.35); }
+        .gr-chipLabel{ font-family:'Open Sans',sans-serif; font-size:10px; color:#c4c0db; margin-left:4px }
+
+        /* sub tasks shared */
+        .sub-tasks{ display:flex; flex-direction:column; gap:7px; max-width:100%; }
+        .task-row{
+          display:flex; align-items:center; gap:8px; padding:8px 10px;
+          background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.06);
+          border-radius:8px; cursor:pointer; font-size:10px; max-width:100%;
+          transition:background .15s ease, border-color .15s ease;
+        }
+        .task-row:hover{ background:rgba(59,130,246,.06); border-color:rgba(59,130,246,.22) }
+        .task-row.is-done{ color:#94a3b8; }
+        .task-row.is-done .task-title{ text-decoration:line-through; opacity:.65 }
+        .task-box{ width:13px; height:13px; border-radius:4px; border:1px solid rgba(147,197,253,.45); display:grid; place-items:center; flex-shrink:0; }
+        .task-box svg{ width:7px; height:7px; stroke:#fff; }
+        .task-row.is-done .task-box{ background:#2563EB; border-color:#2563EB; }
+        .task-title{ flex:1; font-size:11.5px; color:#E2E8F0; min-width:0; word-break:break-word; }
+        .task-xp{ font-size:9.5px; color:#8c88a6; letter-spacing:.04em; flex-shrink:0; }
+        .reward{
+          display:flex; align-items:center; gap:7px; margin-top:8px; padding:8px 10px;
+          border:1px dashed rgba(251,191,36,.32); border-radius:9px; background:rgba(251,191,36,.05);
+          position:relative; overflow:hidden; max-width:100%;
+        }
+        .reward::after{ content:''; position:absolute; inset:0; background:linear-gradient(100deg, transparent 40%, rgba(255,255,255,.16) 50%, transparent 60%); transform:translateX(-100%); animation: rewardShine 3.8s ease infinite; }
+        @keyframes rewardShine{ 60%{ transform:translateX(100%)} 100%{ transform:translateX(100%)} }
+        .reward svg{ width:13px; height:13px; stroke:#fbbf24; flex-shrink:0 }
+        .reward b{ font-family:'Open Sans',sans-serif; font-size:9px; letter-spacing:.03em; color:#fbbf24; display:block }
+        .reward span{ font-size:10px; color:#cbd5e1; display:block; margin-top:2px }
+
+        .locked-body{ text-align:center; padding:10px 0 6px; }
+        .locked-icon{ font-size:20px; opacity:.55; margin-bottom:6px; }
+        .locked-title{ font-family:'Open Sans',sans-serif; font-size:10.5px; color:#fff; margin-bottom:6px; }
+        .locked-desc{ font-size:12px; color:#cbd5e1; line-height:1.5; max-width:100%; margin:0 auto; }
+
+        .gr-foot{
+          display:flex; justify-content:space-between; align-items:center; gap:8px;
+          padding-top:10px; margin-top:12px; border-top:1px solid rgba(30,58,138,.12);
+          position:static; background:none; backdrop-filter:none; flex-wrap:wrap;
+        }
+        .gr-hint{ font-size:9px; letter-spacing:.12em; color:#a9a6c2; text-transform:uppercase; flex:1; min-width:0; }
+        .gr-cta{
+          padding:10px 18px; border:none; cursor:pointer; flex-shrink:0;
+          font-family:'Open Sans',sans-serif; font-size:10px; font-weight:700; letter-spacing:.09em; text-transform:uppercase;
+          color:#fff; background:linear-gradient(90deg,#1E3A8A 0%,#1D4ED8 100%);
+          clip-path:polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+          transition:filter .16s ease, transform .16s ease; max-width:100%;
+        }
+        .gr-cta:hover:not(:disabled){ filter:brightness(1.15) drop-shadow(0 0 12px rgba(30,58,138,.5)); transform:translateY(-1px) }
+        .gr-cta:disabled{ opacity:.4; cursor:not-allowed }
+
+        .xp-toast{
+          position:absolute; right:22px; top:78px; z-index:12;
+          padding:8px 14px; border-radius:999px;
+          background:linear-gradient(135deg, #2563EB, #1E3A8A); color:#fff;
+          font-family:'Open Sans',sans-serif; font-size:11px; font-weight:800; letter-spacing:.08em;
+          box-shadow:0 8px 24px rgba(30,58,138,.45), 0 0 0 1px rgba(255,255,255,.15) inset;
+          pointer-events:none;
         }
 
-        .finale-overlay{ position:absolute; inset:0; z-index:10; display:grid; place-items:center; background:rgba(8,7,17,.8); backdrop-filter:blur(8px); animation:finaleIn .32s ease; }
-        @keyframes finaleIn{ from{opacity:0} to{opacity:1} }
-        .finale-flash{ position:absolute; inset:0; background:#fff; opacity:0; pointer-events:none; animation:flash .32s ease .05s; }
-        @keyframes flash{ 0%{opacity:0} 20%{opacity:.85} 100%{opacity:0} }
-        .finale-banner{
-          position:relative; text-align:center; padding:28px 22px; border-radius:18px;
-          background:linear-gradient(180deg, rgba(15,10,30,.94), rgba(8,7,17,.98));
-          border:1px solid rgba(224,82,160,.22);
-          box-shadow:0 24px 64px rgba(0,0,0,.55), 0 0 32px rgba(224,82,160,.18);
-          max-width:520px; width:calc(100% - 24px);
+        /* финал */
+        .gm-finale{ position:absolute; inset:0; z-index:20; display:grid; place-items:center; background:rgba(10,15,30,.82); backdrop-filter:blur(8px); animation:gfin .3s ease }
+        @keyframes gfin{ from{opacity:0} to{opacity:1} }
+        .gf-flash{ position:absolute; inset:0; background:#fff; opacity:0; pointer-events:none; animation:gflash .32s ease .05s }
+        @keyframes gflash{ 0%{opacity:0} 20%{opacity:.85} 100%{opacity:0} }
+        .gf-banner{
+          position:relative; text-align:center; padding:30px 26px; max-width:520px; width:calc(100% - 24px);
+          background:linear-gradient(170deg, rgba(13,21,38,.96), rgba(10,15,30,.98));
+          border:1px solid rgba(37,99,235,.3);
+          clip-path:polygon(22px 0, 100% 0, 100% calc(100% - 22px), calc(100% - 22px) 100%, 0 100%, 0 22px);
+          box-shadow:0 24px 64px rgba(0,0,0,.55);
         }
-        .finale-title{
-          font-family:'Unbounded',sans-serif; font-weight:800; font-size:17px; line-height:1.35;
-          background:linear-gradient(90deg,#f472b6,#c084fc,#f472b6);
+        .gf-title{
+          font-family:'Open Sans',sans-serif; font-weight:800; font-size:17px; line-height:1.35; margin-bottom:10px;
+          background:linear-gradient(90deg,#3B82F6,#93C5FD,#3B82F6);
           -webkit-background-clip:text; background-clip:text; color:transparent;
-          margin-bottom:10px;
         }
-        .finale-sub{ font-family:'Manrope',sans-serif; font-size:13px; color:#94a3b8; margin-bottom:20px; }
+        .gf-sub{ font-family:'Open Sans',sans-serif; font-size:13px; color:#94a3b8; margin-bottom:20px }
+        .gf-cta{
+          padding:13px 26px; border:none; cursor:pointer;
+          font-family:'Open Sans',sans-serif; font-size:11px; font-weight:700; letter-spacing:.12em; text-transform:uppercase;
+          color:#fff; background:linear-gradient(90deg,#1E3A8A,#1D4ED8);
+          clip-path:polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%);
+          transition:filter .16s;
+        }
+        .gf-cta:hover{ filter:brightness(1.15) }
 
-        @media (max-width:760px){
-          .iso-root{ height:540px; }
-          .ih-title{ font-size:22px; }
-          .iso-node{ width:64px; height:64px; }
-          .node-face{ width:54px; height:54px; font-size:19px; }
-          .node-check{ width:17px; height:17px; font-size:9.5px; top:2px; right:4px; }
-          .iso-path{ stroke-width:3.4 }
-          .torch.t2{ display:none }
-          .iso-info{
-            left:12px; right:12px; bottom:12px; top:auto; width:auto;
-            padding:14px 16px;
-            animation:cardIn .28s cubic-bezier(.2,.8,.2,1);
+        /* ===== ТЕЛЕФОНЫ (≤480) — компактнее, mobile-first уточнение вниз ===== */
+        @media (max-width:480px){
+          .gm-left{ padding:10px 8px 8px; }
+          .gm-card{ padding:9px 10px; gap:8px; }
+          .gc-name{ font-size:12px; } .gc-state{ font-size:7px; } .gc-ico{ width:26px; height:26px; }
+          .gr-title{ font-size:13px; } .gr-chip{ width:26px; height:26px; font-size:9px; }
+          .task-title{ font-size:9px; }
+          .gm-right{ padding:10px 8px 8px; }
+        }
+        @media (max-width:380px){
+          .gr-title{ font-size:12px; }
+        }
+
+        /* ===== ДЕСКТОП / ТАБЛЕТ (≥861) — mobile-first апгрейд вверх ===== */
+        @media (min-width:861px){
+          .gm-root{ grid-template-columns:420px 1fr; gap:16px; min-height:680px; border-radius:20px; overflow:visible; }
+          .gm-left{
+            position:sticky; top:72px; align-self:start;
+            padding:22px 18px 18px 20px;
+            border-right:1px solid rgba(30,58,138,.14); border-bottom:none;
+            background:linear-gradient(180deg, rgba(13,21,38,.5), rgba(10,15,30,.3));
+            max-height: calc(100vh - 84px); overflow-y:auto; overflow-x:hidden;
+            border-radius:20px 0 0 20px;
           }
-          .info-title{ font-size:14.5px; }
-          .info-desc{ font-size:12px; -webkit-line-clamp:2; }
-          .info-open{ margin-top:8px; }
-          .finale-title{ font-size:14px; }
+          .gl-brand{ gap:11px; margin-bottom:16px }
+          .gl-mark{ width:36px; height:36px; border-radius:9px; } .gl-mark svg{ width:19px; height:19px; }
+          .gl-eyebrow{ font-size:13.5px; letter-spacing:.18em } .gl-sub{ font-size:11.5px; margin-top:3px }
+          .gm-tabs{ gap:12px; margin-bottom:18px }
+          .gm-tab{ width:44px; height:44px; } .gm-tab svg{ width:18px; height:18px; }
+          .gm-sect{ margin-bottom:16px } .gs-title{ font-size:18px } .gs-rule{ margin:10px 0 } .gs-meta{ font-size:11px }
+          .gm-list{ overflow-y:auto; padding-right:2px; gap:2px; }
+          .gm-connector{ height:14px; margin-left:28px; }
+          .gm-cardWrap{ filter:drop-shadow(0 3px 10px rgba(0,0,0,.35)); }
+          .gm-cardWrap.sel{ filter:drop-shadow(0 0 14px rgba(30,58,138,.45)) drop-shadow(0 4px 12px rgba(0,0,0,.4)); }
+          .gm-card{ padding:16px 18px; gap:14px; background:rgba(13,21,38,.6); clip-path:polygon(14px 0, 100% 0, calc(100% - 14px) 100%, 0 100%); border:none; border-radius:0; }
+          .gm-card:hover{ transform:translateX(3px) }
+          .gc-ico{ width:42px; height:42px; } .gc-ico svg{ width:17px; height:17px; }
+          .gc-spark{ font-size:16px; }
+          .gc-body{ gap:4px } .gc-name{ font-size:16.5px; white-space:normal; overflow:visible; text-overflow:clip; } .gc-state{ font-size:11px; letter-spacing:.13em } .gc-num{ font-size:9px }
+          .gm-right{ padding:20px 22px 22px; overflow:visible; }
+          .gr-head{ gap:16px } .gr-title{ font-size:19px; text-shadow:none } .gr-subtitle{ font-size:11px; letter-spacing:.16em; margin-top:5px } .gr-emblem{ width:62px; height:62px } .ge-core{ font-size:18px }
+          .gr-divider{ margin:16px 0 }
+          .gr-desc{ font-size:14.5px; line-height:1.7; margin:0 0 16px }
+          .gr-gate{ padding:10px 12px; font-size:11.5px; margin-bottom:16px }
+          .gr-tasksLabel{ font-size:10.5px; margin-bottom:10px }
+          .gr-chips{ gap:10px } .gr-chip{ width:42px; height:42px; font-size:13px; border-width:1.5px } .gr-chipLabel{ font-size:12px }
+          .sub-tasks{ gap:8px } .task-row{ padding:10px 12px; font-size:11.8px; gap:10px } .task-box{ width:17px; height:17px; border-radius:5px } .task-box svg{ width:10px; height:10px } .task-title{ font-size:13px } .task-xp{ font-size:10px }
+          .reward{ gap:10px; margin-top:12px; padding:11px 13px } .reward svg{ width:16px; height:16px } .reward b{ font-size:12px } .reward span{ font-size:11px }
+          .locked-body{ padding:18px 0 8px } .locked-icon{ font-size:28px; margin-bottom:10px } .locked-title{ font-size:13.5px } .locked-desc{ font-size:12.5px; max-width:280px }
+          .gr-foot{ gap:12px; padding-top:16px; margin-top:18px } .gr-hint{ font-size:10px } .gr-cta{ padding:12px 26px; font-size:11.5px; letter-spacing:.12em; clip-path:polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%) }
+          .gr-emblem.done .ge-core{ color:#3B82F6 }
         }
         @media (prefers-reduced-motion: reduce){
-          .iso-node.current .node-face,
-          .iso-portal.done .portal-top,
-          .iso-path, .iso-path-done,
-          .flame, .vines, .runeRingWrap circle, .portalHole,
-          .starTw, .water, .gemPulse, .ff, .iso-info{ animation:none !important; }
-          .iso-stage{ transition:none; }
+          .gc-spark, .ge-ring, .gr-chip, .gm-cardWrap.shake, .reward::after{ animation:none !important }
+          .gm-right{ animation:none }
         }
       `}</style>
     </div>

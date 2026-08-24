@@ -22,9 +22,9 @@ export function PathSvg({ currentIndex, d, pathLength }: PathSvgProps) {
     <svg className="path-svg" viewBox="0 0 1000 400" preserveAspectRatio="none">
       <defs>
         <linearGradient id="activeGrad" x1="0" x2="1" y1="0" y2="0">
-          <stop offset="0%" stopColor="#f472b6" />
-          <stop offset="60%" stopColor="#f9a8d4" />
-          <stop offset="100%" stopColor="#8B5CF6" />
+          <stop offset="0%" stopColor="#3B82F6" />
+          <stop offset="60%" stopColor="#93C5FD" />
+          <stop offset="100%" stopColor="#2563EB" />
         </linearGradient>
         <filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%">
           <feGaussianBlur stdDeviation="3" result="b" />
@@ -50,7 +50,7 @@ export function PathSvg({ currentIndex, d, pathLength }: PathSvgProps) {
         <path
           d={d}
           fill="none"
-          stroke="rgba(244,114,182,0.32)"
+          stroke="rgba(59,130,246,0.32)"
           strokeWidth={8}
           strokeLinecap="round"
           filter="url(#softGlow)"

@@ -71,9 +71,9 @@ export function RegisterPage() {
         .auth-head{ text-align:center; margin-bottom:28px }
         .logo-mark{
           width:54px; height:54px; border-radius:14px;
-          background:linear-gradient(135deg,#f472b6,#8b5cf6);
+          background:linear-gradient(135deg,#3B82F6,#2563EB);
           display:grid; place-items:center;
-          margin:0 auto 16px; box-shadow:0 0 32px rgba(244,114,182,.55);
+          margin:0 auto 16px; box-shadow:0 0 32px rgba(59,130,246,.55);
         }
         .logo-mark svg{width:26px; height:26px; stroke:#02060d}
         .auth-head h1{ font-size:14px; letter-spacing:.18em; color:#fff; margin-bottom:8px }
@@ -88,7 +88,7 @@ export function RegisterPage() {
           border-radius:10px; color:var(--text); font-size:14px;
           outline:none; transition:border-color .15s ease, box-shadow .15s ease;
         }
-        .field input:focus{ border-color:var(--cyan-l); box-shadow:0 0 0 3px rgba(244,114,182,.15) }
+        .field input:focus{ border-color:var(--cyan-l); box-shadow:0 0 0 3px rgba(59,130,246,.15) }
 
         .error{
           margin:8px 0 14px; padding:10px 14px;

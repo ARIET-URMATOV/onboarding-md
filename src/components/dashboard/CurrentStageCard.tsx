@@ -43,7 +43,7 @@ export function CurrentStageCard() {
         }
         .csc-card::before{
           content:''; position:absolute; inset:0;
-          background:radial-gradient(circle at 0% 0%, rgba(244,114,182,.12), transparent 60%);
+          background:radial-gradient(circle at 0% 0%, rgba(59,130,246,.12), transparent 60%);
           pointer-events:none;
         }
         .csc-eyebrow{ font-size:10px; letter-spacing:.26em; color:var(--cyan-l); text-transform:uppercase }
@@ -64,15 +64,15 @@ export function CurrentStageCard() {
         .orb-inner{
           width:84px; height:84px; border-radius:50%;
           background:radial-gradient(circle at 30% 30%, rgba(255,255,255,.4), transparent 50%),
-                     linear-gradient(135deg, #f472b6, #8b5cf6);
+                     linear-gradient(135deg, #3B82F6, #2563EB);
           display:grid; place-items:center;
           font-family:'Orbitron',sans-serif;
           font-size:28px; font-weight:900; color:#02060d;
-          box-shadow:0 0 32px rgba(244,114,182,.6), inset 0 0 24px rgba(255,255,255,.25);
+          box-shadow:0 0 32px rgba(59,130,246,.6), inset 0 0 24px rgba(255,255,255,.25);
         }
         .orb-ring{
           position:absolute; inset:0;
-          border:1px solid rgba(244,114,182,.4);
+          border:1px solid rgba(59,130,246,.4);
           border-radius:50%;
           animation:pulse-ring 2.4s ease-out infinite;
         }

@@ -3,10 +3,10 @@ import type { StageId } from '../../data/stages';
 interface Props { stageId: StageId }
 
 const TEAM = [
-  { name: 'Елена Петрова', role: 'Frontend Lead', initials: 'ЕП', color: '#F472B6', bio: 'Тимлид. Любит чистый код и хороший кофе.' },
-  { name: 'Артём Соколов', role: 'Senior Frontend', initials: 'АС', color: '#f472b6', bio: 'Ментор по React. Знает всё про анимации.' },
-  { name: 'Мария Иванова', role: 'Frontend Developer', initials: 'МИ', color: '#8B5CF6', bio: 'Специалист по дизайн-системам.' },
-  { name: 'Дмитрий Кузнецов', role: 'Backend Developer', initials: 'ДК', color: '#c084fc', bio: 'Поможет, если застрянешь с API.' },
+  { name: 'Елена Петрова', role: 'Frontend Lead', initials: 'ЕП', color: '#3B82F6', bio: 'Тимлид. Любит чистый код и хороший кофе.' },
+  { name: 'Артём Соколов', role: 'Senior Frontend', initials: 'АС', color: '#3B82F6', bio: 'Ментор по React. Знает всё про анимации.' },
+  { name: 'Мария Иванова', role: 'Frontend Developer', initials: 'МИ', color: '#2563EB', bio: 'Специалист по дизайн-системам.' },
+  { name: 'Дмитрий Кузнецов', role: 'Backend Developer', initials: 'ДК', color: '#60A5FA', bio: 'Поможет, если застрянешь с API.' },
 ];
 
 export function Stage2Team({ }: Props) {
@@ -24,7 +24,7 @@ export function Stage2Team({ }: Props) {
       ))}
       <style>{`
         .team-grid{
-          display:grid; grid-template-columns:1fr 1fr; gap:9px;
+          display:grid; grid-template-columns:1fr; gap:9px;
           margin-bottom:6px;
         }
         .team-card{
@@ -39,11 +39,15 @@ export function Stage2Team({ }: Props) {
           margin:0 auto 8px;
           display:grid; place-items:center;
           color:#fff; font-weight:700; font-size:13px;
-          box-shadow:0 0 14px rgba(139,92,246,.3);
+          box-shadow:0 0 14px rgba(37,99,235,.3);
+          font-family:'Open Sans',sans-serif;
         }
-        .tc-name{ font-size:12px; color:#fff; font-weight:600 }
-        .tc-role{ font-size:10px; color:var(--cyan-l); margin-top:2px; letter-spacing:.04em }
-        .tc-bio{ font-size:10.5px; color:var(--muted); margin-top:6px; line-height:1.4 }
+        .tc-name{ font-family:'Open Sans',sans-serif; font-size:14px; color:#fff; font-weight:700 }
+        .tc-role{ font-family:'Open Sans',sans-serif; font-size:11px; color:var(--cyan-l); margin-top:2px; letter-spacing:.08em; text-transform:uppercase }
+        .tc-bio{ font-family:'Open Sans',sans-serif; font-size:11.5px; color:var(--muted); margin-top:6px; line-height:1.4 }
+        @media (min-width:861px){
+          .team-grid{ grid-template-columns:1fr 1fr; }
+        }
       `}</style>
     </div>
   );

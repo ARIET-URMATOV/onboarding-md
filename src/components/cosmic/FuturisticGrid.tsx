@@ -26,13 +26,13 @@ export function FuturisticGrid({ progress = 0 }: { progress?: number }) {
       off = (off + 0.45) % 40;
       ctx.clearRect(0, 0, w, h);
       // bg
-      ctx.fillStyle = '#0b0719';
+      ctx.fillStyle = '#0A0F1E';
       ctx.fillRect(0, 0, w, h);
       // horizon glow — hybrid pink→purple→cyan
       const g = ctx.createRadialGradient(w * 0.5, 0, 0, w * 0.5, 0, w * 0.85);
-      g.addColorStop(0, 'rgba(236,72,153,0.09)');
-      g.addColorStop(0.35, 'rgba(139,92,246,0.07)');
-      g.addColorStop(0.65, 'rgba(244,114,182,0.05)');
+      g.addColorStop(0, 'rgba(59,130,246,0.09)');
+      g.addColorStop(0.35, 'rgba(37,99,235,0.07)');
+      g.addColorStop(0.65, 'rgba(59,130,246,0.05)');
       g.addColorStop(1, 'rgba(11,7,25,0)');
       ctx.fillStyle = g;
       ctx.fillRect(0, 0, w, h * 0.72);
@@ -58,7 +58,7 @@ export function FuturisticGrid({ progress = 0 }: { progress?: number }) {
       for (let x = -600; x <= 600; x += 42) {
         const topX = cx + x * 0.08;
         const botX = cx + x * 1.35;
-        ctx.strokeStyle = 'rgba(139,92,246,0.18)';
+        ctx.strokeStyle = 'rgba(37,99,235,0.18)';
         ctx.globalAlpha = 0.14;
         ctx.beginPath();
         ctx.moveTo(topX, vpY);

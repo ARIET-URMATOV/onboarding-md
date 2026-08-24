@@ -4,6 +4,7 @@ import { RegisterPage } from './pages/RegisterPage';
 import { RoleSelectPage } from './pages/RoleSelectPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { RoadmapPage } from './pages/RoadmapPage';
+import { MapPage } from './pages/MapPage';
 import { CompletePage } from './pages/CompletePage';
 import { AuthGate, GuestOnly } from './components/auth/AuthGate';
 import './styles/global.css';
@@ -20,6 +21,7 @@ export default function App() {
             <Route path="/role" element={<AuthGate><RoleSelectPage /></AuthGate>} />
             <Route path="/dashboard" element={<AuthGate><DashboardPage /></AuthGate>} />
             <Route path="/roadmap" element={<AuthGate><RoadmapPage /></AuthGate>} />
+            <Route path="/map" element={<AuthGate><MapPage /></AuthGate>} />
             <Route path="/complete" element={<AuthGate><CompletePage /></AuthGate>} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>

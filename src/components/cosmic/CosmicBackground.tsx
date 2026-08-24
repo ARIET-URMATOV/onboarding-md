@@ -67,7 +67,7 @@ export function CosmicBackground() {
     function nebula(color: string, x: number, y: number, z: number, s: number, o: number) {
       const sp = new THREE.Sprite(
         new THREE.SpriteMaterial({
-          map: radialTexture(color, 'rgba(139,92,246,0)'),
+          map: radialTexture(color, 'rgba(37,99,235,0)'),
           transparent: true,
           opacity: o,
           blending: THREE.AdditiveBlending,
@@ -80,10 +80,10 @@ export function CosmicBackground() {
       scene.add(sp);
       return sp;
     }
-    nebula('rgba(236,72,153,0.20)', -14, 7, -30, 42, 0.45);
-    nebula('rgba(139,92,246,0.16)', 16, 10, -26, 40, 0.4);
-    nebula('rgba(192,132,252,0.11)', 8, -6, -32, 48, 0.35);
-    nebula('rgba(244,114,182,0.12)', -4, 12, -34, 34, 0.35);
+    nebula('rgba(59,130,246,0.20)', -14, 7, -30, 42, 0.45);
+    nebula('rgba(37,99,235,0.16)', 16, 10, -26, 40, 0.4);
+    nebula('rgba(96,165,250,0.11)', 8, -6, -32, 48, 0.35);
+    nebula('rgba(59,130,246,0.12)', -4, 12, -34, 34, 0.35);
 
     // subtle grid on far plane
     const grid = new THREE.GridHelper(60, 40, 0x3b1f5a, 0x1e1b4b);

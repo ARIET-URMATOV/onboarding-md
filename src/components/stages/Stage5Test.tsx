@@ -35,20 +35,21 @@ export function Stage5Test({ }: Props) {
         .test-banner{
           display:flex; align-items:center; gap:12px;
           padding:14px;
-          background:linear-gradient(135deg, rgba(244,114,182,.08), rgba(139,92,246,.08));
-          border:1px solid rgba(244,114,182,.25);
+          background:linear-gradient(135deg, rgba(59,130,246,.08), rgba(37,99,235,.08));
+          border:1px solid rgba(59,130,246,.25);
           border-radius:11px;
           margin-bottom:12px;
         }
         .test-icon{ font-size:24px }
-        .test-title{ font-size:13px; color:#fff; font-weight:600 }
-        .test-sub{ font-size:10.5px; color:var(--muted); margin-top:3px }
+        .test-title{ font-family:'Open Sans',sans-serif; font-size:14px; color:#fff; font-weight:700 }
+        .test-sub{ font-family:'Open Sans',sans-serif; font-size:11.5px; color:var(--muted); margin-top:3px }
         .test-actions{ display:flex; justify-content:center }
         .test-hint{
           margin-top:10px; padding:9px 12px;
-          font-size:11px; color:var(--cyan-l);
-          border:1px dashed rgba(244,114,182,.3); border-radius:8px;
-          background:rgba(244,114,182,.05);
+          font-size:12px; color:var(--cyan-l);
+          border:1px dashed rgba(59,130,246,.3); border-radius:8px;
+          background:rgba(59,130,246,.05);
+          font-family:'Open Sans',sans-serif;
         }
       `}</style>
     </div>

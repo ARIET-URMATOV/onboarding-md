@@ -3,10 +3,10 @@ import { STAGES } from '../data/stages';
 import { useOnboarding } from '../store/useOnboarding';
 
 const RESOURCES = [
-  { label: 'Notion · База знаний', icon: 'N', color: '#f472b6' },
-  { label: 'GitHub · Репозиторий', icon: 'G', color: '#8B5CF6' },
-  { label: 'Figma · Дизайн-система', icon: 'F', color: '#F472B6' },
-  { label: 'Slack · Команда', icon: 'S', color: '#c084fc' },
+  { label: 'Notion · База знаний', icon: 'N', color: '#3B82F6' },
+  { label: 'GitHub · Репозиторий', icon: 'G', color: '#2563EB' },
+  { label: 'Figma · Дизайн-система', icon: 'F', color: '#3B82F6' },
+  { label: 'Slack · Команда', icon: 'S', color: '#60A5FA' },
 ];
 
 export function CompletePage() {
@@ -58,7 +58,7 @@ export function CompletePage() {
 
         <div className="cp-cta">
           <a href="/dashboard" className="btn-primary">НА ГЛАВНУЮ</a>
-          <a href="/roadmap" className="btn-ghost">ПРОСМОТРЕТЬ КАРТУ</a>
+          <a href="/map" className="btn-ghost">ПРОСМОТРЕТЬ КАРТУ</a>
         </div>
       </main>
 
@@ -72,8 +72,8 @@ export function CompletePage() {
           display:inline-block;
           font-size:11px; letter-spacing:.32em; color:var(--cyan-l);
           padding:7px 16px; border-radius:999px;
-          border:1px solid rgba(249,168,212,.4);
-          background:rgba(244,114,182,.08);
+          border:1px solid rgba(147,197,253,.4);
+          background:rgba(59,130,246,.08);
         }
         .cp-title{
           font-size:clamp(40px, 7vw, 76px);
@@ -90,7 +90,7 @@ export function CompletePage() {
           padding:22px 18px;
           border-radius:14px;
         }
-        .stat-num{ font-size:28px; font-weight:700; color:var(--cyan-l); text-shadow:0 0 14px rgba(244,114,182,.5) }
+        .stat-num{ font-size:28px; font-weight:700; color:var(--cyan-l); text-shadow:0 0 14px rgba(59,130,246,.5) }
         .stat-lbl{ font-size:10.5px; letter-spacing:.18em; text-transform:uppercase; color:var(--muted); margin-top:6px }
 
         .cp-section{ margin-bottom:40px; text-align:left }
@@ -102,8 +102,8 @@ export function CompletePage() {
         }
         .achv{
           padding:18px;
-          background:linear-gradient(135deg, rgba(192,132,252,.1), rgba(244,114,182,.06));
-          border:1px solid rgba(192,132,252,.3);
+          background:linear-gradient(135deg, rgba(96,165,250,.1), rgba(59,130,246,.06));
+          border:1px solid rgba(96,165,250,.3);
           border-radius:14px;
           text-align:center;
           animation:float-up .4s ease-out;

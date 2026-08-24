@@ -33,8 +33,8 @@ export function WelcomeHero() {
         .hero::before{
           content:''; position:absolute; inset:0;
           background:
-            radial-gradient(ellipse at 50% 30%, rgba(244,114,182,.18), transparent 55%),
-            radial-gradient(ellipse at 80% 60%, rgba(139,92,246,.12), transparent 50%);
+            radial-gradient(ellipse at 50% 30%, rgba(59,130,246,.18), transparent 55%),
+            radial-gradient(ellipse at 80% 60%, rgba(37,99,235,.12), transparent 50%);
           pointer-events:none;
         }
         .hero-inner{
@@ -46,8 +46,8 @@ export function WelcomeHero() {
           padding:7px 18px; border-radius:999px;
           font-size:10px; letter-spacing:.3em; text-transform:uppercase;
           color:var(--cyan-l);
-          border:1px solid rgba(249,168,212,.4);
-          background:rgba(244,114,182,.08);
+          border:1px solid rgba(147,197,253,.4);
+          background:rgba(59,130,246,.08);
         }
         .hero-title{
           font-size:clamp(38px, 7vw, 72px);

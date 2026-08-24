@@ -156,12 +156,12 @@ export function StagePanel({ stageId, status, onClose, onNext }: StagePanelProps
           font-size:11.8px;
           transition:background .15s ease, border-color .15s ease;
         }
-        .task-row:hover{ background:rgba(244,114,182,.06); border-color:rgba(244,114,182,.22) }
+        .task-row:hover{ background:rgba(59,130,246,.06); border-color:rgba(59,130,246,.22) }
         .task-row.is-done{ color:var(--dim) }
         .task-row.is-done .task-title{ text-decoration:line-through; opacity:.65 }
         .task-box{
           width:17px; height:17px; border-radius:5px;
-          border:1.5px solid rgba(249,168,212,.45);
+          border:1.5px solid rgba(147,197,253,.45);
           display:grid; place-items:center; flex-shrink:0;
         }
         .task-box svg{ width:10px; height:10px; stroke:#02131b; opacity:0 }

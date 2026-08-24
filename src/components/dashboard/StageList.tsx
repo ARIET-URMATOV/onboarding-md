@@ -70,34 +70,34 @@ export function StageList() {
         .sl-item:not(.is-locked):hover{
           transform:translateX(2px);
           border-color:var(--cyan-l);
-          background:rgba(244,114,182,.05);
+          background:rgba(59,130,246,.05);
         }
 
         .sl-num{
           font-size:18px; font-weight:700;
-          color:var(--cyan); text-shadow:0 0 12px rgba(244,114,182,.5);
+          color:var(--cyan); text-shadow:0 0 12px rgba(59,130,246,.5);
           min-width:36px;
         }
-        .sl-item.is-done .sl-num{ color:var(--mint); text-shadow:0 0 12px rgba(192,132,252,.5) }
+        .sl-item.is-done .sl-num{ color:var(--mint); text-shadow:0 0 12px rgba(96,165,250,.5) }
         .sl-item.is-locked .sl-num{ color:var(--dim); text-shadow:none }
 
         .sl-icon{
           width:42px; height:42px; border-radius:10px;
           display:grid; place-items:center;
-          background:rgba(244,114,182,.06);
+          background:rgba(59,130,246,.06);
           border:1px solid var(--border);
           color:var(--cyan-l);
         }
         .sl-icon svg{ width:20px; height:20px }
-        .sl-item.is-done .sl-icon{ background:rgba(192,132,252,.1); border-color:rgba(192,132,252,.3); color:var(--mint) }
+        .sl-item.is-done .sl-icon{ background:rgba(96,165,250,.1); border-color:rgba(96,165,250,.3); color:var(--mint) }
         .sl-item.is-locked .sl-icon{ background:rgba(255,255,255,.02); border-color:rgba(255,255,255,.05); color:var(--dim) }
 
         .sl-body{ flex:1; min-width:0 }
         .sl-title{ font-size:14px; color:var(--text); font-weight:500; margin-bottom:4px }
         .sl-meta{ display:flex; align-items:center; gap:12px; font-size:10.5px; color:var(--muted) }
         .sl-status{ display:inline-flex; align-items:center; gap:5px; padding:2px 8px; border-radius:999px; border:1px solid var(--border) }
-        .sl-status.is-done{ color:var(--mint); border-color:rgba(192,132,252,.4); background:rgba(192,132,252,.08) }
-        .sl-status.is-current{ color:var(--cyan); border-color:rgba(244,114,182,.4); background:rgba(244,114,182,.1) }
+        .sl-status.is-done{ color:var(--mint); border-color:rgba(96,165,250,.4); background:rgba(96,165,250,.08) }
+        .sl-status.is-current{ color:var(--cyan); border-color:rgba(59,130,246,.4); background:rgba(59,130,246,.1) }
         .sl-status.is-locked{ color:var(--dim); border-color:rgba(255,255,255,.05) }
         .sl-xp{ font-size:10px; letter-spacing:.06em; color:var(--cyan-l) }
       `}</style>

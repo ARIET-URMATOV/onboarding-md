@@ -2,10 +2,10 @@
 .labels{ position:fixed; inset:0; pointer-events:none; z-index:5 }
 .el{ position:absolute; transform:translate(-50%,-100%); text-align:center; font-family:'Chakra Petch',sans-serif; white-space:nowrap }
 .el .se{ font-family:'Orbitron',sans-serif; font-size:9px; letter-spacing:.3em; color:var(--muted); margin-bottom:3px }
-.el .nm{ font-family:'Orbitron',sans-serif; font-size:13px; letter-spacing:.06em; color:#fff; text-shadow:0 0 14px rgba(244,114,182,.6) }
+.el .nm{ font-family:'Orbitron',sans-serif; font-size:13px; letter-spacing:.06em; color:#fff; text-shadow:0 0 14px rgba(59,130,246,.6) }
 .el .st{ font-size:9px; letter-spacing:.18em; text-transform:uppercase; margin-top:4px; padding:2px 8px; border-radius:20px; display:inline-block; border:1px solid var(--border) }
-.el.done .st{ color:var(--mint); border-color:rgba(192,132,252,.32); background:rgba(139,92,246,.10) }
-.el.cur .st{ color:var(--cyan); border-color:rgba(244,114,182,.45); background:rgba(244,114,182,.1); box-shadow:0 0 12px rgba(244,114,182,.25) }
+.el.done .st{ color:var(--mint); border-color:rgba(96,165,250,.32); background:rgba(37,99,235,.10) }
+.el.cur .st{ color:var(--cyan); border-color:rgba(59,130,246,.45); background:rgba(59,130,246,.1); box-shadow:0 0 12px rgba(59,130,246,.25) }
 .el.lock .se,.el.lock .nm{ color:var(--dim) }
 .el.lock .st{ color:var(--dim); border-color:rgba(255,255,255,.08) }
 .el .xp{ margin-left:7px; color:var(--cyan); font-family:'Orbitron',sans-serif; font-size:9px }

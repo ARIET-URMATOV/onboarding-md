@@ -84,12 +84,12 @@ export function StageNode({ stageId, status, userInitial, x, y, onClick }: Stage
 
         /* DONE — mint filled */
         .sn-done .sn-core{
-          background:radial-gradient(circle at 30% 30%, rgba(255,255,255,.4), transparent 50%), linear-gradient(135deg, #c084fc, #8b5cf6);
+          background:radial-gradient(circle at 30% 30%, rgba(255,255,255,.4), transparent 50%), linear-gradient(135deg, #60A5FA, #2563EB);
           color:#02131b; font-weight:700;
-          box-shadow:0 0 28px rgba(192,132,252,.7), inset 0 0 16px rgba(255,255,255,.2);
+          box-shadow:0 0 28px rgba(96,165,250,.7), inset 0 0 16px rgba(255,255,255,.2);
         }
         .sn-done .sn-halo{
-          background:radial-gradient(circle, rgba(192,132,252,.35), transparent 65%);
+          background:radial-gradient(circle, rgba(96,165,250,.35), transparent 65%);
           animation:glow-pulse 3s ease-in-out infinite;
         }
         .sn-done .sn-core svg{ width:26px; height:26px }
@@ -98,15 +98,15 @@ export function StageNode({ stageId, status, userInitial, x, y, onClick }: Stage
         .sn-current .sn-core{
           background:radial-gradient(circle at 30% 30%, rgba(255,255,255,.45), transparent 50%), linear-gradient(135deg, #4a1a2e, #155E75);
           color:#fff; font-weight:700;
-          box-shadow:0 0 28px rgba(244,114,182,.7), inset 0 0 18px rgba(244,114,182,.4);
+          box-shadow:0 0 28px rgba(59,130,246,.7), inset 0 0 18px rgba(59,130,246,.4);
           animation:pulse-ring 2.2s ease-out infinite;
         }
         .sn-current .sn-halo{
-          background:radial-gradient(circle, rgba(244,114,182,.55), transparent 65%);
+          background:radial-gradient(circle, rgba(59,130,246,.55), transparent 65%);
           animation:glow-pulse 1.8s ease-in-out infinite;
         }
         .sn-current .sn-beam{
-          background:linear-gradient(180deg, transparent, rgba(244,114,182,.6), transparent);
+          background:linear-gradient(180deg, transparent, rgba(59,130,246,.6), transparent);
           opacity:.7;
         }
         .sn-avatar{ font-size:18px; font-weight:700; letter-spacing:.05em; color:#fff }
@@ -131,14 +131,14 @@ export function StageNode({ stageId, status, userInitial, x, y, onClick }: Stage
           margin-bottom:14px;
         }
         .sn-eyebrow{ font-size:9px; letter-spacing:.3em; color:var(--muted); margin-bottom:2px }
-        .sn-title{ font-size:12.5px; letter-spacing:.04em; color:#fff; text-shadow:0 0 14px rgba(244,114,182,.5); margin-bottom:4px }
+        .sn-title{ font-size:12.5px; letter-spacing:.04em; color:#fff; text-shadow:0 0 14px rgba(59,130,246,.5); margin-bottom:4px }
         .sn-status{
           font-size:9px; letter-spacing:.18em; text-transform:uppercase;
           display:inline-block; padding:2px 9px; border-radius:20px;
           border:1px solid var(--border); color:var(--muted);
         }
-        .sn-done .sn-status{ color:var(--mint); border-color:rgba(192,132,252,.4); background:rgba(192,132,252,.08) }
-        .sn-current .sn-status{ color:var(--cyan-l); border-color:rgba(244,114,182,.4); background:rgba(244,114,182,.1) }
+        .sn-done .sn-status{ color:var(--mint); border-color:rgba(96,165,250,.4); background:rgba(96,165,250,.08) }
+        .sn-current .sn-status{ color:var(--cyan-l); border-color:rgba(59,130,246,.4); background:rgba(59,130,246,.1) }
         .sn-locked .sn-eyebrow, .sn-locked .sn-title{ color:var(--dim); text-shadow:none }
         .sn-locked .sn-status{ color:var(--dim); border-color:rgba(255,255,255,.08) }
         .sn-xp{ margin-left:6px; color:var(--cyan-l); font-family:'Orbitron',sans-serif; font-size:9px }

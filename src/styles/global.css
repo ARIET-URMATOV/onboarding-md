@@ -5,24 +5,28 @@
 
 .cosmic-bg{
   position:fixed; inset:0; z-index:-1; pointer-events:none; overflow:hidden;
-  background:#0b0719;
+  background-color:#0A0F1E;
+  background-image:linear-gradient(rgba(10,15,30,.68), rgba(10,15,30,.84)), url('/blue_var_bg.jpg');
+  background-size:cover;
+  background-position:center;
+  background-attachment:fixed;
 }
 .cosmic-bg canvas{ display:block; width:100%; height:100% }
 
 /* референс скан-линии + виньетка */
 body::before{
-  content:''; position:fixed; inset:0; z-index:-1; pointer-events:none; opacity:.32;
-  background:repeating-linear-gradient(0deg, transparent 0 2px, rgba(15,10,30,.45) 2px 4px);
+  content:''; position:fixed; inset:0; z-index:-1; pointer-events:none; opacity:.30;
+  background:repeating-linear-gradient(0deg, transparent 0 2px, rgba(10,15,30,.45) 2px 4px);
 }
 body::after{
   content:''; position:fixed; inset:0; z-index:-1; pointer-events:none;
-  background:radial-gradient(900px 600px at 50% 0%, rgba(236,72,153,.06), transparent 65%), radial-gradient(700px 500px at 50% 100%, rgba(244,114,182,.04), transparent 70%);
+  background:radial-gradient(900px 600px at 50% 0%, rgba(37,99,235,.07), transparent 65%), radial-gradient(700px 500px at 50% 100%, rgba(59,130,246,.05), transparent 70%);
 }
 
 ::-webkit-scrollbar{width:8px;height:8px}
-::-webkit-scrollbar-track{background:rgba(15,10,30,.5)}
-::-webkit-scrollbar-thumb{background:rgba(139,92,246,.28);border-radius:4px}
-::-webkit-scrollbar-thumb:hover{background:rgba(139,92,246,.45)}
+::-webkit-scrollbar-track{background:rgba(10,15,30,.5)}
+::-webkit-scrollbar-thumb{background:rgba(37,99,235,.28);border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:rgba(37,99,235,.45)}
 
 .app-shell{
   position:relative; min-height:100vh;
