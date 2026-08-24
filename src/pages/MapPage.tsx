@@ -55,7 +55,7 @@ export function MapPage() {
 
   const sceneRef = useRef<HTMLDivElement | null>(null);
   const [w, setW] = useState(360);
-  const [rowH, setRowH] = useState(130);
+  const [rowH, _setRowH] = useState(130);
 
   // Динамический расчет ширины контейнера при монтировании и ресайзе
   useEffect(() => {
