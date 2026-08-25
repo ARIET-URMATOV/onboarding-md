@@ -113,7 +113,7 @@ export function DocumentModal({ kind, open, onClose, onConfirm, alreadyDone }: P
         .doc-foot .btn-primary{ padding:9px 14px; font-size:11px; min-height:32px; border-radius:8px; letter-spacing:.10em; font-family:'Open Sans',sans-serif }
         .doc-foot .btn-primary:disabled{ opacity:.45; cursor:not-allowed }
         @media(max-width:380px){
-          .doc-body{ padding:12px; font-size:12px; }
+          .doc-body{ padding:12px; font-size:15px; }
           .doc-foot{ padding:8px 12px; }
           .doc-foot .btn-primary{ padding:8px 12px; font-size:9.5px; min-height:30px; }
         }
@@ -124,9 +124,9 @@ export function DocumentModal({ kind, open, onClose, onConfirm, alreadyDone }: P
           .doc-h1{ font-size:14px; } .doc-sub{ font-size:11.5px; }
           .doc-x{ width:32px; height:32px; font-size:20px; }
           .doc-progress{ gap:10px; padding:10px 20px; }
-          .doc-body{ padding:20px; font-size:13px; color:rgba(226,244,255,.90); }
-          .doc-body h3{ font-size:11.5px; letter-spacing:.13em; margin:16px 0 8px; }
-          .doc-body .lead-card{ gap:14px; padding:14px; margin-bottom:14px; }
+          .doc-body{ padding:20px; font-size:18px; color:rgba(226,244,255,.90); }
+          .doc-body h3{ font-size:15px; letter-spacing:.13em; margin:16px 0 8px; }
+          .doc-body .lead-card{ gap:14px; padding:14px; margin-bottom:25px; font-size:20px;flex-direction:column; }
           .doc-foot{ gap:12px; padding:14px 20px; }
           .doc-foot .btn-primary{ padding:10px 18px; font-size:11px; min-height:34px; border-radius:10px; letter-spacing:.14em; }
         }
@@ -157,8 +157,8 @@ function LeadContent(){
         <div style={{width:56,height:56,borderRadius:12,background:'linear-gradient(135deg,#3B82F6,#1E3A8A)',display:'grid',placeItems:'center',color:'#fff',fontWeight:800}}>ЕП</div>
         <div>
           <div style={{fontWeight:700,color:'#fff'}}>Елена Петрова — Frontend Lead</div>
-          <div style={{fontSize:11,color:'var(--muted)',marginTop:2}}>8 лет в фронтенде · React, TypeScript, архитектура · любит чистый код и мемы про `any`</div>
-          <div style={{marginTop:8,fontSize:11,lineHeight:1.6}}>Привет! Я помогу тебе влиться. Мой подход: короткие созвоны, честный фидбек, никаких микроменеджментов. Пиши в любое время — отвечаю в течение часа в рабочее время.</div>
+          <div style={{fontSize:16,color:'var(--muted)',marginTop:2}}>8 лет в фронтенде · React, TypeScript, архитектура · любит чистый код и мемы про `any`</div>
+          <div style={{marginTop:8,fontSize:16,lineHeight:1.6}}>Привет! Я помогу тебе влиться. Мой подход: короткие созвоны, честный фидбек, никаких микроменеджментов. Пиши в любое время — отвечаю в течение часа в рабочее время.</div>
         </div>
       </div>
       <h3>Как со мной работать</h3>

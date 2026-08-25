@@ -5,6 +5,7 @@ import { STAGES, STAGE_ICONS } from '../data/stages';
 import { useOnboarding, getAllStatuses, getProgress } from '../store/useOnboarding';
 import type { StageStatus } from '../store/useOnboarding';
 import type { StageId } from '../data/stages';
+import { usePageMeta } from '../hooks/usePageMeta';
 
 type Pt = { x: number; y: number };
 type Step = {
@@ -44,6 +45,10 @@ function smoothPath(pts: Pt[]): string {
 }
 
 export function MapPage() {
+  usePageMeta(
+    'Карта этапов онбординга — MDIGITAL',
+    'Интерактивная карта этапов онбординга MDIGITAL: документы, команда, видео, доступы и финальный тест. Отслеживай свой прогресс по неоновой дороге.',
+  );
   const nav = useNavigate();
   const doneTasks = useOnboarding((s) => s.doneTasks);
   const statuses = useMemo(() => getAllStatuses(doneTasks), [doneTasks]);
@@ -115,11 +120,26 @@ export function MapPage() {
       <main className="mp-page">
         <header className="mp-brand">
           <div className="mp-title-row">
-            <div className="mp-tag">MDIGITAL ROADMAP</div>
+            <svg className="mp-logo" viewBox="0 0 64 64" aria-hidden="true">
+              <defs>
+                <linearGradient id="mpLogoGrad" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stopColor="#00F2FE" />
+                  <stop offset="1" stopColor="#00E5FF" />
+                </linearGradient>
+              </defs>
+              <g fill="url(#mpLogoGrad)" stroke="url(#mpLogoGrad)" strokeWidth="4" strokeLinejoin="round" strokeLinecap="round">
+                <path d="M21 13 L33 33 H26 V52 H16 V33 H9 Z" />
+                <path d="M44 8 L57 30 H49 V52 H38 V30 H31 Z" />
+              </g>
+            </svg>
+            <h1 className="mp-tag">MDIGITAL ROADMAP</h1>
             <div className="mp-progress-pill">
               {done}/{total} · осталось {remaining}
             </div>
           </div>
+          <p className="mp-subtitle">
+            Интерактивная карта этапов онбординга: пройдено {done} из {total}, осталось {remaining}. Кликай на узлы и двигайся по неоновой дороге к финалу.
+          </p>
         </header>
 
         <div ref={sceneRef} className="mp-scene" style={{ height: H }}>
@@ -286,7 +306,14 @@ export function MapPage() {
           gap: 10px;
           flex-wrap: wrap;
         }
+        .mp-logo {
+          width: 34px;
+          height: 34px;
+          flex-shrink: 0;
+          filter: drop-shadow(0 0 14px rgba(0, 242, 254, 0.55));
+        }
         .mp-tag {
+          margin: 0;
           font-weight: 800;
           font-size: clamp(18px, 5vw, 32px);
           letter-spacing: 0.06em;
@@ -295,6 +322,14 @@ export function MapPage() {
           background-clip: text;
           color: transparent;
           filter: drop-shadow(0 0 18px rgba(0, 242, 254, 0.4));
+        }
+        .mp-subtitle {
+          margin: 0;
+          font-size: 12px;
+          font-weight: 400;
+          color: #94A3B8;
+          line-height: 1.5;
+          max-width: 640px;
         }
         .mp-progress-pill {
           font-size: 11px;

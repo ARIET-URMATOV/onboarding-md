@@ -1,11 +1,13 @@
-import { useState } from 'react';
+п»їimport { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ROLES } from '../data/stages';
 import { mockSetRole } from '../api/mock';
 import { useOnboarding } from '../store/useOnboarding';
 import type { Role } from '../data/stages';
+import { usePageMeta } from '../hooks/usePageMeta';
 
 export function RoleSelectPage() {
+  usePageMeta("Выбор роли — MDIGITAL Онбординг", "Выбери свою роль в MDIGITAL, чтобы настроить персональный путь онбординга.");
   const [picked, setPicked] = useState<Role | null>(null);
   const [loading, setLoading] = useState(false);
   const setRole = useOnboarding((s) => s.setRole);

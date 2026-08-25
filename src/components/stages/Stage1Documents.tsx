@@ -42,7 +42,7 @@ export function Stage1Documents({ stageId }: Props) {
       <DocCard k="jira" doneFlag={isDone('jira')} icon={<span className="font-orbitron" style={{fontSize:10,fontWeight:800}}>JR</span>} title="Jira · таск-трекер" sub="Доска задач · пролистай до конца" action="ОТКРЫТЬ →" onOpen={setOpen} />
       <DocCard k="confluence" doneFlag={isDone('confluence')} icon={<span className="font-orbitron" style={{fontSize:10,fontWeight:800}}>CF</span>} title="Confluence · база знаний" sub="Пространства · пролистай до конца" action="ОТКРЫТЬ →" onOpen={setOpen} />
 
-      <div className="doc-hint font-orbitron">Открой каждый документ и пролистай до конца — иначе не подтвердится. Следующий этап откроется только после всех пяти.</div>
+      <div className="doc-hint font-orbitron">Открой каждый документ и пролистай до конца — иначе не подтвердится.</div>
 
       <DocumentModal kind="docs" open={open==='docs'} onClose={()=>setOpen(null)} alreadyDone={isDone('docs')} onConfirm={()=>handleConfirm('docs')} />
       <DocumentModal kind="lead" open={open==='lead'} onClose={()=>setOpen(null)} alreadyDone={isDone('lead')} onConfirm={()=>handleConfirm('lead')} />
@@ -73,7 +73,7 @@ export function Stage1Documents({ stageId }: Props) {
         .doc-card:hover .dc-chevron{ color:#DBEAFE; transform:translateX(2px); filter:drop-shadow(0 0 6px rgba(37,99,235,.45)); }
         .doc-card.done .dc-chevron{ opacity:.42; }
         .doc-card.done:hover .dc-chevron{ opacity:.85; }
-        .doc-hint{ font-family:'Open Sans',sans-serif; font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--dim); text-align:center; padding:8px 10px; border:1px dashed rgba(255,255,255,.08); border-radius:8px; margin-top:2px }
+        .doc-hint{ font-family:'Open Sans',sans-serif; font-size:10px; letter-spacing:1px; text-transform:uppercase; color:var(--dim); text-align:center; padding:8px 10px; border:1px dashed rgba(255,255,255,.08); border-radius:8px; margin-top:2px }
       `}</style>
     </div>
   );

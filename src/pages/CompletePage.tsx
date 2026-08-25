@@ -1,6 +1,7 @@
-import { TopBar } from '../components/layout/TopBar';
+﻿import { TopBar } from '../components/layout/TopBar';
 import { STAGES } from '../data/stages';
 import { useOnboarding } from '../store/useOnboarding';
+import { usePageMeta } from '../hooks/usePageMeta';
 
 const RESOURCES = [
   { label: 'Notion · База знаний', icon: 'N', color: '#3B82F6' },
@@ -10,6 +11,7 @@ const RESOURCES = [
 ];
 
 export function CompletePage() {
+  usePageMeta("���������� � MDIGITAL ���������", "�����������! �� ������ ��� ����� ���������� MDIGITAL. �������� ���� ����������.");
   const user = useOnboarding((s) => s.user);
   return (
     <>
@@ -76,6 +78,7 @@ export function CompletePage() {
           background:rgba(59,130,246,.08);
         }
         .cp-title{
+        letter-spacing:-1px;
           font-size:clamp(40px, 7vw, 76px);
           font-weight:900; line-height:1.05;
           margin:24px 0 14px;

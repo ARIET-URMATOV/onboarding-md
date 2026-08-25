@@ -1,9 +1,11 @@
-import { useMemo } from 'react';
+﻿import { useMemo } from 'react';
 import { TopBar } from '../components/layout/TopBar';
-import { IsometricRoadmap } from '../components/isometric/IsometricRoadmap';
 import { useOnboarding, getAllStatuses, getProgress } from '../store/useOnboarding';
+import { usePageMeta } from '../hooks/usePageMeta';
+import { IsometricRoadmap } from '../components/isometric/IsometricRoadmap';
 
 export function RoadmapPage() {
+  usePageMeta("MDIGITAL", "");
   const doneTasks = useOnboarding((s) => s.doneTasks);
   const statuses = useMemo(() => getAllStatuses(doneTasks), [doneTasks]);
   const progress = useMemo(() => getProgress(doneTasks), [doneTasks]);

@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+п»їimport { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { TopBar } from '../components/layout/TopBar';
 import { useOnboarding, getAllStatuses, getProgress } from '../store/useOnboarding';
 import { STAGES } from '../data/stages';
+import { usePageMeta } from '../hooks/usePageMeta';
 
 type Phase = 'dark' | 'flight' | 'done';
 const DUR = 1400;
@@ -16,6 +17,7 @@ function bezier(t: number, p0: number, p1: number, p2: number, p3: number) {
 /* ===== Р“РѕР»РѕСЃ: /voice.mp3 вЂ” СЃС‚СѓРґРёР№РЅР°СЏ РѕР·РІСѓС‡РєР° ===== */
 
 export function DashboardPage() {
+  usePageMeta("Дашборд — MDIGITAL Онбординг", "Твой прогресс онбординга MDIGITAL: текущий этап, опыт и уровень. Продолжай адаптацию в команде.");
   const doneTasks = useOnboarding((s) => s.doneTasks);
   const statuses = useMemo(() => getAllStatuses(doneTasks), [doneTasks]);
   const progress = useMemo(() => getProgress(doneTasks), [doneTasks]);
@@ -592,7 +594,7 @@ export function DashboardPage() {
             margin:0 0 12px;
             text-shadow: 0 0 24px rgba(255,255,255,.45), 0 4px 36px rgba(0,0,0,.65);
           }
-          .h-sub{ font-size:17px; line-height:1.45; margin:0 auto 28px; max-width:92vw; }
+          .h-sub{ font-size:17px; line-height:1.45; margin:0 auto 55px; max-width:92vw; }
           .h-actions{ flex-direction:column; align-items:stretch; gap:10px; width:100%; max-width:320px; margin:0 auto; }
           .btn-f{ width:100%; padding:13px 18px; font-size:10.5px; letter-spacing:.14em; justify-content:center; min-height:42px; }
           .h-progress{ margin:28px auto 0; max-width:92vw; }

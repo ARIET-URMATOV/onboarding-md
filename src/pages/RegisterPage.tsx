@@ -1,9 +1,11 @@
-import { useState, type FormEvent } from 'react';
+п»їimport { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { mockRegister } from '../api/mock';
 import { useOnboarding } from '../store/useOnboarding';
+import { usePageMeta } from '../hooks/usePageMeta';
 
 export function RegisterPage() {
+  usePageMeta("Регистрация — MDIGITAL Онбординг", "Создай аккаунт в портале онбординга MDIGITAL и начни интерактивную адаптацию в команде.");
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
