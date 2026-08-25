@@ -1,4 +1,4 @@
-п»їimport { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { TopBar } from '../components/layout/TopBar';
@@ -17,7 +17,7 @@ function bezier(t: number, p0: number, p1: number, p2: number, p3: number) {
 /* ===== Р“РѕР»РѕСЃ: /voice.mp3 вЂ” СЃС‚СѓРґРёР№РЅР°СЏ РѕР·РІСѓС‡РєР° ===== */
 
 export function DashboardPage() {
-  usePageMeta("Дашборд — MDIGITAL Онбординг", "Твой прогресс онбординга MDIGITAL: текущий этап, опыт и уровень. Продолжай адаптацию в команде.");
+  usePageMeta("пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ MDIGITAL пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ", "пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ MDIGITAL: пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ. пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ.");
   const doneTasks = useOnboarding((s) => s.doneTasks);
   const statuses = useMemo(() => getAllStatuses(doneTasks), [doneTasks]);
   const progress = useMemo(() => getProgress(doneTasks), [doneTasks]);
@@ -260,7 +260,7 @@ export function DashboardPage() {
         <div className="hero-tools" aria-label="РЈРїСЂР°РІР»РµРЅРёРµ Р·РІСѓРєРѕРј Рё РёРЅС‚СЂРѕ">
           <button className={`voice-btn ${voiceOn ? 'on' : 'off'}`} onClick={toggleVoice} aria-label={voiceOn ? 'Р’С‹РєР»СЋС‡РёС‚СЊ Р·РІСѓРє' : 'Р’РєР»СЋС‡РёС‚СЊ Р·РІСѓРє'} title={voiceOn ? 'Р—РІСѓРє РІРєР».' : 'Р—РІСѓРє РІС‹РєР».'}>
             <span className="vb-ico" aria-hidden>
-              {voiceOn ? (  
+              {voiceOn ? (
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
                   <path d="M11 5L6 9H2v6h4l5 4V5z" />
                   <path d="M15.5 8.5a5 5 0 0 1 0 7" />
