@@ -1,11 +1,11 @@
-﻿import { useMemo } from 'react';
+import { useMemo } from 'react';
 import { TopBar } from '../components/layout/TopBar';
 import { useOnboarding, getAllStatuses, getProgress } from '../store/useOnboarding';
 import { usePageMeta } from '../hooks/usePageMeta';
 import { IsometricRoadmap } from '../components/isometric/IsometricRoadmap';
 
 export function RoadmapPage() {
-  usePageMeta("MDIGITAL", "");
+  usePageMeta("Этапы онбординга — MDIGITAL", "Пять этапов онбординга MDIGITAL: документы, команда, видео, доступы и финальный тест. Отмечай выполненные задачи и получай опыт.");
   const doneTasks = useOnboarding((s) => s.doneTasks);
   const statuses = useMemo(() => getAllStatuses(doneTasks), [doneTasks]);
   const progress = useMemo(() => getProgress(doneTasks), [doneTasks]);

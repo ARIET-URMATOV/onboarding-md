@@ -1,4 +1,4 @@
-﻿import { TopBar } from '../components/layout/TopBar';
+import { TopBar } from '../components/layout/TopBar';
 import { STAGES } from '../data/stages';
 import { useOnboarding } from '../store/useOnboarding';
 import { usePageMeta } from '../hooks/usePageMeta';
@@ -11,7 +11,7 @@ const RESOURCES = [
 ];
 
 export function CompletePage() {
-  usePageMeta("���������� � MDIGITAL ���������", "�����������! �� ������ ��� ����� ���������� MDIGITAL. �������� ���� ����������.");
+  usePageMeta("Достижения — MDIGITAL Онбординг", "Поздравляем! Ты прошёл все этапы онбординга MDIGITAL. Посмотри свои достижения.");
   const user = useOnboarding((s) => s.user);
   return (
     <>

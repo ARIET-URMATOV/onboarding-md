@@ -5,7 +5,7 @@ import { useOnboarding } from '../store/useOnboarding';
 import { usePageMeta } from '../hooks/usePageMeta';
 
 export function LoginPage() {
-  usePageMeta("���� � MDIGITAL ���������", "����� � ������ ���������� MDIGITAL, ����� ���������� ��������� � ����������� �������� ������.");
+  usePageMeta("Вход — MDIGITAL Онбординг", "Войди в портал онбординга MDIGITAL, чтобы продолжить адаптацию и отслеживать прогресс этапов.");
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);

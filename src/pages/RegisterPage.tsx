@@ -5,7 +5,7 @@ import { useOnboarding } from '../store/useOnboarding';
 import { usePageMeta } from '../hooks/usePageMeta';
 
 export function RegisterPage() {
-  usePageMeta("����������� � MDIGITAL ���������", "������ ������� � ������� ���������� MDIGITAL � ����� ������������� ��������� � �������.");
+  usePageMeta("Регистрация — MDIGITAL Онбординг", "Создай аккаунт в портале онбординга MDIGITAL и начни интерактивную адаптацию в команде.");
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

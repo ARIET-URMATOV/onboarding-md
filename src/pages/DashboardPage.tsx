@@ -17,7 +17,7 @@ function bezier(t: number, p0: number, p1: number, p2: number, p3: number) {
 /* ===== Голос: /voice.mp3 — студийная озвучка ===== */
 
 export function DashboardPage() {
-  usePageMeta("������� � MDIGITAL ���������", "���� �������� ���������� MDIGITAL: ������� ����, ���� � �������. ��������� ��������� � �������.");
+  usePageMeta("Дашборд — MDIGITAL Онбординг", "Твой прогресс онбординга MDIGITAL: текущий этап, опыт и уровень. Продолжай адаптацию в команде.");
   const doneTasks = useOnboarding((s) => s.doneTasks);
   const statuses = useMemo(() => getAllStatuses(doneTasks), [doneTasks]);
   const progress = useMemo(() => getProgress(doneTasks), [doneTasks]);

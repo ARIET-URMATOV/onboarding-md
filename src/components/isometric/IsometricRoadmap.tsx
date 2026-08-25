@@ -120,7 +120,7 @@ export function IsometricRoadmap({ statuses, done }: Props) {
       {/* ================= ЛЕВАЯ ПАНЕЛЬ ================= */}
       <aside className="gm-left">
         <div className="gl-brand">
-          <img src="../../../public/mdigital-logo.svg" alt="logo" width={100} />
+          <img src="/public/mdigital-logo.svg" alt="logo" width={100} />
         </div>
 
         <motion.div className="gm-tabs" initial="hidden" animate="visible" variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.06 } } }}>

@@ -7,7 +7,7 @@ import type { Role } from '../data/stages';
 import { usePageMeta } from '../hooks/usePageMeta';
 
 export function RoleSelectPage() {
-  usePageMeta("����� ���� � MDIGITAL ���������", "������ ���� ���� � MDIGITAL, ����� ��������� ������������ ���� ����������.");
+  usePageMeta("Выбор роли — MDIGITAL Онбординг", "Выбери свою роль в MDIGITAL, чтобы настроить персональный путь онбординга.");
   const [picked, setPicked] = useState<Role | null>(null);
   const [loading, setLoading] = useState(false);
   const setRole = useOnboarding((s) => s.setRole);
