@@ -20,9 +20,7 @@ type Props = {
 
 const TABS: { id: string; label: string; path?: string; d: string }[] = [
   { id: 'dash', label: 'Dashboard', path: '/dashboard', d: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z' },
-  { id: 'map', label: 'Этапы', d: 'M9 20l-5.5 2V6L9 4l6 2 5.5-2v16L15 22l-6-2zM9 4v16M15 6v16' },
-  { id: 'check', label: 'Чек-лист', d: 'M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11' },
-  { id: 'test', label: 'Тест', d: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M9 13h6M9 17h6' },
+  { id: 'map', label: 'Карта',path:'/map', d: 'M9 20l-5.5 2V6L9 4l6 2 5.5-2v16L15 22l-6-2zM9 4v16M15 6v16' },
 ];
 
 export function IsometricRoadmap({ statuses, done }: Props) {
@@ -120,18 +118,18 @@ export function IsometricRoadmap({ statuses, done }: Props) {
       {/* ================= ЛЕВАЯ ПАНЕЛЬ ================= */}
       <aside className="gm-left">
         <div className="gl-brand">
-          <img src="/public/mdigital-logo.svg" alt="logo" width={100} />
+          <img src="/mdigital-logo.svg" alt="logo" width={100} />
         </div>
 
         <motion.div className="gm-tabs" initial="hidden" animate="visible" variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.06 } } }}>
           {TABS.map((t, i) => (
             <motion.button
               key={t.id}
-              className={`gm-tab ${i === 1 ? 'on' : ''}`}
+              className={`gm-tab`}
               title={t.label}
               onClick={() => t.path && nav(t.path)}
               variants={{ hidden: { opacity: 0, scale: 0.7, y: 6 }, visible: { opacity: 1, scale: 1, y: 0 } }}
-              whileHover={{ scale: 1.08, y: -2 }}
+              whileHover={{ scale: 1.0001, y: -2 }}
               whileTap={{ scale: 0.92 }}
               transition={{ type: 'spring', stiffness: 420, damping: 18 }}
             >
@@ -524,7 +522,7 @@ export function IsometricRoadmap({ statuses, done }: Props) {
         .gr-gate{
           padding:8px 10px; border-radius:10px; margin-bottom:10px;
           background:rgba(59,130,246,.06); border:1px dashed rgba(59,130,246,.3);
-          color:#93C5FD; font-size:11.5px; line-height:1.5; font-family:'Open Sans',sans-serif;
+          color:#93C5FD; font-size:11.5px; line-height:1.2; font-family:'Open Sans',sans-serif;
         }
         .gr-tasksLabel{ font-size:10.5px; letter-spacing:.18em; text-transform:uppercase; color:#b8b5cc; margin-bottom:8px }
         .gr-chips{ display:flex; align-items:center; gap:6px; flex-wrap:wrap }

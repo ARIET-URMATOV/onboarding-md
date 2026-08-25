@@ -49,7 +49,7 @@ export function Stage3Video({ }: Props) {
         }
         .video-hint{
           margin-top:8px; padding:9px 12px;
-          font-size:11px; color:var(--muted);
+          font-size:12px; color:var(--muted);
           border:1px dashed var(--border); border-radius:8px;
           background:rgba(59,130,246,.04);
           font-family:'Open Sans',sans-serif;

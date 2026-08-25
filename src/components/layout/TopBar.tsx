@@ -14,14 +14,16 @@ export function TopBar() {
 
   return (
     <header className={`topbar-min ${isDashboard ? 'mode-overlay' : 'mode-sticky'}`}>
-      <nav className="t-nav">
-        <NavLink to="/dashboard" className={({ isActive }) => `t-link ${isActive ? 'on' : ''}`}>
-          Dashboard
-        </NavLink>
-        <NavLink to="/roadmap" className={({ isActive }) => `t-link ${isActive ? 'on' : ''}`}>
-          Onboarding
-        </NavLink>
-      </nav>
+      <div className="t-left">
+        <nav className="t-nav">
+          <NavLink to="/dashboard" className={({ isActive }) => `t-link ${isActive ? 'on' : ''}`}>
+            Dashboard
+          </NavLink>
+          <NavLink to="/roadmap" className={({ isActive }) => `t-link ${isActive ? 'on' : ''}`}>
+            Onboarding
+          </NavLink>
+        </nav>
+      </div>
 
       <div className="t-right">
         <div className="t-xp" title={`${xp} XP · ${progress.done}/5 этапов`}>
@@ -66,6 +68,23 @@ export function TopBar() {
           -webkit-backdrop-filter: blur(12px) saturate(1.15);
           border-bottom: 1px solid rgba(37,99,235,0.14);
           box-shadow: 0 4px 24px rgba(0,0,0,.22);
+        }
+
+        .t-left { display: flex; align-items: center; gap: 32px; min-width: 0; }
+
+        .t-brand {
+          display: flex; align-items: center; gap: 10px;
+          text-decoration: none; flex-shrink: 0;
+        }
+        .t-brand img {
+          width: 26px; height: 26px; object-fit: contain;
+          filter: drop-shadow(0 0 10px rgba(37, 99, 235, 0.5));
+        }
+        .t-brand-name {
+          font-family: 'Inter', sans-serif;
+          font-size: 14px; font-weight: 800; letter-spacing: 0.14em;
+          color: rgba(255, 255, 255, 0.95);
+          text-shadow: 0 2px 20px rgba(0, 0, 0, 0.4);
         }
 
         .t-nav { display: flex; gap: 32px; align-items: center; }
@@ -116,6 +135,7 @@ export function TopBar() {
           .topbar-min { padding: 0 32px; }
           .topbar-min.mode-overlay { height: 68px; }
           .topbar-min.mode-sticky { height: 56px; }
+          .t-left { gap: 24px; }
           .t-nav { gap: 28px; } .t-link { font-size: 15px; padding: 10px 0; }
           .t-xp .t-lvl { display: none; } .t-xp .t-xpnum { display: none; }
           .t-bar { width: 40px; } .t-xp { padding: 6px 10px; }
@@ -125,6 +145,9 @@ export function TopBar() {
           .topbar-min { padding: 0 18px; }
           .topbar-min.mode-overlay { height: 64px; }
           .topbar-min.mode-sticky { height: 56px; }
+          .t-left { gap: 18px; }
+          .t-brand-name { display: none; }
+          .t-brand img { width: 24px; height: 24px; }
           .t-nav { gap: 22px; } .t-link { font-size: 15.5px; font-weight:600; padding: 10px 0; color: rgba(255,255,255,0.92); letter-spacing:.01em; min-height:44px; display:inline-flex; align-items:center; }
           .t-right { gap: 12px; }
           .t-xp { padding: 6px 10px; gap: 8px; background: rgba(37,99,235,0.04); border-color: rgba(37,99,235,0.04); }

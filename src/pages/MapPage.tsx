@@ -121,15 +121,9 @@ export function MapPage() {
         <header className="mp-brand">
           <div className="mp-title-row">
             <svg className="mp-logo" viewBox="0 0 64 64" aria-hidden="true">
-              <defs>
-                <linearGradient id="mpLogoGrad" x1="0" y1="0" x2="1" y2="1">
-                  <stop offset="0" stopColor="#00F2FE" />
-                  <stop offset="1" stopColor="#00E5FF" />
-                </linearGradient>
-              </defs>
-              <g fill="url(#mpLogoGrad)" stroke="url(#mpLogoGrad)" strokeWidth="4" strokeLinejoin="round" strokeLinecap="round">
-                <path d="M21 13 L33 33 H26 V52 H16 V33 H9 Z" />
-                <path d="M44 8 L57 30 H49 V52 H38 V30 H31 Z" />
+              <g fill="#3B82F6" stroke="#3B82F6" strokeWidth="8" strokeLinejoin="round" strokeLinecap="round">
+                <path d="M18.5 17 L30 36 H24 V50 H14 V36 H7.5 Z" />
+                <path d="M44 11 L56.5 32 H49.5 V52 H38.5 V32 H31.5 Z" />
               </g>
             </svg>
             <h1 className="mp-tag">MDIGITAL ROADMAP</h1>
@@ -310,7 +304,7 @@ export function MapPage() {
           width: 34px;
           height: 34px;
           flex-shrink: 0;
-          filter: drop-shadow(0 0 14px rgba(0, 242, 254, 0.55));
+          filter: drop-shadow(0 0 14px rgba(59, 130, 246, 0.6));
         }
         .mp-tag {
           margin: 0;
