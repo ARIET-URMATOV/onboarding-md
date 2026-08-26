@@ -11,7 +11,6 @@
 - **Структурированный путь** — 5 этапов с чёткими задачами, никакой путаницы
 - **Геймификация** — XP за каждую задачу, уровни, анимации прогресса
 - **Самостоятельность** — сотрудник видит что делает, какой прогресс, что осталось
-- **Контроль для руководства** — видно кто на каком этапе, кто застрял
 
 ## 5 этапов онбординга
 
@@ -139,8 +138,8 @@ preload-state/
 
 | Слой | Технологии |
 | ---- | ---------- |
-| Frontend | React 19, TypeScript, Vite, pnpm, React Router, TanStack Query, zustand, framer-motion |
-| Backend | FastAPI, SQLAlchemy 2.0, asyncpg, bcrypt, PyJWT (httpOnly cookie) |
+| Frontend | React 19, TypeScript, Vite, pnpm, React Router, TanStack Query, framer-motion |
+| Backend | FastAPI, SQLAlchemy 2.0, asyncpg, bcrypt |
 | DB | PostgreSQL 16 (prod), SQLite (тесты) |
 
 ## Быстрый старт
