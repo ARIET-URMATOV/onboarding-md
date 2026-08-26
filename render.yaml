@@ -2,7 +2,7 @@ services:
   - type: web
     name: preload-md
     env: python
-    region: frankfurt
+    region: oregon
     plan: free
     rootDir: server
     buildCommand: pip install -r requirements.txt
@@ -22,5 +22,6 @@ services:
 
 databases:
   - name: mdigital-db
+    region: oregon
     plan: free
     ipAllowList: []
