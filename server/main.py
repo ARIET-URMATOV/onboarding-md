@@ -1,3 +1,4 @@
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -23,10 +24,12 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="MDIGITAL Onboarding API", version="1.0.0", lifespan=lifespan)
 
-# Dev: Vite (5173) проксирует /api, но CORS оставляем на случай прямых запросов
+_frontend_raw = os.getenv("FRONTEND_URL", "http://localhost:5173,http://127.0.0.1:5173")
+_allow_origins = [o.strip() for o in _frontend_raw.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=_allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -6,9 +6,12 @@ export class ApiError extends Error {
   }
 }
 
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') || '';
+
 async function req<T>(path: string, opts?: RequestInit & { json?: unknown }): Promise<T> {
+  const url = `${API_BASE}${path}`;
   const { json, ...rest } = opts ?? {};
-  const res = await fetch(path, {
+  const res = await fetch(url, {
     ...rest,
     credentials: 'include',
     headers: {
