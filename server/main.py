@@ -1,3 +1,4 @@
+import asyncio
 import os
 from contextlib import asynccontextmanager
 
@@ -11,9 +12,18 @@ from database import engine
 
 
 async def run_migrations():
-    """Лёгкие идемпотентные миграции для живой БД (volume уже существует)."""
-    async with engine.begin() as conn:
-        await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar TEXT"))
+    """Лёгкие идемпотентные миграции — с ретраем для Render (БД стартует дольше Web Service)."""
+    for attempt in range(5):
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar TEXT"))
+            break
+        except Exception as e:
+            print(f"migration retry {attempt + 1}/5: {e}")
+            if attempt == 4:
+                print("migration failed after retries — continuing without avatar column")
+                break
+            await asyncio.sleep(2)
 
 
 @asynccontextmanager
