@@ -11,6 +11,9 @@ if _raw_url.startswith("postgres://"):
     _raw_url = _raw_url.replace("postgres://", "postgresql+asyncpg://", 1)
 elif _raw_url.startswith("postgresql://"):
     _raw_url = _raw_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+# Render external URL содержит ?sslmode=require — asyncpg его не понимает, передаём через connect_args
+if "sslmode=" in _raw_url:
+    _raw_url = _raw_url.split("?")[0]
 DATABASE_URL = _raw_url
 
 _is_external = "onrender.com" in DATABASE_URL

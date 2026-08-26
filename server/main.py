@@ -8,20 +8,23 @@ from sqlalchemy import text
 
 import auth
 import progress
-from database import engine
+import models  # ensure User/Progress tables are registered on Base
+from database import Base, engine
 
 
 async def run_migrations():
-    """Лёгкие идемпотентные миграции — с ретраем для Render (БД стартует дольше Web Service)."""
+    """Создание таблиц + лёгкие миграции — с ретраем для Render (БД стартует дольше Web Service)."""
     for attempt in range(5):
         try:
             async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
                 await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar TEXT"))
+            print("migrations ok")
             break
         except Exception as e:
             print(f"migration retry {attempt + 1}/5: {e}")
             if attempt == 4:
-                print("migration failed after retries — continuing without avatar column")
+                print("migration failed after retries — continuing")
                 break
             await asyncio.sleep(2)
 
