@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual env
+.venv/
+venv/
+env/
+ENV/
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+
+# Uploads (если появятся файловые аватары)
+uploads/
+media/
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store

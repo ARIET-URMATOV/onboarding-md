@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { mockRegister } from '../api/mock';
+import { api, type MeResponse } from '../api/client';
 import { useOnboarding } from '../store/useOnboarding';
 import { usePageMeta } from '../hooks/usePageMeta';
 
@@ -20,11 +20,15 @@ export function RegisterPage() {
     if (!name || !email || !password) { setError('Заполни все поля'); return; }
     if (password.length < 6) { setError('Пароль должен быть не короче 6 символов'); return; }
     setLoading(true);
-    const res = await mockRegister({ name, email, password });
-    setLoading(false);
-    if (!res.ok) { setError(res.error); return; }
-    login(res.user);
-    nav('/role');
+    try {
+      const me = await api.post<MeResponse>('/api/register', { name, email, password });
+      login(me);
+      nav('/role');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ошибка регистрации');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

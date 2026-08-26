@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { TopBar } from '../components/layout/TopBar';
@@ -25,37 +25,39 @@ export function DashboardPage() {
   const lvl = Math.floor(xp / 100) + 1;
   const current = STAGES.find((s) => statuses[s.id] === 'current');
 
+  // интро (анимация + голос) — только при первом входе (флаг в БД)
+  const introSeen = useOnboarding((s) => s.introSeen);
+  const markIntroSeen = useOnboarding((s) => s.markIntroSeen);
+  const introSeenRef = useRef(introSeen);
+
   const reduced = useMemo(
     () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
     [],
   );
 
-  // интро играет при каждой полной загрузке страницы
-  const [phase, setPhase] = useState<Phase>(reduced ? 'done' : 'dark');
-  const [overlayOn, setOverlayOn] = useState(!reduced);
-  const [voiceOn, setVoiceOn] = useState(() => {
-    try { return localStorage.getItem('md_voice') !== '0'; } catch { return true; }
-  });
+  const [phase, setPhase] = useState<Phase>(reduced || introSeen ? 'done' : 'dark');
+  const [overlayOn, setOverlayOn] = useState(!reduced && !introSeen);
+  const voiceEnabled = useOnboarding((s) => s.voiceEnabled);
+  const setVoiceEnabled = useOnboarding((s) => s.setVoiceEnabled);
+  const [voiceOn, setVoiceOn] = useState(voiceEnabled);
   const spokeRef = useRef(false);
   const voiceOnRef = useRef(voiceOn);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   useEffect(() => { voiceOnRef.current = voiceOn; }, [voiceOn]);
 
   const toggleVoice = useCallback(() => {
-    setVoiceOn((v) => {
-      const next = !v;
-      try { localStorage.setItem('md_voice', next ? '1' : '0'); } catch { /* noop */ }
-      if (!next) {
-        try { audioRef.current?.pause(); if (audioRef.current) audioRef.current.currentTime = 0; } catch { /* noop */ }
-      } else {
-        // if was muted and we are already in done phase, try to play
-        if (phase === 'done' && !reduced) {
-          audioRef.current?.play().catch(() => { });
-        }
+    const next = !voiceOn;
+    setVoiceOn(next);
+    setVoiceEnabled(next);
+    if (!next) {
+      try { audioRef.current?.pause(); if (audioRef.current) audioRef.current.currentTime = 0; } catch { /* noop */ }
+    } else {
+      // if was muted and we are already in done phase, try to play
+      if (phase === 'done' && !reduced) {
+        audioRef.current?.play().catch(() => { });
       }
-      return next;
-    });
-  }, [phase, reduced]);
+    }
+  }, [phase, reduced, setVoiceEnabled, voiceOn]);
 
   // голос — синхронно с выходом текста после метеорита (под riseIn h-title/h-sub)
   useEffect(() => {
@@ -145,6 +147,7 @@ export function DashboardPage() {
       } else {
         // Фаза «Осветление»: оверлей плавно светлеет и растворяется
         setPhase('done');
+        markIntroSeen();
         document.body.style.background = '#0A0F1E';
         timersRef.current.push(
           window.setTimeout(() => setOverlayOn(false), 2400),
@@ -152,11 +155,15 @@ export function DashboardPage() {
       }
     };
     rafRef.current = requestAnimationFrame(tick);
-  }, [clearAll]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clearAll, markIntroSeen]);
 
   useEffect(() => {
-    if (!reduced) startIntro();
-    else document.body.style.background = '#0A0F1E';
+    if (introSeenRef.current || reduced) {
+      document.body.style.background = '#0A0F1E';
+      return;
+    }
+    startIntro();
     return () => {
       clearAll();
       document.body.style.background = '';
@@ -168,8 +175,9 @@ export function DashboardPage() {
     clearAll();
     setPhase('done');
     setOverlayOn(false);
+    markIntroSeen();
     document.body.style.background = '#0A0F1E';
-  }, [phase, clearAll]);
+  }, [phase, clearAll, markIntroSeen]);
 
   // пауза аудио при размонтировании/skip
   useEffect(() => {
@@ -257,7 +265,7 @@ export function DashboardPage() {
         </div>
 
         {/* futuristic voice controls — right side */}
-        <div className="hero-tools" aria-label="Управление звуком и интро">
+        <div className="hero-tools" aria-label="Управление звуком">
           <button className={`voice-btn ${voiceOn ? 'on' : 'off'}`} onClick={toggleVoice} aria-label={voiceOn ? 'Выключить звук' : 'Включить звук'} title={voiceOn ? 'Звук вкл.' : 'Звук выкл.'}>
             <span className="vb-ico" aria-hidden>
               {voiceOn ? (
@@ -275,11 +283,6 @@ export function DashboardPage() {
             </span>
             <span className="vb-ring" aria-hidden />
           </button>
-          {!overlayOn && !reduced && (
-            <button className="replay-btn font-mono" onClick={startIntro} title="Повторить интро">
-              ↻
-            </button>
-          )}
         </div>
         {/* hidden studio audio */}
         <audio ref={audioRef} src="/voice.mp3" preload="auto" playsInline />
@@ -524,15 +527,6 @@ export function DashboardPage() {
           animation: vbPulse 2.4s ease infinite;
         }
         @keyframes vbPulse{ 0%{ opacity:.7; transform:scale(1)} 50%{ opacity:.15; transform:scale(1.08)} 100%{ opacity:0; transform:scale(1.14)} }
-        .replay-btn{
-          width:44px; height:44px; border-radius:12px;
-          display:grid; place-items:center;
-          font-size:16px; line-height:1;
-          color:#93C5FD; background:rgba(11,11,16,.5); border:1px solid rgba(37,99,235,.35);
-          cursor:pointer; transition:background .16s ease, border-color .16s ease, transform .16s ease;
-          backdrop-filter:blur(10px);
-        }
-        .replay-btn:hover{ background:rgba(37,99,235,.14); border-color:#2563EB; color:#fff; transform:translateY(-1px); }
 
         /* ===== ИНТРО ОВЕРЛЕЙ — честное осветление ===== */
         .intro{
@@ -599,7 +593,7 @@ export function DashboardPage() {
           .btn-f{ width:100%; padding:13px 18px; font-size:10.5px; letter-spacing:.14em; justify-content:center; min-height:42px; }
           .h-progress{ margin:28px auto 0; max-width:92vw; }
           .hero-tools{ right:10px; bottom:10px; gap:8px; }
-          .voice-btn, .replay-btn{ width:38px; height:38px; border-radius:10px; }
+          .voice-btn,
         }
         @media (max-width:480px){
           .hero-inner{ padding:26px 16px 20px; }
@@ -625,3 +619,4 @@ export function DashboardPage() {
     </>
   );
 }
+

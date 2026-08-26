@@ -383,7 +383,7 @@ export function IsometricRoadmap({ statuses, done }: Props) {
 
      <style>{`
         /* ===== ROADMAP — MOBILE-FIRST · BLUE · Cinzel/ABeeZee/Marcellus ===== */
-        .gm-root .font-orbitron{ font-family:'Open Sans',sans-serif !important;font-size:14px; letter-spacing:.06em }
+        .gm-root .font-orbitron{ font-family:'Open Sans',sans-serif !important; letter-spacing:.06em }
         .gm-root .font-mono{ font-family:'Open Sans',sans-serif !important }
         .gm-root{ font-family:'Open Sans',sans-serif; }
         .gm-root{

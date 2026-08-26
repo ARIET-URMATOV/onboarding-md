@@ -1,0 +1,98 @@
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from auth import get_current_user
+from database import get_db
+from models import Progress, User
+from schemas import OkOut, ProgressOut, StageActionIn, TaskIn, VoiceIn
+from stages_data import STAGES, compute_xp, normalize_tasks
+
+router = APIRouter()
+
+
+async def load_progress(db: AsyncSession, user: User) -> Progress:
+    prog = await db.get(Progress, user.id)
+    if prog is None:
+        prog = Progress(user_id=user.id)
+        db.add(prog)
+        await db.commit()
+        await db.refresh(prog)
+    return prog
+
+
+async def save_progress(db: AsyncSession, prog: Progress, done_tasks: dict) -> ProgressOut:
+    prog.done_tasks = normalize_tasks(done_tasks)
+    prog.xp = compute_xp(prog.done_tasks)
+    db.add(prog)
+    await db.commit()
+    await db.refresh(prog)
+    return ProgressOut(done_tasks=prog.done_tasks, xp=prog.xp)
+
+
+@router.post("/progress/task", response_model=ProgressOut)
+async def toggle_task(
+    payload: TaskIn,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    stage = STAGES.get(payload.stage_id)
+    if stage is None or payload.task_id not in stage["tasks"]:
+        raise HTTPException(status_code=400, detail="Неизвестная задача")
+
+    prog = await load_progress(db, user)
+    tasks = normalize_tasks(prog.done_tasks)
+    sid = str(payload.stage_id)
+    cur = tasks[sid]
+    if payload.task_id in cur:
+        tasks[sid] = [t for t in cur if t != payload.task_id]
+    else:
+        tasks[sid] = [*cur, payload.task_id]
+    return await save_progress(db, prog, tasks)
+
+
+@router.post("/progress/stage", response_model=ProgressOut)
+async def stage_action(
+    payload: StageActionIn,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    stage = STAGES.get(payload.stage_id)
+    if stage is None:
+        raise HTTPException(status_code=400, detail="Неизвестный этап")
+
+    prog = await load_progress(db, user)
+    tasks = normalize_tasks(prog.done_tasks)
+    sid = str(payload.stage_id)
+
+    if payload.action == "complete":
+        all_ids = list(stage["tasks"].keys())
+        tasks[sid] = all_ids
+    else:  # uncomplete
+        tasks[sid] = []
+
+    return await save_progress(db, prog, tasks)
+
+
+@router.post("/intro-seen", response_model=OkOut)
+async def intro_seen(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    if not user.intro_seen:
+        user.intro_seen = True
+        db.add(user)
+        await db.commit()
+    return OkOut()
+
+
+@router.post("/voice", response_model=OkOut)
+async def set_voice(
+    payload: VoiceIn,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    if user.voice_enabled != payload.enabled:
+        user.voice_enabled = payload.enabled
+        db.add(user)
+        await db.commit()
+    return OkOut()

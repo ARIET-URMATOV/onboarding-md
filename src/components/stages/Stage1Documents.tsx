@@ -73,10 +73,8 @@ export function Stage1Documents({ stageId }: Props) {
         .doc-card:hover .dc-chevron{ color:#DBEAFE; transform:translateX(2px); filter:drop-shadow(0 0 6px rgba(37,99,235,.45)); }
         .doc-card.done .dc-chevron{ opacity:.42; }
         .doc-card.done:hover .dc-chevron{ opacity:.85; }
-        .doc-hint{ font-family:'Open Sans',sans-serif; font-size:11px; letter-spacing:1px; text-transform:uppercase; color:var(--dim); text-align:center; padding:8px 10px; border:1px dashed rgba(255,255,255,.08); border-radius:8px; margin-top:2px }
-        @media (min-width: 861px) {
-          .doc-hint{ font-size:10px; }
-        }
+        .doc-hint{  font-size:10px; letter-spacing:1px; text-transform:uppercase; color:var(--dim); text-align:center; padding:8px 10px; border:1px dashed rgba(255,255,255,.08); border-radius:8px; margin-top:2px }
+       
       `}</style>
     </div>
   );

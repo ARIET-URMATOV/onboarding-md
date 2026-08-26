@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ROLES } from '../data/stages';
-import { mockSetRole } from '../api/mock';
 import { useOnboarding } from '../store/useOnboarding';
 import type { Role } from '../data/stages';
 import { usePageMeta } from '../hooks/usePageMeta';
@@ -16,10 +15,14 @@ export function RoleSelectPage() {
   const onPick = async (role: Role) => {
     setPicked(role);
     setLoading(true);
-    await mockSetRole(role);
-    setRole(role);
-    setLoading(false);
-    nav('/dashboard');
+    try {
+      await setRole(role);
+      nav('/dashboard');
+    } catch {
+      setPicked(null);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
