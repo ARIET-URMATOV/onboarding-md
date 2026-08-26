@@ -25,7 +25,7 @@ function BootLoader() {
 }
 
 export function AuthGate({ children }: { children: JSX.Element }) {
-  const { data, isLoading } = useMe();
+  const { data, isLoading, isError } = useMe();
   const hydrate = useOnboarding((s) => s.hydrate);
   const hydrated = useOnboarding((s) => s.hydrated);
   const user = useOnboarding((s) => s.user);
@@ -34,7 +34,10 @@ export function AuthGate({ children }: { children: JSX.Element }) {
 
   useEffect(() => {
     if (data && !hydrated) hydrate(data);
-  }, [data, hydrated, hydrate]);
+    if (isError && !hydrated) {
+      useOnboarding.setState({ hydrated: true });
+    }
+  }, [data, isError, hydrated, hydrate]);
 
   if (isLoading && !hydrated) return <BootLoader />;
   if (!hydrated) return <BootLoader />;
@@ -44,14 +47,17 @@ export function AuthGate({ children }: { children: JSX.Element }) {
 }
 
 export function GuestOnly({ children }: { children: JSX.Element }) {
-  const { data, isLoading } = useMe();
+  const { data, isLoading, isError } = useMe();
   const hydrate = useOnboarding((s) => s.hydrate);
   const hydrated = useOnboarding((s) => s.hydrated);
   const user = useOnboarding((s) => s.user);
 
   useEffect(() => {
     if (data && !hydrated) hydrate(data);
-  }, [data, hydrated, hydrate]);
+    if (isError && !hydrated) {
+      useOnboarding.setState({ hydrated: true });
+    }
+  }, [data, isError, hydrated, hydrate]);
 
   if (isLoading && !hydrated) return <BootLoader />;
   if (!hydrated) return <BootLoader />;
