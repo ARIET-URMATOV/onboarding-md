@@ -19,10 +19,9 @@
 
 | Слой     | Технологии                                                                 |
 | -------- | -------------------------------------------------------------------------- |
-| Frontend | React 19, TypeScript, Vite, pnpm, zustand, React Router, TanStack Query, odometer.js |
+| Frontend | React 19, TypeScript, Vite, pnpm, React Router, TanStack Query |
 | Backend  | FastAPI, SQLAlchemy 2.0 (async), asyncpg, bcrypt, PyJWT (httpOnly cookie) |
 | DB       | PostgreSQL 16 (prod), SQLite (тесты)                                       |
-| Деплой   | Vercel (frontend), Render (backend), Docker Compose (local)                |
 
 ## Быстрый старт
 
@@ -39,14 +38,13 @@ cp .env.example .env               # заполни DATABASE_URL и JWT_SECRET_K
 docker compose up -d
 
 # 4. Запусти
-cd frontend && pnpm run dev       # http://localhost:5173
-cd backend && uvicorn app.main:app --port 8000 --reload  # http://localhost:8000
+cd frontend && pnpm run dev       
+cd backend && uvicorn app.main:app --port 8000 --reload  
 ```
 
 ## Тесты
 
 ```bash
-# Backend (13 тестов, in-memory SQLite)
 backend/.venv/Scripts/python -m pytest backend/tests -v
 
 # Lint
