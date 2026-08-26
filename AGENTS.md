@@ -40,7 +40,9 @@
 - **CORS**: строгий whitelist из env `CORS_ORIGINS`, без regex
 - **Cookie**: `SameSite=None; Secure` в production (Vercel → Render), `Lax` в dev
 - **JWT**: httpOnly cookie `md_token`, TTL 30 дней
+- **Frontend**: pnpm (lockfile: `frontend/pnpm-lock.yaml`)
 - **DB**: asyncpg (prod), SQLite+aiosqlite (тесты); JSONB → JSON.with_variant
+- **Server-authoritative XP**: клиент НЕ считает XP, всегда POST → сервер
 - **Demo**: `demo@mdigital.kg` / `demo1234`, идемпотентный login + reset
 
 ## Запуск тестов

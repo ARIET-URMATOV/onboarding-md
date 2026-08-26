@@ -19,7 +19,7 @@
 
 | Слой     | Технологии                                                                 |
 | -------- | -------------------------------------------------------------------------- |
-| Frontend | React 19, TypeScript, Vite, zustand (локально), React Router, odometer.js |
+| Frontend | React 19, TypeScript, Vite, pnpm, zustand, React Router, TanStack Query, odometer.js |
 | Backend  | FastAPI, SQLAlchemy 2.0 (async), asyncpg, bcrypt, PyJWT (httpOnly cookie) |
 | DB       | PostgreSQL 16 (prod), SQLite (тесты)                                       |
 | Деплой   | Vercel (frontend), Render (backend), Docker Compose (local)                |
@@ -28,7 +28,7 @@
 
 ```bash
 # 1. Клонируй и установи зависимости
-npm install                        # frontend
+pnpm install                      # frontend
 python -m venv backend/.venv       # backend
 backend/.venv/Scripts/pip install -r backend/requirements.txt -r backend/requirements-dev.txt
 
@@ -39,7 +39,7 @@ cp .env.example .env               # заполни DATABASE_URL и JWT_SECRET_K
 docker compose up -d
 
 # 4. Запусти
-cd frontend && npm run dev         # http://localhost:5173
+cd frontend && pnpm run dev       # http://localhost:5173
 cd backend && uvicorn app.main:app --port 8000 --reload  # http://localhost:8000
 ```
 
@@ -53,7 +53,7 @@ backend/.venv/Scripts/python -m pytest backend/tests -v
 backend/.venv/Scripts/python -m ruff check backend/app backend/tests
 
 # Frontend
-cd frontend && npm run build
+cd frontend && pnpm run build
 ```
 
 ## 5 этапов онбординга
