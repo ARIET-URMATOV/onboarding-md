@@ -1,24 +1,30 @@
 import asyncio
-import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import text
+from sqlalchemy import inspect, text
 
-import auth
-import progress
-import models  # ensure User/Progress tables are registered on Base
-from database import Base, engine
+import app.models  # noqa: F401 — регистрация моделей на Base.metadata
+from app.config import settings
+from app.database import Base, engine
 
 
 async def run_migrations():
-    """Создание таблиц + лёгкие миграции — с ретраем для Render (БД стартует дольше Web Service)."""
+    """Создание таблиц + лёгкие миграции — с ретраем (БД может стартовать дольше Web Service)."""
     for attempt in range(5):
         try:
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
-                await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar TEXT"))
+
+                def _add_avatar(sync_conn):
+                    insp = inspect(sync_conn)
+                    if "users" in insp.get_table_names():
+                        cols = [c["name"] for c in insp.get_columns("users")]
+                        if "avatar" not in cols:
+                            sync_conn.execute(text("ALTER TABLE users ADD COLUMN avatar TEXT"))
+
+                await conn.run_sync(_add_avatar)
             print("migrations ok")
             break
         except Exception as e:
@@ -35,18 +41,22 @@ async def lifespan(_: FastAPI):
     yield
 
 
-app = FastAPI(title="MDIGITAL Onboarding API", version="1.0.0", lifespan=lifespan)
-
-_frontend_raw = os.getenv("FRONTEND_URL", "http://localhost:5173,http://127.0.0.1:5173")
-_allow_origins = [o.strip() for o in _frontend_raw.split(",") if o.strip()]
+app = FastAPI(
+    title=settings.app_name,
+    version="1.0.0",
+    lifespan=lifespan,
+    debug=settings.app_debug,
+)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_allow_origins,
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+from app.routes import auth, progress  # noqa: E402 — после создания app
 
 app.include_router(auth.router, prefix="/api", tags=["auth"])
 app.include_router(progress.router, prefix="/api", tags=["progress"])

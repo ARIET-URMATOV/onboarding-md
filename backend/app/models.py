@@ -1,12 +1,19 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, text
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from database import Base
+from app.database import Base
 
 STAGE_IDS = ["1", "2", "3", "4", "5"]
+
+# JSONB на PostgreSQL, JSON на SQLite (тесты)
+FlexibleJSON = JSONB().with_variant(JSON(), "sqlite")
+
+
+def utcnow() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 def empty_tasks() -> dict:
@@ -24,9 +31,7 @@ class User(Base):
     avatar: Mapped[str | None] = mapped_column(Text, nullable=True)
     intro_seen: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     voice_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=text("now()")
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     progress: Mapped["Progress"] = relationship(
         back_populates="user", uselist=False, cascade="all, delete-orphan"
@@ -39,10 +44,10 @@ class Progress(Base):
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
     )
-    done_tasks: Mapped[dict] = mapped_column(JSONB, nullable=False, default=empty_tasks)
+    done_tasks: Mapped[dict] = mapped_column(FlexibleJSON, nullable=False, default=empty_tasks)
     xp: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=text("now()"), onupdate=text("now()")
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
     )
 
     user: Mapped[User] = relationship(back_populates="progress")

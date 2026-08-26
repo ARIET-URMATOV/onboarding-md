@@ -1,16 +1,16 @@
-import os
 import re
 from datetime import datetime, timedelta, timezone
 
 import jwt
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response
 from passlib.context import CryptContext
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database import engine, get_db
-from models import Progress, User
-from schemas import (
+from app.config import settings
+from app.database import get_db
+from app.models import Progress, User
+from app.schemas import (
     LoginIn,
     MeOut,
     OkOut,
@@ -25,20 +25,21 @@ from schemas import (
 router = APIRouter()
 
 pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
-JWT_SECRET = os.getenv("JWT_SECRET", "md-onboarding-dev-secret-change-in-prod")
 COOKIE_NAME = "md_token"
-TOKEN_TTL = timedelta(days=30)
+TOKEN_TTL = timedelta(days=settings.jwt_access_token_expire_days)
+
+AVATAR_RE = re.compile(r"^data:image/(png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=\s]+$")
+AVATAR_MAX_BYTES = 300 * 1024
 
 
 def create_token(user_id: int) -> str:
     payload = {"sub": str(user_id), "exp": datetime.now(timezone.utc) + TOKEN_TTL}
-    return jwt.encode(payload, JWT_SECRET, algorithm="HS256")
+    return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 
 
 def _is_cross_site() -> bool:
-    # Render prod: DATABASE_URL содержит onrender.com → фронт на vercel.app (cross-site)
-    db_url = os.getenv("DATABASE_URL", "")
-    return "onrender.com" in db_url or os.getenv("RENDER") == "true"
+    """Prod (vercel.app → onrender.com): кука требует SameSite=None; Secure."""
+    return settings.is_production
 
 
 def set_auth_cookie(response: Response, token: str) -> None:
@@ -61,7 +62,7 @@ async def get_current_user(
     if not md_token:
         raise HTTPException(status_code=401, detail="Не авторизован")
     try:
-        payload = jwt.decode(md_token, JWT_SECRET, algorithms=["HS256"])
+        payload = jwt.decode(md_token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
     except jwt.PyJWTError:
         raise HTTPException(status_code=401, detail="Сессия истекла")
     try:
@@ -85,24 +86,6 @@ async def ensure_progress(db: AsyncSession, user: User) -> Progress:
     return prog
 
 
-def me_out(user: User, prog: Progress) -> MeOut:
-    return MeOut(
-        user=UserOut(
-            email=user.email,
-            name=user.name,
-            role=user.role,
-            avatar=user.avatar,
-            intro_seen=user.intro_seen,
-            voice_enabled=user.voice_enabled,
-        ),
-        progress=ProgressOut(done_tasks=prog.done_tasks, xp=prog.xp),
-    )
-
-
-AVATAR_RE = re.compile(r"^data:image/(png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=\s]+$")
-AVATAR_MAX_BYTES = 300 * 1024
-
-
 def user_out(user: User) -> UserOut:
     return UserOut(
         email=user.email,
@@ -111,6 +94,13 @@ def user_out(user: User) -> UserOut:
         avatar=user.avatar,
         intro_seen=user.intro_seen,
         voice_enabled=user.voice_enabled,
+    )
+
+
+def me_out(user: User, prog: Progress) -> MeOut:
+    return MeOut(
+        user=user_out(user),
+        progress=ProgressOut(done_tasks=prog.done_tasks, xp=prog.xp),
     )
 
 
@@ -156,54 +146,6 @@ async def login(payload: LoginIn, response: Response, db: AsyncSession = Depends
 async def logout(response: Response):
     cross = _is_cross_site()
     response.delete_cookie(key=COOKIE_NAME, path="/", samesite="none" if cross else "lax", secure=cross)
-    return OkOut()
-
-
-# ---------- DEMO ----------
-DEMO_EMAIL = "demo@mdigital.kg"
-DEMO_PASSWORD = "demo1234"
-DEMO_NAME = "Demo User"
-
-
-async def get_demo_user(db: AsyncSession) -> User | None:
-    res = await db.execute(select(User).where(User.email == DEMO_EMAIL))
-    return res.scalar_one_or_none()
-
-
-@router.post("/demo/login", response_model=MeOut)
-async def demo_login(response: Response, db: AsyncSession = Depends(get_db)):
-    """Идемпотентный вход в демо-аккаунт: создаёт его при первом заходе."""
-    user = await get_demo_user(db)
-    if user is None:
-        user = User(
-            email=DEMO_EMAIL,
-            password_hash=pwd.hash(DEMO_PASSWORD),
-            name=DEMO_NAME,
-        )
-        db.add(user)
-        await db.commit()
-        await db.refresh(user)
-
-    prog = await ensure_progress(db, user)
-    set_auth_cookie(response, create_token(user.id))
-    return me_out(user, prog)
-
-
-@router.post("/demo/reset", response_model=OkOut)
-async def demo_reset(db: AsyncSession = Depends(get_db)):
-    """Сброс демо-аккаунта в состояние «как новый». Трогает только demo."""
-    user = await get_demo_user(db)
-    if user is not None:
-        prog = await db.get(Progress, user.id)
-        if prog is not None:
-            await db.delete(prog)
-        user.name = DEMO_NAME
-        user.role = None
-        user.intro_seen = False
-        user.voice_enabled = True
-        user.avatar = None
-        db.add(user)
-        await db.commit()
     return OkOut()
 
 
@@ -265,4 +207,47 @@ async def change_password(
     user.password_hash = pwd.hash(payload.new_password)
     db.add(user)
     await db.commit()
+    return OkOut()
+
+
+# ---------- DEMO ----------
+async def get_demo_user(db: AsyncSession) -> User | None:
+    res = await db.execute(select(User).where(User.email == settings.demo_email))
+    return res.scalar_one_or_none()
+
+
+@router.post("/demo/login", response_model=MeOut)
+async def demo_login(response: Response, db: AsyncSession = Depends(get_db)):
+    """Идемпотентный вход в демо-аккаунт: создаёт его при первом заходе."""
+    user = await get_demo_user(db)
+    if user is None:
+        user = User(
+            email=settings.demo_email,
+            password_hash=pwd.hash(settings.demo_password),
+            name=settings.demo_name,
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+
+    prog = await ensure_progress(db, user)
+    set_auth_cookie(response, create_token(user.id))
+    return me_out(user, prog)
+
+
+@router.post("/demo/reset", response_model=OkOut)
+async def demo_reset(db: AsyncSession = Depends(get_db)):
+    """Сброс демо-аккаунта в состояние «как новый». Трогает только demo."""
+    user = await get_demo_user(db)
+    if user is not None:
+        prog = await db.get(Progress, user.id)
+        if prog is not None:
+            await db.delete(prog)
+        user.name = settings.demo_name
+        user.role = None
+        user.intro_seen = False
+        user.voice_enabled = True
+        user.avatar = None
+        db.add(user)
+        await db.commit()
     return OkOut()

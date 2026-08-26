@@ -1,29 +1,8 @@
 import { useEffect } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useOnboarding } from '../../store/useOnboarding';
+import { useMe } from '../../api/queries';
 import type { JSX } from 'react';
-
-let mePromise: Promise<void> | null = null;
-
-function useHydrate(): boolean {
-  const hydrated = useOnboarding((s) => s.hydrated);
-  const refreshMe = useOnboarding((s) => s.refreshMe);
-
-  useEffect(() => {
-    if (hydrated) return;
-    if (!mePromise) {
-      mePromise = refreshMe()
-        .catch(() => {
-          // 401 — гость; это нормальный путь
-        })
-        .finally(() => {
-          useOnboarding.setState({ hydrated: true });
-        });
-    }
-  }, [hydrated, refreshMe]);
-
-  return hydrated;
-}
 
 function BootLoader() {
   return (
@@ -46,10 +25,18 @@ function BootLoader() {
 }
 
 export function AuthGate({ children }: { children: JSX.Element }) {
-  const hydrated = useHydrate();
+  const { data, isLoading } = useMe();
+  const hydrate = useOnboarding((s) => s.hydrate);
+  const hydrated = useOnboarding((s) => s.hydrated);
   const user = useOnboarding((s) => s.user);
   const role = useOnboarding((s) => s.role);
   const loc = useLocation();
+
+  useEffect(() => {
+    if (data && !hydrated) hydrate(data);
+  }, [data, hydrated, hydrate]);
+
+  if (isLoading && !hydrated) return <BootLoader />;
   if (!hydrated) return <BootLoader />;
   if (!user) return <Navigate to="/login" state={{ from: loc }} replace />;
   if (!role && loc.pathname !== '/role') return <Navigate to="/role" replace />;
@@ -57,8 +44,16 @@ export function AuthGate({ children }: { children: JSX.Element }) {
 }
 
 export function GuestOnly({ children }: { children: JSX.Element }) {
-  const hydrated = useHydrate();
+  const { data, isLoading } = useMe();
+  const hydrate = useOnboarding((s) => s.hydrate);
+  const hydrated = useOnboarding((s) => s.hydrated);
   const user = useOnboarding((s) => s.user);
+
+  useEffect(() => {
+    if (data && !hydrated) hydrate(data);
+  }, [data, hydrated, hydrate]);
+
+  if (isLoading && !hydrated) return <BootLoader />;
   if (!hydrated) return <BootLoader />;
   if (user) return <Navigate to="/dashboard" replace />;
   return children;
