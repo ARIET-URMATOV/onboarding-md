@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: mdigital-api
+    name: preload-md
     env: python
     region: frankfurt
     plan: free
@@ -16,7 +16,7 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: FRONTEND_URL
-        value: https://onboarding-mdigital-peach.vercel.app
+        value: https://onboarding-mdigital-peach.vercel.app,https://onboarding-mdigital-avatq.vercel.app
       - key: PYTHON_VERSION
         value: 3.12.6
 

@@ -35,12 +35,20 @@ def create_token(user_id: int) -> str:
     return jwt.encode(payload, JWT_SECRET, algorithm="HS256")
 
 
+def _is_cross_site() -> bool:
+    # Render prod: DATABASE_URL содержит onrender.com → фронт на vercel.app (cross-site)
+    db_url = os.getenv("DATABASE_URL", "")
+    return "onrender.com" in db_url or os.getenv("RENDER") == "true"
+
+
 def set_auth_cookie(response: Response, token: str) -> None:
+    cross = _is_cross_site()
     response.set_cookie(
         key=COOKIE_NAME,
         value=token,
         httponly=True,
-        samesite="lax",
+        samesite="none" if cross else "lax",
+        secure=cross,
         max_age=int(TOKEN_TTL.total_seconds()),
         path="/",
     )
@@ -146,7 +154,8 @@ async def login(payload: LoginIn, response: Response, db: AsyncSession = Depends
 
 @router.post("/logout", response_model=OkOut)
 async def logout(response: Response):
-    response.delete_cookie(key=COOKIE_NAME, path="/")
+    cross = _is_cross_site()
+    response.delete_cookie(key=COOKIE_NAME, path="/", samesite="none" if cross else "lax", secure=cross)
     return OkOut()
 
 
