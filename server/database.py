@@ -13,7 +13,12 @@ elif _raw_url.startswith("postgresql://"):
     _raw_url = _raw_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 DATABASE_URL = _raw_url
 
-engine = create_async_engine(DATABASE_URL, echo=False)
+_is_external = "onrender.com" in DATABASE_URL
+engine = create_async_engine(
+    DATABASE_URL,
+    echo=False,
+    connect_args={"ssl": True} if _is_external else {},
+)
 SessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
