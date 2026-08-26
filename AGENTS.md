@@ -2,19 +2,19 @@
 
 ## Обзор
 
-Интерактивная платформа онбординга для сотрудников MDIGITAL. 5 этапов отrientation до выполнения первых задач, XP/уровни, cyberpunk-дизайн.
+Геймифицированная платформа онбординга для сотрудников MDIGITAL. 5 этапов, XP/уровни, cyberpunk-дизайн.
 
 ## Структура монорепо
 
 ```
-├── frontend/          Vite + React 19 + TypeScript
+├── frontend/          Vite + React 19 + TypeScript + pnpm
 │   ├── src/
-│   │   ├── api/       клиент (fetch wrapper), TanStack queries (TODO)
+│   │   ├── api/       fetch wrapper + TanStack Query
 │   │   ├── components auth/AuthGate, layout/TopBar, isometric/, stages/
 │   │   ├── pages/     DashboardPage, MapPage, ProfilePage, LoginPage и др.
-│   │   ├── store/     zustand (LOCALLY — TODO: замена на TanStack Query)
-│   │   └── hooks/     usePageMeta, useVoice
-│   └── public/        m-head-logo.png, icons.svg, голосовые файлы
+│   │   ├── store/     zustand (локальный прогресс)
+│   │   └── hooks/     usePageMeta
+│   └── public/        m-head-logo.png, icons.svg
 ├── backend/
 │   ├── app/
 │   │   ├── config.py          pydantic-settings (корневой .env)
@@ -29,21 +29,10 @@
 │   ├── requirements-dev.txt
 │   ├── ruff.toml
 │   └── schema.sql
-├── docs/              Obsidian-стиль документация
+├── docs/              документация
 ├── .github/workflows  CI: lint + pytest
 └── docker-compose.yml PostgreSQL 16 (local dev)
 ```
-
-## Ключевые решения
-
-- **Только Open Sans** во всём roadmap ( нет Cinzel/JetBrains Mono/ABeeZee/Marcellus)
-- **CORS**: строгий whitelist из env `CORS_ORIGINS`, без regex
-- **Cookie**: `SameSite=None; Secure` в production (Vercel → Render), `Lax` в dev
-- **JWT**: httpOnly cookie `md_token`, TTL 30 дней
-- **Frontend**: pnpm (lockfile: `frontend/pnpm-lock.yaml`)
-- **DB**: asyncpg (prod), SQLite+aiosqlite (тесты); JSONB → JSON.with_variant
-- **Server-authoritative XP**: клиент НЕ считает XP, всегда POST → сервер
-- **Demo**: `demo@mdigital.kg` / `demo1234`, идемпотентный login + reset
 
 ## Запуск тестов
 
@@ -53,6 +42,9 @@ backend\.venv\Scripts\python -m pytest backend\tests -v
 
 # Lint
 backend\.venv\Scripts\python -m ruff check backend\app backend\tests
+
+# Frontend
+cd frontend && pnpm run build
 ```
 
 ## Backend conventions
@@ -60,7 +52,7 @@ backend\.venv\Scripts\python -m ruff check backend\app backend\tests
 - Python 3.12, type hints required
 - Pydantic v2 models, no `Optional` (use `str | None`)
 - Async everywhere (asyncpg, `AsyncSession`)
-- Демо-эндпоинты идут в `routes/auth.py`,.progress → `routes/progress.py`
+- Демо-эндпоинты: `routes/auth.py`, progress: `routes/progress.py`
 - JWT cookie name: `md_token`
 
 ## Frontend conventions
@@ -69,6 +61,7 @@ backend\.venv\Scripts\python -m ruff check backend\app backend\tests
 - CSS-переменные в `styles/theme.css`
 - Fetch wrapper: `api/client.ts` (credentials: 'include')
 - Страницы в `pages/`, компоненты в `components/`
+- pnpm (lockfile: `frontend/pnpm-lock.yaml`)
 
 ## Production URLs
 

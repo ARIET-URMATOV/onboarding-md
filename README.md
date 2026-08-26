@@ -1,82 +1,192 @@
 # MDIGITAL Onboarding Platform
 
-Интерактивная платформа онбординга для сотрудников MDIGITAL — 5 этапов отrientation до выполнения первых задач, с XP/уровнями и cyberpunk-дизайном.
+Геймифицированная платформа онбординга для новых сотрудников MDIGITAL. Превращает рутину первого дня в интерактивное путешествие с XP, уровнями и наградами.
+
+## Зачем это нужно
+
+Традиционный онбординг — это десятки PDF-инструкций, lost-in-translation с руководителем, забытые доступы и вопросы «а что дальше?». Новый сотрудник тонет в информации и не понимает приоритеты.
+
+**MDIGITAL Onboarding** решает это через:
+
+- **Структурированный путь** — 5 этапов с чёткими задачами, никакой путаницы
+- **Геймификация** — XP за каждую задачу, уровни, анимации прогресса
+- **Самостоятельность** — сотрудник видит что делает, какой прогресс, что осталось
+- **Контроль для руководства** — видно кто на каком этапе, кто застрял
+
+## 5 этапов онбординга
+
+### Этап 1 — Документы и mPlus
+
+Заполни документы, познакомься с руководителем и установи корпоративный мессенджер.
+
+| Задача | XP |
+| ------ | -- |
+| Заполнить документы | 40 |
+| Ознакомиться с руководителем | 40 |
+| Скачать и установить mPLuse | 50 |
+| Доступ к Jira | 30 |
+| Доступ к Confluence | 30 |
+
+**Бонус за этап:** 150 XP · **Итого:** 340 XP
+
+---
+
+### Этап 2 — Команда и руководство
+
+Открой карточки ключевых сотрудников, познакомься с тимлидом и задай первый вопрос.
+
+| Задача | XP |
+| ------ | -- |
+| Студия у лида: знакомство | 40 |
+| Прочитать профили команды | 40 |
+| Познакомиться с тимлидом | 40 |
+| Задать вопрос в чат команды | 30 |
+
+**Бонус за этап:** 150 XP · **Итого:** 300 XP
+
+---
+
+### Этап 3 — Видеообращение
+
+Посмотри приветственное видео от руководства. Узнай о миссии, ценностях и планах команды.
+
+| Задача | XP |
+| ------ | -- |
+| Досмотреть видео до конца | 100 |
+
+**Бонус за этап:** 100 XP · **Итого:** 200 XP
+
+---
+
+### Этап 4 — Тех. чек-лист
+
+Проверь, что у тебя есть всё необходимое для работы: доступы, инструменты, инструкции.
+
+| Задача | XP |
+| ------ | -- |
+| Рабочее место готово | 25 |
+| Доступ к репозиторию | 25 |
+| Доступ к Figma | 25 |
+| Корпоративная почта | 25 |
+| Мессенджер настроен | 25 |
+| Прочитать инструкцию по стилю кода | 25 |
+
+**Бонус за этап:** 150 XP · **Итого:** 300 XP
+
+---
+
+### Этап 5 — Итоговый тест
+
+Пройди финальный тест по материалам онбординга.
+
+| Задача | XP |
+| ------ | -- |
+| Пройти тест по ссылке | 100 |
+| Подтвердить прохождение теста | 100 |
+
+**Бонус за этап:** 200 XP · **Итого:** 400 XP
+
+---
+
+## XP и уровни
+
+Каждая задача даёт определённое количество XP. За прохождение **всех задач этапа** начисляется бонус.
+
+| Этап | Задач | XP (задачи) | Бонус | Итого |
+| ---- | ----- | ----------- | ----- | ----- |
+| 1 — Документы | 5 | 190 | 150 | **340** |
+| 2 — Команда | 4 | 150 | 150 | **300** |
+| 3 — Видео | 1 | 100 | 100 | **200** |
+| 4 — Чек-лист | 6 | 150 | 150 | **300** |
+| 5 — Тест | 2 | 200 | 200 | **400** |
+| **Всего** | **18** | **790** | **750** | **1540** |
+
+**Максимум: 1540 XP = Lv.16**
+
+Уровень = `XP // 100 + 1`. Каждые 100 XP — новый уровень.
+
+## Роли
+
+При регистрации сотрудник выбирает роль:
+
+| Роль | Стек |
+| ---- | ---- |
+| Frontend | React · TypeScript · Vite |
+| Backend | Node · Python · SQL |
+| Design | Figma · UX · UI |
+
+Роль влияет на контент и рекомендации внутри этапов.
 
 ## Архитектура
 
 ```
-├── frontend/       Vite + React 19 + TypeScript
-│   └── src/        компоненты, страницы, хуки, store
+preload-state/
+├── frontend/          Vite + React 19 + TypeScript
+│   ├── src/
+│   │   ├── api/       fetch wrapper + TanStack Query
+│   │   ├── components auth, layout, isometric, stages
+│   │   ├── pages/     Dashboard, Map, Profile, Login, ...
+│   │   ├── store/     zustand (локальный прогресс)
+│   │   └── hooks/     usePageMeta
+│   └── public/        логотип, иконки, голосовые файлы
 ├── backend/
-│   ├── app/        FastAPI + SQLAlchemy (async) + JWT
-│   ├── tests/      pytest + httpx + aiosqlite
-│   └── schema.sql  DDL для PostgreSQL
-├── docs/           документация проекта
-└── .github/        CI/CD
+│   ├── app/           FastAPI + SQLAlchemy (async) + JWT
+│   ├── tests/         pytest + httpx + aiosqlite
+│   └── schema.sql     DDL для PostgreSQL
+├── docs/              документация проекта
+└── .github/           CI (lint + test)
 ```
 
-## Стек
-
-| Слой     | Технологии                                                                 |
-| -------- | -------------------------------------------------------------------------- |
-| Frontend | React 19, TypeScript, Vite, pnpm, React Router, TanStack Query |
-| Backend  | FastAPI, SQLAlchemy 2.0 (async), asyncpg, bcrypt, PyJWT (httpOnly cookie) |
-| DB       | PostgreSQL 16 (prod), SQLite (тесты)                                       |
+| Слой | Технологии |
+| ---- | ---------- |
+| Frontend | React 19, TypeScript, Vite, pnpm, React Router, TanStack Query, zustand, framer-motion |
+| Backend | FastAPI, SQLAlchemy 2.0, asyncpg, bcrypt, PyJWT (httpOnly cookie) |
+| DB | PostgreSQL 16 (prod), SQLite (тесты) |
 
 ## Быстрый старт
 
 ```bash
-# 1. Клонируй и установи зависимости
-pnpm install                      # frontend
-python -m venv backend/.venv       # backend
+# 1. Установи зависимости
+pnpm install                                # frontend
+python -m venv backend/.venv                # backend
 backend/.venv/Scripts/pip install -r backend/requirements.txt -r backend/requirements-dev.txt
 
 # 2. Настрой окружение
-cp .env.example .env               # заполни DATABASE_URL и JWT_SECRET_KEY
+cp .env.example .env                        # заполни DATABASE_URL и JWT_SECRET_KEY
 
-# 3. Подними PostgreSQL (Docker)
+# 3. Подними PostgreSQL
 docker compose up -d
 
 # 4. Запусти
-cd frontend && pnpm run dev       
-cd backend && uvicorn app.main:app --port 8000 --reload  
+cd frontend && pnpm run dev                 # http://localhost:5173
+cd backend && uvicorn app.main:app --port 8000 --reload  # http://localhost:8000
 ```
 
-## Тесты
+## Тесты и линт
 
 ```bash
+# Backend — 13 тестов (in-memory SQLite)
 backend/.venv/Scripts/python -m pytest backend/tests -v
 
 # Lint
 backend/.venv/Scripts/python -m ruff check backend/app backend/tests
 
-# Frontend
+# Frontend — build
 cd frontend && pnpm run build
 ```
 
-## 5 этапов онбординга
-
-| Этап | Название            | XP (задача) | XP (бонус) | Всего |
-| ---- | ------------------- | ----------- | ---------- | ----- |
-| 1    | Документы           | 40×5        | 150        | 350   |
-| 2    | Инструменты        | 50×4        | 150        | 350   |
-| 3    | Видео               | 200×1       | 0          | 200   |
-| 4    | Рабочее пространство| 40×6        | 150        | 390   |
-| 5    | Тестовое задание    | 100×2       | 150        | 350   |
-
-**Максимум: 1540 XP = Lv.16**
-
-## Роли
-
-`frontend` · `backend` · `designer`
-
 ## Демо-режим
 
-Вход: `demo@mdigital.kg` / `demo1234` — автоматическое создание + идемпотентный сброс.
+Для демонстрации без регистрации:
+
+- **Email:** `demo@mdigital.kg`
+- **Пароль:** `demo1234`
+
+Демо-аккаунт создаётся автоматически при первом входе. Сброс через `/api/demo/reset` возвращает всё в начальное состояние.
 
 ## Среды
 
-|         | Frontend                             | Backend                              |
-| ------- | ------------------------------------ | ------------------------------------ |
-| Dev     | `http://localhost:5173`              | `http://localhost:8000`              |
-| Prod    | `https://onboarding-mdigital-peach.vercel.app` | `https://preload-md.onrender.com`    |
+| | Frontend | Backend |
+| ---------- | -------- | ------- |
+| Dev | `http://localhost:5173` | `http://localhost:8000` |
+| Prod | `https://onboarding-mdigital-peach.vercel.app` | `https://preload-md.onrender.com` |
