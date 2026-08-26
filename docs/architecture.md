@@ -14,7 +14,6 @@ preload-state/
 
 - **React 19** с Suspense, lazy loading
 - **React Router** — SPA с hash-роутингом (MapPage работает на `/`)
-- **zustand** — локальный store (progress.jsp из localStorage, TODO: замена на TanStack Query)
 - **Fetch wrapper** (`api/client.ts`) — credentials: 'include', автоматический VITE_API_URL
 - **AuthGate** — гидратация через `/api/me` при загрузке, показ spinner до ответа
 - **usePageMeta** — SEO: title, OG/Twitter meta для каждой страницы

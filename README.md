@@ -70,7 +70,7 @@ cd frontend && npm run build
 
 ## Роли
 
-`frontend` · `backend` · `designer` · `marketing` · `product` · `manager` · `hr` · `support`
+`frontend` · `backend` · `designer`
 
 ## Демо-режим
 
@@ -82,7 +82,3 @@ cd frontend && npm run build
 | ------- | ------------------------------------ | ------------------------------------ |
 | Dev     | `http://localhost:5173`              | `http://localhost:8000`              |
 | Prod    | `https://onboarding-mdigital-peach.vercel.app` | `https://preload-md.onrender.com`    |
-
-## Лицензия
-
-Proprietary — MDIGITAL.
