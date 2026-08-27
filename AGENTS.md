@@ -65,6 +65,6 @@ cd frontend && pnpm run build
 
 ## Production URLs
 
-- Frontend: `https://onboarding-mdigital-peach.vercel.app`
+- Frontend: `https://onboarding-mdigital.vercel.app`
 - Backend: `https://preload-md.onrender.com`
-- Render Dashboard → Environment: `FRONTEND_URL=https://onboarding-mdigital-peach.vercel.app`
+- Render Dashboard → Environment: `FRONTEND_URL=https://onboarding-mdigital.vercel.app`

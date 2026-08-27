@@ -12,4 +12,4 @@ services:
       - key: APP_ENV
         value: production
       - key: CORS_ORIGINS
-        value: '["https://onboarding-mdigital-peach.vercel.app"]'
+        value: '["https://onboarding-mdigital.vercel.app"]'

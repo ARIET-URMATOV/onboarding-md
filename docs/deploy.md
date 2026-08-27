@@ -10,7 +10,7 @@
    ```
    VITE_API_URL=https://preload-md.onrender.com
    ```
-6. Deploy → `https://onboarding-mdigital-peach.vercel.app`
+6. Deploy → `https://onboarding-mdigital.vercel.app`
 
 ## Backend → Render
 
@@ -24,8 +24,8 @@
    DATABASE_URL=postgresql+asyncpg://...@...oregon-postgres.render.com:5432/mdigital_...
    JWT_SECRET_KEY=<random-64-chars>
    APP_ENV=production
-   CORS_ORIGINS=["https://onboarding-mdigital-peach.vercel.app"]
-   FRONTEND_URL=https://onboarding-mdigital-peach.vercel.app
+   CORS_ORIGINS=["https://onboarding-mdigital.vercel.app"]
+   FRONTEND_URL=https://onboarding-mdigital.vercel.app
    ```
 
 ## Локальная разработка

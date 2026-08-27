@@ -188,4 +188,4 @@ cd frontend && pnpm run build
 | | Frontend | Backend |
 | ---------- | -------- | ------- |
 | Dev | `http://localhost:5173` | `http://localhost:8000` |
-| Prod | `https://onboarding-mdigital-peach.vercel.app` | `https://preload-md.onrender.com` |
+| Prod | `https://onboarding-mdigital.vercel.app` | `https://preload-md.onrender.com` |
