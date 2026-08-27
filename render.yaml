@@ -13,3 +13,5 @@ services:
         value: production
       - key: CORS_ORIGINS
         value: '["https://onboarding-mdigital.vercel.app"]'
+      - key: FRONTEND_URL
+        value: "https://onboarding-mdigital.vercel.app"
