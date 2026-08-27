@@ -25,18 +25,19 @@ export function DashboardPage() {
   const lvl = Math.floor(xp / 100) + 1;
   const current = STAGES.find((s) => statuses[s.id] === 'current');
 
-  // интро (анимация + голос) — только при первом входе (флаг в БД)
+  // интро (анимация + голос) — при первом входе в сессию (sessionStorage)
   const introSeen = useOnboarding((s) => s.introSeen);
   const markIntroSeen = useOnboarding((s) => s.markIntroSeen);
   const introSeenRef = useRef(introSeen);
+  const [sessionIntroSeen] = useState(() => sessionStorage.getItem('md_intro_seen') === '1');
 
   const reduced = useMemo(
     () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
     [],
   );
 
-  const [phase, setPhase] = useState<Phase>(reduced || introSeen ? 'done' : 'dark');
-  const [overlayOn, setOverlayOn] = useState(!reduced && !introSeen);
+  const [phase, setPhase] = useState<Phase>(reduced || sessionIntroSeen ? 'done' : 'dark');
+  const [overlayOn, setOverlayOn] = useState(!reduced && !sessionIntroSeen);
   const voiceEnabled = useOnboarding((s) => s.voiceEnabled);
   const setVoiceEnabled = useOnboarding((s) => s.setVoiceEnabled);
   const [voiceOn, setVoiceOn] = useState(voiceEnabled);
@@ -148,6 +149,7 @@ export function DashboardPage() {
         // Фаза «Осветление»: оверлей плавно светлеет и растворяется
         setPhase('done');
         markIntroSeen();
+        sessionStorage.setItem('md_intro_seen', '1');
         document.body.style.background = '#0A0F1E';
         timersRef.current.push(
           window.setTimeout(() => setOverlayOn(false), 2400),
@@ -176,6 +178,7 @@ export function DashboardPage() {
     setPhase('done');
     setOverlayOn(false);
     markIntroSeen();
+    sessionStorage.setItem('md_intro_seen', '1');
     document.body.style.background = '#0A0F1E';
   }, [phase, clearAll, markIntroSeen]);
 
