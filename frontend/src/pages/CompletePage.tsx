@@ -136,7 +136,7 @@ export function CompletePage() {
           font-weight:700;
         }
         .res-label{ flex:1; text-align:left; font-size:13px }
-        .res-arrow{ color:var(--muted); font-size:16px }
+        .res-arrow{ color:var(--muted); font-size:16px; display:flex; align-items:center }
 
         .cp-cta{ display:flex; justify-content:center; gap:14px; margin-top:20px; flex-wrap:wrap }
 

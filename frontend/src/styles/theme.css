@@ -54,6 +54,7 @@ input,textarea,select{font-family:inherit;color:inherit}
 }
 
 .btn-primary{
+  display:inline-flex; align-items:center; gap:6px;
   font-family:'Marcellus','Cinzel',serif;
   font-size:11px; letter-spacing:.14em; text-transform:uppercase;
   padding:12px 22px; border-radius:10px;
@@ -67,6 +68,7 @@ input,textarea,select{font-family:inherit;color:inherit}
 .btn-primary.sm{ padding:10px 16px; font-size:10.5px; border-radius:999px }
 
 .btn-ghost{
+  display:inline-flex; align-items:center; gap:6px;
   font-family:'Marcellus','Cinzel',serif;
   font-size:10.5px; letter-spacing:.14em; text-transform:uppercase;
   padding:11px 18px; border-radius:999px;

@@ -239,6 +239,7 @@ export function ProfilePage() {
         .pf-back {
           position: absolute; top: 18px; left: 20px;
           background: none; border: none; cursor: pointer;
+          display: inline-flex; align-items: center; gap: 4px;
           font-family: 'Inter', sans-serif; font-size: 12.5px; font-weight: 500;
           color: rgba(255, 255, 255, 0.4); transition: color .15s ease;
         }
