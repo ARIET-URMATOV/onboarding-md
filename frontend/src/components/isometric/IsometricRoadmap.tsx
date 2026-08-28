@@ -46,6 +46,7 @@ export function IsometricRoadmap({ statuses, done }: Props) {
   const [shakeId, setShakeId] = useState<StageId | null>(null);
   const [finale, setFinale] = useState(false);
   const [unlockingId, setUnlockingId] = useState<StageId | null>(null);
+  const [videoEnded, setVideoEnded] = useState(false);
   const [xpToast, setXpToast] = useState<{ id: number; val: number } | null>(null);
   const prevDoneRef = useRef(done);
 
@@ -72,6 +73,22 @@ export function IsometricRoadmap({ statuses, done }: Props) {
     }
     prevDoneRef.current = done;
   }, [done]);
+
+  useEffect(() => {
+    if (!finale) return;
+    const prevBody = document.body.style.overflow;
+    const prevHtml = document.documentElement.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overscrollBehavior = 'contain';
+    document.documentElement.style.overscrollBehavior = 'contain';
+    return () => {
+      document.body.style.overflow = prevBody;
+      document.documentElement.style.overflow = prevHtml;
+      document.body.style.overscrollBehavior = '';
+      document.documentElement.style.overscrollBehavior = '';
+    };
+  }, [finale]);
 
   // unlocking animation when progress increments
   const prevStatusesRef = useRef(statuses);
@@ -237,7 +254,7 @@ export function IsometricRoadmap({ statuses, done }: Props) {
             )}
             {selected === 3 && selStatus !== 'locked' && (
               <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-                <Stage3Video stageId={selected} />
+                <Stage3Video stageId={selected} onVideoEnded={setVideoEnded} />
               </motion.div>
             )}
             {selected === 4 && selStatus !== 'locked' && (
@@ -255,14 +272,15 @@ export function IsometricRoadmap({ statuses, done }: Props) {
               <div className="sub-tasks" style={{ marginTop: 14 }}>
                 {sel.subTasks.map((t, i) => {
                   const done = selDoneIds.includes(t.id);
+                  const videoBlock = selected === 3 && !videoEnded && !done;
                   return (
                     <motion.label
                       key={t.id}
-                      className={`task-row ${done ? 'is-done' : ''}`}
+                      className={`task-row ${done ? 'is-done' : ''} ${videoBlock ? 'video-blocked' : ''}`}
                       initial={{ opacity: 0, x: -8 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: i * 0.05 }}
-                      whileHover={{ x: 2 }}
+                      whileHover={videoBlock ? {} : { x: 2 }}
                     >
                       <span className="task-box">
                         {done && (
@@ -273,7 +291,7 @@ export function IsometricRoadmap({ statuses, done }: Props) {
                       </span>
                       <span className="task-title">{t.title}</span>
                       <span className="task-xp">+{t.xp} XP</span>
-                      <input type="checkbox" checked={done} onChange={() => toggleTask(selected, t.id)} style={{ display: 'none' }} />
+                      <input type="checkbox" checked={done} disabled={videoBlock} onChange={() => toggleTask(selected, t.id)} style={{ display: 'none' }} />
                     </motion.label>
                   );
                 })}
@@ -324,12 +342,12 @@ export function IsometricRoadmap({ statuses, done }: Props) {
 
           <div className="gr-foot">
             <span className="gr-hint font-mono">
-              {selStatus === 'locked' ? 'Пройди предыдущий этап' : selStatus === 'current' && !allDoneForGate ? 'Выполни все задачи' : selStatus === 'done' && hasNext ? 'Готово → следующий этап' : selStatus === 'done' ? 'Все этапы пройдены' : 'Готов к завершению'}
+              {selStatus === 'locked' ? 'Пройди предыдущий этап' : selStatus === 'current' && !allDoneForGate ? 'Выполни все задачи' : selStatus === 'current' && selected === 3 && !videoEnded ? 'Досмотри видео до конца' : selStatus === 'done' && hasNext ? 'Готово → следующий этап' : selStatus === 'done' ? 'Все этапы пройдены' : 'Готов к завершению'}
             </span>
             {selStatus === 'locked' ? (
               <button className="gr-cta" disabled>Этап закрыт</button>
             ) : selStatus === 'current' ? (
-              allDoneForGate ? (
+              allDoneForGate && (selected !== 3 || videoEnded) ? (
                 hasNext ? (
                   <motion.button className="gr-cta" onClick={handleComplete} whileHover={{ scale: 1.02, y: -1 }} whileTap={{ scale: 0.98 }}>
                     Завершить →
@@ -338,7 +356,7 @@ export function IsometricRoadmap({ statuses, done }: Props) {
                   <motion.button className="gr-cta" onClick={handleComplete} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>Завершить →</motion.button>
                 )
               ) : (
-                <button className="gr-cta" disabled>Сначала задачи</button>
+                <button className="gr-cta" disabled>{selected === 3 && !videoEnded ? 'Досмотри видео' : 'Сначала задачи'}</button>
               )
             ) : (
               hasNext ? (
@@ -545,6 +563,7 @@ export function IsometricRoadmap({ statuses, done }: Props) {
         .task-row:hover{ background:rgba(59,130,246,.08); border-color:rgba(59,130,246,.3) }
         .task-row.is-done{ color:#94a3b8; }
         .task-row.is-done .task-title{ text-decoration:line-through; opacity:.65 }
+        .task-row.video-blocked{ opacity:.5; cursor:not-allowed; pointer-events:none }
         .task-box{ width:18px; height:18px; border-radius:5px; border:1px solid rgba(147,197,253,.5); display:grid; place-items:center; flex-shrink:0; }
         .task-box svg{ width:10px; height:10px; stroke:#fff; }
         .task-row.is-done .task-box{ background:#2563EB; border-color:#2563EB; }
@@ -573,6 +592,7 @@ export function IsometricRoadmap({ statuses, done }: Props) {
         }
         .gr-hint{ font-size:9px; letter-spacing:.12em; color:#a9a6c2; text-transform:uppercase; flex:1; min-width:0; }
         .gr-cta{
+          display:inline-flex; align-items:center; gap:6px;
           padding:10px 18px; border:none; cursor:pointer; flex-shrink:0;
           font-family:'Open Sans',sans-serif; font-size:10px; font-weight:700; letter-spacing:.09em; text-transform:uppercase;
           color:#fff; background:linear-gradient(90deg,#1E3A8A 0%,#1D4ED8 100%);
@@ -592,7 +612,7 @@ export function IsometricRoadmap({ statuses, done }: Props) {
         }
 
         /* финал */
-        .gm-finale{ position:absolute; inset:0; z-index:20; display:grid; place-items:center; background:rgba(10,15,30,.82); backdrop-filter:blur(8px); animation:gfin .3s ease }
+        .gm-finale{ position:fixed; inset:0; z-index:100; display:grid; place-items:center; background:rgba(10,15,30,.82); backdrop-filter:blur(8px); animation:gfin .3s ease; overflow:hidden }
         @keyframes gfin{ from{opacity:0} to{opacity:1} }
         .gf-flash{ position:absolute; inset:0; background:#fff; opacity:0; pointer-events:none; animation:gflash .32s ease .05s }
         @keyframes gflash{ 0%{opacity:0} 20%{opacity:.85} 100%{opacity:0} }
@@ -630,43 +650,43 @@ export function IsometricRoadmap({ statuses, done }: Props) {
           .gr-title{ font-size:16px; }
         }
 
-        /* ===== ДЕСКТОП / ТАБЛЕТ (≥861) — оригинальные десктопные размеры ===== */
+        /* ===== ДЕСКТОП / ТАБЛЕТ (≥861) — компактный дизайн ===== */
         @media (min-width:861px){
-          .gm-root{ grid-template-columns:420px 1fr; gap:16px; min-height:680px; border-radius:20px; overflow:visible; }
+          .gm-root{ grid-template-columns:380px 1fr; gap:14px; min-height:640px; border-radius:18px; overflow:visible; }
           .gm-left{
             position:sticky; top:72px; align-self:start;
-            padding:22px 18px 18px 20px;
+            padding:18px 16px 16px 18px;
             border-right:1px solid rgba(30,58,138,.14); border-bottom:none;
             background:linear-gradient(180deg, rgba(13,21,38,.5), rgba(10,15,30,.3));
             max-height: calc(100vh - 84px); overflow-y:auto; overflow-x:hidden;
-            border-radius:20px 0 0 20px;
+            border-radius:18px 0 0 18px;
           }
-          .gl-brand{ gap:11px; margin-bottom:16px }
-          .gl-mark{ width:36px; height:36px; border-radius:9px; } .gl-mark svg{ width:19px; height:19px; }
-          .gl-eyebrow{ font-size:13.5px; letter-spacing:.18em } .gl-sub{ font-size:11.5px; margin-top:3px }
-          .gm-tabs{ gap:12px; margin-bottom:18px }
-          .gm-tab{ width:44px; height:44px; } .gm-tab svg{ width:18px; height:18px; }
-          .gm-sect{ margin-bottom:16px } .gs-title{ font-size:18px } .gs-rule{ margin:10px 0 } .gs-meta{ font-size:11px }
-          .gm-list{ overflow-y:auto; padding-right:2px; gap:2px; }
-          .gm-connector{ height:14px; margin-left:28px; }
-          .gm-cardWrap{ filter:drop-shadow(0 3px 10px rgba(0,0,0,.35)); }
-          .gm-cardWrap.sel{ filter:drop-shadow(0 0 14px rgba(30,58,138,.45)) drop-shadow(0 4px 12px rgba(0,0,0,.4)); }
-          .gm-card{ padding:16px 18px; gap:14px; background:rgba(13,21,38,.6); clip-path:polygon(14px 0, 100% 0, calc(100% - 14px) 100%, 0 100%); border:none; border-radius:0; }
-          .gm-card:hover{ transform:translateX(3px) }
-          .gc-ico{ width:42px; height:42px; } .gc-ico svg{ width:17px; height:17px; }
-          .gc-spark{ font-size:16px; }
-          .gc-body{ gap:4px } .gc-name{ font-size:16.5px; white-space:normal; overflow:visible; text-overflow:clip; } .gc-state{ font-size:11px; letter-spacing:.13em } .gc-num{ font-size:9px }
-          .gm-right{ padding:20px 22px 22px; overflow:visible; }
-          .gr-head{ gap:16px } .gr-title{ font-size:20px; text-shadow:none } .gr-subtitle{ font-size:11px; letter-spacing:.16em; margin-top:5px } .gr-emblem{ width:62px; height:62px } .ge-core{ font-size:18px }
-          .gr-divider{ margin:16px 0 }
-          .gr-desc{ font-size:14.5px; line-height:1.7; margin:0 0 16px }
-          .gr-gate{ padding:10px 12px; font-size:11.5px; margin-bottom:16px }
-          .gr-tasksLabel{ font-size:10.5px; margin-bottom:10px }
-          .gr-chips{ gap:10px } .gr-chip{ width:42px; height:42px; font-size:13px; border-width:1.5px } .gr-chipLabel{ font-size:12px }
-          .sub-tasks{ gap:8px } .task-row{ padding:10px 12px; font-size:11.8px; gap:10px } .task-box{ width:17px; height:17px; border-radius:5px } .task-box svg{ width:10px; height:10px } .task-title{ font-size:13px } .task-xp{ font-size:10px }
-          .reward{ gap:10px; margin-top:12px; padding:11px 13px } .reward svg{ width:16px; height:16px } .reward b{ font-size:12px } .reward span{ font-size:11px }
-          .locked-body{ padding:18px 0 8px } .locked-icon{ font-size:28px; margin-bottom:10px } .locked-title{ font-size:13.5px } .locked-desc{ font-size:12.5px; max-width:280px }
-          .gr-foot{ gap:12px; padding-top:16px; margin-top:18px } .gr-hint{ font-size:10px } .gr-cta{ padding:12px 26px; font-size:11.5px; letter-spacing:.12em; clip-path:polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%) }
+          .gl-brand{ gap:10px; margin-bottom:14px }
+          .gl-mark{ width:32px; height:32px; border-radius:8px; } .gl-mark svg{ width:16px; height:16px; }
+          .gl-eyebrow{ font-size:12px; letter-spacing:.16em } .gl-sub{ font-size:10.5px; margin-top:2px }
+          .gm-tabs{ gap:10px; margin-bottom:14px }
+          .gm-tab{ width:38px; height:38px; } .gm-tab svg{ width:16px; height:16px; }
+          .gm-sect{ margin-bottom:12px } .gs-title{ font-size:14px } .gs-rule{ margin:8px 0 } .gs-meta{ font-size:10px }
+          .gm-list{ overflow-y:auto; padding-right:2px; gap:1px; }
+          .gm-connector{ height:10px; margin-left:22px; }
+          .gm-cardWrap{ filter:drop-shadow(0 2px 8px rgba(0,0,0,.3)); }
+          .gm-cardWrap.sel{ filter:drop-shadow(0 0 10px rgba(30,58,138,.4)) drop-shadow(0 3px 10px rgba(0,0,0,.35)); }
+          .gm-card{ padding:12px 14px; gap:10px; background:rgba(13,21,38,.6); border-radius:10px; border:1px solid rgba(30,58,138,.18); }
+          .gm-card:hover{ transform:translateX(2px) }
+          .gc-ico{ width:34px; height:34px; } .gc-ico svg{ width:15px; height:15px; }
+          .gc-spark{ font-size:14px; }
+          .gc-body{ gap:3px } .gc-name{ font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } .gc-state{ font-size:9.5px; letter-spacing:.12em } .gc-num{ font-size:8px }
+          .gm-right{ padding:16px 18px 18px; overflow:visible; }
+          .gr-head{ gap:12px } .gr-title{ font-size:15px; text-shadow:none } .gr-subtitle{ font-size:9.5px; letter-spacing:.14em; margin-top:3px } .gr-emblem{ width:46px; height:46px } .ge-core{ font-size:13px }
+          .gr-divider{ margin:12px 0 }
+          .gr-desc{ font-size:12px; line-height:1.6; margin:0 0 12px }
+          .gr-gate{ padding:8px 10px; font-size:10.5px; margin-bottom:12px }
+          .gr-tasksLabel{ font-size:9.5px; margin-bottom:8px }
+          .gr-chips{ gap:8px } .gr-chip{ width:34px; height:34px; font-size:11px; border-width:1.5px } .gr-chipLabel{ font-size:10px }
+          .sub-tasks{ gap:6px } .task-row{ padding:8px 10px; font-size:10.5px; gap:8px } .task-box{ width:16px; height:16px; border-radius:4px } .task-box svg{ width:9px; height:9px } .task-title{ font-size:11.5px } .task-xp{ font-size:9px }
+          .reward{ gap:8px; margin-top:10px; padding:9px 11px } .reward svg{ width:14px; height:14px } .reward b{ font-size:10.5px } .reward span{ font-size:10px }
+          .locked-body{ padding:14px 0 6px } .locked-icon{ font-size:22px; margin-bottom:8px } .locked-title{ font-size:11px } .locked-desc{ font-size:10.5px; max-width:260px }
+          .gr-foot{ gap:10px; padding-top:12px; margin-top:14px } .gr-hint{ font-size:9px } .gr-cta{ display:inline-flex; align-items:center; gap:6px; padding:10px 22px; font-size:10.5px; letter-spacing:.11em; clip-path:polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%) }
           .gr-emblem.done .ge-core{ color:#3B82F6 }
         }
         @media (prefers-reduced-motion: reduce){
