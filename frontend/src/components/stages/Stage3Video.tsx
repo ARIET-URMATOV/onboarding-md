@@ -1,9 +1,8 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { StageId } from '../../data/stages';
 
-interface Props { stageId: StageId }
+interface Props { stageId: StageId; onVideoEnded?: (ended: boolean) => void }
 
-// Inline SVG poster — no external assets needed
 const POSTER = `data:image/svg+xml;utf8,${encodeURIComponent(
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180">
     <defs><linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
@@ -16,9 +15,28 @@ const POSTER = `data:image/svg+xml;utf8,${encodeURIComponent(
   </svg>`,
 )}`;
 
-export function Stage3Video({ }: Props) {
+export function Stage3Video({ onVideoEnded }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [ended, setEnded] = useState(false);
+
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el) return;
+
+    const onEnded = () => {
+      setEnded(true);
+      onVideoEnded?.(true);
+    };
+
+    el.addEventListener('ended', onEnded);
+    return () => {
+      el.removeEventListener('ended', onEnded);
+    };
+  }, [onVideoEnded]);
+
+  useEffect(() => {
+    onVideoEnded?.(ended);
+  }, [ended, onVideoEnded]);
 
   return (
     <div className="video-wrap">
@@ -27,17 +45,14 @@ export function Stage3Video({ }: Props) {
           ref={videoRef}
           controls
           poster={POSTER}
-          onEnded={() => setEnded(true)}
-          onPlay={() => {}}
           style={{ width: '100%', display: 'block', borderRadius: 8 }}
         >
-          {/* Big Buck Bunny — public-domain sample clip */}
           <source src="https://www.w3schools.com/html/mov_bbb.mp4" type="video/mp4" />
           Твой браузер не поддерживает видео.
         </video>
       </div>
       <div className={`video-hint ${ended ? 'is-done' : ''}`}>
-        {ended ? '✓ Видео просмотрено — отметь чек-бокс выше' : 'Досмотри видео до конца, чтобы отметить шаг выполненным'}
+        {ended ? '✓ Видео просмотрено — отметь чек-бокс ниже' : 'Досмотри видео до конца, чтобы отметить шаг выполненным'}
       </div>
       <style>{`
         .video-wrap{ margin-bottom:6px }

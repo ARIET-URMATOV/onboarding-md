@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { PanelShell } from './PanelShell';
 import { STAGES, STAGE_ICONS } from '../../data/stages';
 import { useOnboarding } from '../../store/useOnboarding';
@@ -20,6 +21,7 @@ export function StagePanel({ stageId, status, onClose, onNext }: StagePanelProps
   const doneTasks = useOnboarding((s) => s.doneTasks[stageId]) || [];
   const toggleTask = useOnboarding((s) => s.toggleTask);
   const completeStage = useOnboarding((s) => s.completeStage);
+  const [videoEnded, setVideoEnded] = useState(false);
 
   const subtitle = status === 'locked'
     ? `ЭТАП 0${stageId} · ЗАКРЫТО`
@@ -44,8 +46,9 @@ export function StagePanel({ stageId, status, onClose, onNext }: StagePanelProps
       <div className="sub-tasks">
         {stage.subTasks.map((t) => {
           const done = doneTasks.includes(t.id);
+          const videoBlock = stageId === 3 && !videoEnded && !done;
           return (
-            <label key={t.id} className={`task-row ${done ? 'is-done' : ''}`}>
+            <label key={t.id} className={`task-row ${done ? 'is-done' : ''} ${videoBlock ? 'video-blocked' : ''}`}>
               <span className="task-box">
                 {done && (
                   <svg viewBox="0 0 24 24" fill="none" strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round">
@@ -57,6 +60,7 @@ export function StagePanel({ stageId, status, onClose, onNext }: StagePanelProps
               <input
                 type="checkbox"
                 checked={done}
+                disabled={videoBlock}
                 onChange={() => toggleTask(stageId, t.id)}
                 style={{ display: 'none' }}
               />
@@ -83,7 +87,7 @@ export function StagePanel({ stageId, status, onClose, onNext }: StagePanelProps
         <p className="panel-desc">{stage.description}</p>
         {stageId === 1 && <Stage1Documents stageId={stageId} />}
         {stageId === 2 && <Stage2Team stageId={stageId} />}
-        {stageId === 3 && <Stage3Video stageId={stageId} />}
+        {stageId === 3 && <Stage3Video stageId={stageId} onVideoEnded={setVideoEnded} />}
         {stageId === 4 && <Stage4Checklist stageId={stageId} />}
         {stageId === 5 && <Stage5Test stageId={stageId} />}
         {subTasksList}
@@ -117,8 +121,8 @@ export function StagePanel({ stageId, status, onClose, onNext }: StagePanelProps
       onClose={onClose}
       primary={
         status === 'current' ? (
-          <button className="btn-primary sm" disabled={stageId === 1 && !allDoneForGate} onClick={handleComplete} title={stageId === 1 && !allDoneForGate ? 'Сначала прочитай документы до конца' : undefined}>
-            {stageId === 1 && !allDoneForGate ? 'СНАЧАЛА ДОКУМЕНТЫ' : `ЗАВЕРШИТЬ →`}
+          <button className="btn-primary sm" disabled={(stageId === 1 && !allDoneForGate) || (stageId === 3 && !videoEnded)} onClick={handleComplete} title={stageId === 1 && !allDoneForGate ? 'Сначала прочитай документы до конца' : stageId === 3 && !videoEnded ? 'Досмотри видео до конца' : undefined}>
+            {stageId === 1 && !allDoneForGate ? 'СНАЧАЛА ДОКУМЕНТЫ' : stageId === 3 && !videoEnded ? 'ДОСМОТРИ ВИДЕО' : `ЗАВЕРШИТЬ →`}
           </button>
         ) : status === 'done' ? (
           hasNext ? (
@@ -167,6 +171,7 @@ export function StagePanel({ stageId, status, onClose, onNext }: StagePanelProps
         .task-box svg{ width:10px; height:10px; stroke:#02131b; opacity:0 }
         .task-row.is-done .task-box{ background:var(--mint); border-color:var(--mint) }
         .task-row.is-done .task-box svg{ opacity:1 }
+        .task-row.video-blocked{ opacity:.5; cursor:not-allowed; pointer-events:none }
         .task-title{ flex:1; font-size:11.8px }
         .task-xp{ font-size:9px; color:var(--muted); letter-spacing:.04em }
         .task-xp b{ color:var(--cyan); font-weight:600 }
