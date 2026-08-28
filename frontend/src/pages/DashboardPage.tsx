@@ -29,7 +29,7 @@ export function DashboardPage() {
   const introSeen = useOnboarding((s) => s.introSeen);
   const markIntroSeen = useOnboarding((s) => s.markIntroSeen);
   const introSeenRef = useRef(introSeen);
-  const [sessionIntroSeen] = useState(() => sessionStorage.getItem('md_intro_seen') === '1');
+  const [sessionIntroSeen] = useState(() => localStorage.getItem('md_intro_seen') === '1');
 
   const reduced = useMemo(
     () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
@@ -41,7 +41,7 @@ export function DashboardPage() {
   const voiceEnabled = useOnboarding((s) => s.voiceEnabled);
   const setVoiceEnabled = useOnboarding((s) => s.setVoiceEnabled);
   const [voiceOn, setVoiceOn] = useState(voiceEnabled);
-  const spokeRef = useRef(false);
+  const spokeRef = useRef(sessionIntroSeen);
   const voiceOnRef = useRef(voiceOn);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   useEffect(() => { voiceOnRef.current = voiceOn; }, [voiceOn]);
@@ -149,7 +149,7 @@ export function DashboardPage() {
         // Фаза «Осветление»: оверлей плавно светлеет и растворяется
         setPhase('done');
         markIntroSeen();
-        sessionStorage.setItem('md_intro_seen', '1');
+        localStorage.setItem('md_intro_seen', '1');
         document.body.style.background = '#0A0F1E';
         timersRef.current.push(
           window.setTimeout(() => setOverlayOn(false), 2400),
@@ -178,7 +178,7 @@ export function DashboardPage() {
     setPhase('done');
     setOverlayOn(false);
     markIntroSeen();
-    sessionStorage.setItem('md_intro_seen', '1');
+    localStorage.setItem('md_intro_seen', '1');
     document.body.style.background = '#0A0F1E';
   }, [phase, clearAll, markIntroSeen]);
 
