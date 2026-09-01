@@ -5,7 +5,7 @@ from app.database import get_db
 from app.models import Progress, User
 from app.routes.auth import get_current_user
 from app.schemas import OkOut, ProgressOut, StageActionIn, TaskIn, VoiceIn
-from app.stages_data import STAGES, compute_xp, normalize_tasks
+from app.stages_data import STAGES, compute_level, compute_xp, is_all_complete, normalize_tasks
 
 router = APIRouter()
 
@@ -21,12 +21,24 @@ async def load_progress(db: AsyncSession, user: User) -> Progress:
 
 
 async def save_progress(db: AsyncSession, prog: Progress, done_tasks: dict) -> ProgressOut:
+    from datetime import datetime, timezone
+
     prog.done_tasks = normalize_tasks(done_tasks)
     prog.xp = compute_xp(prog.done_tasks)
+    if is_all_complete(prog.done_tasks):
+        if prog.completed_at is None:
+            prog.completed_at = datetime.now(timezone.utc)
+    else:
+        prog.completed_at = None
     db.add(prog)
     await db.commit()
     await db.refresh(prog)
-    return ProgressOut(done_tasks=prog.done_tasks, xp=prog.xp)
+    return ProgressOut(
+        done_tasks=prog.done_tasks,
+        xp=prog.xp,
+        level=compute_level(prog.xp),
+        completed_at=prog.completed_at.isoformat() if prog.completed_at else None,
+    )
 
 
 @router.post("/progress/task", response_model=ProgressOut)

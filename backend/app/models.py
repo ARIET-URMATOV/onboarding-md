@@ -46,6 +46,7 @@ class Progress(Base):
     )
     done_tasks: Mapped[dict] = mapped_column(FlexibleJSON, nullable=False, default=empty_tasks)
     xp: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow
     )

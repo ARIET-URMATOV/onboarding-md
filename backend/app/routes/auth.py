@@ -2,13 +2,14 @@ import re
 from datetime import datetime, timedelta, timezone
 
 import jwt
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Response
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response
 from passlib.context import CryptContext
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import get_db
+from app.limiter import limiter
 from app.models import Progress, User
 from app.schemas import (
     LoginIn,
@@ -98,14 +99,23 @@ def user_out(user: User) -> UserOut:
 
 
 def me_out(user: User, prog: Progress) -> MeOut:
+    from app.stages_data import compute_level
+
+    level = compute_level(prog.xp)
+    completed = prog.completed_at.isoformat() if prog.completed_at else None
     return MeOut(
         user=user_out(user),
-        progress=ProgressOut(done_tasks=prog.done_tasks, xp=prog.xp),
+        progress=ProgressOut(
+            done_tasks=prog.done_tasks, xp=prog.xp, level=level, completed_at=completed
+        ),
     )
 
 
 @router.post("/register", response_model=MeOut)
-async def register(payload: RegisterIn, response: Response, db: AsyncSession = Depends(get_db)):
+@limiter.limit("20/minute")
+async def register(
+    request: Request, payload: RegisterIn, response: Response, db: AsyncSession = Depends(get_db)
+):
     email = payload.email.lower().strip()
     res = await db.execute(select(User).where(User.email == email))
     if res.scalar_one_or_none() is not None:
@@ -130,7 +140,10 @@ async def register(payload: RegisterIn, response: Response, db: AsyncSession = D
 
 
 @router.post("/login", response_model=MeOut)
-async def login(payload: LoginIn, response: Response, db: AsyncSession = Depends(get_db)):
+@limiter.limit("20/minute")
+async def login(
+    request: Request, payload: LoginIn, response: Response, db: AsyncSession = Depends(get_db)
+):
     email = payload.email.lower().strip()
     res = await db.execute(select(User).where(User.email == email))
     user = res.scalar_one_or_none()
@@ -217,7 +230,8 @@ async def get_demo_user(db: AsyncSession) -> User | None:
 
 
 @router.post("/demo/login", response_model=MeOut)
-async def demo_login(response: Response, db: AsyncSession = Depends(get_db)):
+@limiter.limit("20/minute")
+async def demo_login(request: Request, response: Response, db: AsyncSession = Depends(get_db)):
     """Идемпотентный вход в демо-аккаунт: создаёт его при первом заходе."""
     user = await get_demo_user(db)
     if user is None:

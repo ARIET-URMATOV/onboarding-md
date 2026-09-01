@@ -42,6 +42,8 @@ export interface MeResponse {
   progress: {
     done_tasks: Record<string, string[]>;
     xp: number;
+    level: number;
+    completed_at: string | null;
   };
 }
 
@@ -57,6 +59,8 @@ export interface UserResponse {
 export interface ProgressResponse {
   done_tasks: Record<string, string[]>;
   xp: number;
+  level: number;
+  completed_at: string | null;
 }
 
 export const api = {

@@ -18,6 +18,8 @@ interface OnboardingState {
   voiceEnabled: boolean;
   doneTasks: Record<StageId, string[]>;
   xp: number;
+  level: number;
+  completedAt: string | null;
   hydrated: boolean;
   // actions
   hydrate: (me: MeResponse) => void;
@@ -57,6 +59,8 @@ export const useOnboarding = create<OnboardingState>()((set, get) => ({
   voiceEnabled: true,
   doneTasks: emptyTasks(),
   xp: 0,
+  level: 1,
+  completedAt: null,
   hydrated: false,
 
   hydrate: (me) =>
@@ -67,6 +71,8 @@ export const useOnboarding = create<OnboardingState>()((set, get) => ({
       voiceEnabled: me.user.voice_enabled,
       doneTasks: { ...emptyTasks(), ...me.progress.done_tasks } as Record<StageId, string[]>,
       xp: me.progress.xp,
+      level: me.progress.level ?? Math.floor(me.progress.xp / 100) + 1,
+      completedAt: me.progress.completed_at ?? null,
       hydrated: true,
     }),
 
@@ -83,7 +89,7 @@ export const useOnboarding = create<OnboardingState>()((set, get) => ({
     try { await api.post('/api/logout'); } catch { /* cookie уже могла истечь */ }
     set({
       user: null, role: null, introSeen: false, voiceEnabled: true,
-      doneTasks: emptyTasks(), xp: 0, hydrated: true,
+      doneTasks: emptyTasks(), xp: 0, level: 1, completedAt: null, hydrated: true,
     });
   },
   setRole: async (r) => {
@@ -121,18 +127,23 @@ export const useOnboarding = create<OnboardingState>()((set, get) => ({
 
   toggleTask: async (stageId, taskId) => {
     const prevTasks = get().doneTasks;
+    const prevXp = get().xp;
+    const prevLevel = get().level;
     const cur = prevTasks[stageId] || [];
     const next = cur.includes(taskId) ? cur.filter((t) => t !== taskId) : [...cur, taskId];
     const optimistic = { ...prevTasks, [stageId]: next };
-    set({ doneTasks: optimistic, xp: xpFromTasks(optimistic) });
+    const optXp = xpFromTasks(optimistic);
+    set({ doneTasks: optimistic, xp: optXp, level: Math.floor(optXp / 100) + 1 });
     try {
       const res = await api.post<ProgressResponse>('/api/progress/task', { stage_id: stageId, task_id: taskId });
       set({
         doneTasks: { ...emptyTasks(), ...res.done_tasks } as Record<StageId, string[]>,
         xp: res.xp,
+        level: res.level,
+        completedAt: res.completed_at,
       });
     } catch (e) {
-      set({ doneTasks: prevTasks, xp: xpFromTasks(prevTasks) });
+      set({ doneTasks: prevTasks, xp: prevXp, level: prevLevel });
       throw e;
     }
   },
@@ -141,21 +152,26 @@ export const useOnboarding = create<OnboardingState>()((set, get) => ({
     const stage = STAGES.find((s) => s.id === stageId);
     if (!stage) return;
     const prevTasks = get().doneTasks;
+    const prevXp = get().xp;
+    const prevLevel = get().level;
     const cur = prevTasks[stageId] || [];
     const allTaskIds = stage.subTasks.map((t) => t.id);
     const missing = allTaskIds.filter((id) => !cur.includes(id));
     // Этап 1 закрывается только через scroll-gate всех документов
     if (stageId === 1 && missing.length > 0) return;
     const optimistic = { ...prevTasks, [stageId]: allTaskIds };
-    set({ doneTasks: optimistic, xp: xpFromTasks(optimistic) });
+    const optXp = xpFromTasks(optimistic);
+    set({ doneTasks: optimistic, xp: optXp, level: Math.floor(optXp / 100) + 1 });
     try {
       const res = await api.post<ProgressResponse>('/api/progress/stage', { stage_id: stageId, action: 'complete' });
       set({
         doneTasks: { ...emptyTasks(), ...res.done_tasks } as Record<StageId, string[]>,
         xp: res.xp,
+        level: res.level,
+        completedAt: res.completed_at,
       });
     } catch (e) {
-      set({ doneTasks: prevTasks, xp: xpFromTasks(prevTasks) });
+      set({ doneTasks: prevTasks, xp: prevXp, level: prevLevel });
       throw e;
     }
   },
@@ -164,16 +180,21 @@ export const useOnboarding = create<OnboardingState>()((set, get) => ({
     const stage = STAGES.find((s) => s.id === stageId);
     if (!stage) return;
     const prevTasks = get().doneTasks;
+    const prevXp = get().xp;
+    const prevLevel = get().level;
     const optimistic = { ...prevTasks, [stageId]: [] };
-    set({ doneTasks: optimistic, xp: xpFromTasks(optimistic) });
+    const optXp = xpFromTasks(optimistic);
+    set({ doneTasks: optimistic, xp: optXp, level: Math.floor(optXp / 100) + 1 });
     try {
       const res = await api.post<ProgressResponse>('/api/progress/stage', { stage_id: stageId, action: 'uncomplete' });
       set({
         doneTasks: { ...emptyTasks(), ...res.done_tasks } as Record<StageId, string[]>,
         xp: res.xp,
+        level: res.level,
+        completedAt: res.completed_at,
       });
     } catch (e) {
-      set({ doneTasks: prevTasks, xp: xpFromTasks(prevTasks) });
+      set({ doneTasks: prevTasks, xp: prevXp, level: prevLevel });
       throw e;
     }
   },

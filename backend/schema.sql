@@ -14,5 +14,6 @@ CREATE TABLE IF NOT EXISTS progress (
   user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   done_tasks JSONB NOT NULL DEFAULT '{"1":[],"2":[],"3":[],"4":[],"5":[]}'::jsonb,
   xp INTEGER NOT NULL DEFAULT 0,
+  completed_at TIMESTAMPTZ,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );

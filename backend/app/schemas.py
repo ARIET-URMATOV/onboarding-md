@@ -3,7 +3,7 @@ from pydantic import BaseModel, EmailStr, Field
 
 class RegisterIn(BaseModel):
     email: EmailStr
-    password: str = Field(min_length=4, max_length=128)
+    password: str = Field(min_length=8, max_length=128)
     name: str | None = Field(default=None, max_length=80)
 
 
@@ -23,7 +23,7 @@ class ProfileIn(BaseModel):
 
 class PasswordChangeIn(BaseModel):
     current_password: str = Field(min_length=1, max_length=128)
-    new_password: str = Field(min_length=6, max_length=128)
+    new_password: str = Field(min_length=8, max_length=128)
 
 
 class TaskIn(BaseModel):
@@ -43,6 +43,8 @@ class VoiceIn(BaseModel):
 class ProgressOut(BaseModel):
     done_tasks: dict
     xp: int
+    level: int
+    completed_at: str | None = None
 
 
 class UserOut(BaseModel):
@@ -61,7 +63,3 @@ class MeOut(BaseModel):
 
 class OkOut(BaseModel):
     ok: bool = True
-
-
-class AuthErrorOut(BaseModel):
-    detail: str

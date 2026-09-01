@@ -108,8 +108,6 @@ export const STAGE_ICONS: Record<StageDef['iconKey'], string> = {
   test: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M9 13h6 M9 17h6',
 };
 
-export const STAGE_TOTAL_XP = STAGES.reduce((sum, s) => sum + s.xpReward, 0);
-
 export const ROLES: { id: Role; title: string; subtitle: string; color: string }[] = [
   { id: 'frontend', title: 'Frontend', subtitle: 'React · TypeScript · Vite', color: '#3B82F6' },
   { id: 'backend', title: 'Backend', subtitle: 'Node · Python · SQL', color: '#2563EB' },

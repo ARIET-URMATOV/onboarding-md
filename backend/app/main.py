@@ -3,29 +3,55 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import inspect, text
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 import app.models  # noqa: F401 — регистрация моделей на Base.metadata
 from app.config import settings
 from app.database import Base, engine
+from app.limiter import limiter, rate_limit_handler
+
+
+async def _run_alembic_upgrade() -> bool:
+    """Run `alembic upgrade head` via subprocess (avoids loop-conflict with async env.py)."""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "alembic", "upgrade", "head",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await proc.communicate()
+        if proc.returncode == 0:
+            print("alembic upgrade head ok")
+            if stdout:
+                print(stdout.decode().strip())
+            return True
+        print(f"alembic upgrade failed ({proc.returncode}): {stderr.decode().strip()}")
+        return False
+    except FileNotFoundError:
+        print("alembic not found — falling back to create_all")
+        return False
+    except Exception as e:
+        print(f"alembic upgrade error: {e}")
+        return False
 
 
 async def run_migrations():
-    """Создание таблиц + лёгкие миграции — с ретраем (БД может стартовать дольше Web Service)."""
+    """Alembic upgrade with retry; fallback to create_all for test/SQLite."""
+    is_sqlite_memory = "sqlite" in settings.database_url and ":memory:" in settings.database_url
     for attempt in range(5):
         try:
-            async with engine.begin() as conn:
-                await conn.run_sync(Base.metadata.create_all)
-
-                def _add_avatar(sync_conn):
-                    insp = inspect(sync_conn)
-                    if "users" in insp.get_table_names():
-                        cols = [c["name"] for c in insp.get_columns("users")]
-                        if "avatar" not in cols:
-                            sync_conn.execute(text("ALTER TABLE users ADD COLUMN avatar TEXT"))
-
-                await conn.run_sync(_add_avatar)
-            print("migrations ok")
+            if is_sqlite_memory:
+                async with engine.begin() as conn:
+                    await conn.run_sync(Base.metadata.create_all)
+                print("migrations ok (sqlite memory — create_all)")
+            else:
+                ok = await _run_alembic_upgrade()
+                if not ok:
+                    # Fallback: create_all keeps fresh DB bootable even if alembic misconfigured
+                    async with engine.begin() as conn:
+                        await conn.run_sync(Base.metadata.create_all)
+                    print("migrations ok (fallback create_all)")
             break
         except Exception as e:
             print(f"migration retry {attempt + 1}/5: {e}")
@@ -37,6 +63,8 @@ async def run_migrations():
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    if settings.is_production and settings.jwt_secret_key == settings.DEV_JWT_SECRET:
+        raise RuntimeError("JWT_SECRET_KEY must be set to a secure value in production")
     await run_migrations()
     yield
 
@@ -47,6 +75,10 @@ app = FastAPI(
     lifespan=lifespan,
     debug=settings.app_debug,
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_handler)  # type: ignore[arg-type]
+app.add_middleware(SlowAPIMiddleware)
 
 app.add_middleware(
     CORSMiddleware,

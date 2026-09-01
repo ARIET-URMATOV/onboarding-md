@@ -48,9 +48,30 @@ def test_compute_xp_max_all_stages():
 
 def test_normalize_tasks_ignores_unknown():
     tasks = normalize_tasks({"1": ["1-docs", "hax"], "9": ["x"], "2": "not-a-list"})
-    assert tasks["1"] == ["1-docs", "hax"]
+    # unknown task "hax" is now dropped (tightened normalize_tasks), unknown stage "9" ignored
+    assert tasks["1"] == ["1-docs"]
     assert "9" not in tasks
     assert tasks["2"] == []
+
+
+def test_normalize_tasks_drops_unknown_task_ids():
+    tasks = normalize_tasks({"2": ["2-studio", "evil"], "3": ["3-watch"]})
+    assert tasks["2"] == ["2-studio"]
+    assert tasks["3"] == ["3-watch"]
+
+
+def test_compute_level():
+    from app.stages_data import compute_level
+
+    assert compute_level(0) == 1
+    assert compute_level(40) == 1
+    assert compute_level(100) == 2
+    assert compute_level(1540) == 16
+
+
+def test_register_short_password_rejected(client):
+    bad = client.post("/api/register", json={"email": _unique_email(), "password": "short"})
+    assert bad.status_code == 422
 
 
 # ---------- API: health ----------
@@ -139,7 +160,7 @@ def test_profile_and_password(client):
 
     wrong = client.post(
         "/api/profile/password",
-        json={"current_password": "wrong", "new_password": "x123456"},
+        json={"current_password": "wrong", "new_password": "x12345678"},
     )
     assert wrong.status_code == 401
 

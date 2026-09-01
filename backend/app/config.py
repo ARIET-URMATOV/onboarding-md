@@ -19,10 +19,6 @@ class Settings(BaseSettings):
     app_env: str = "development"
     app_debug: bool = False
 
-    # Backend
-    backend_host: str = "0.0.0.0"
-    backend_port: int = 8000
-
     # CORS (JSON-список в .env: ["http://localhost:5173", ...])
     cors_origins: list[str] = ["http://localhost:5173"]
 
@@ -38,6 +34,8 @@ class Settings(BaseSettings):
     jwt_secret_key: str = "dev-secret-change-in-production"
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_days: int = 30
+
+    DEV_JWT_SECRET: str = "dev-secret-change-in-production"
 
     # Demo
     demo_email: str = "demo@mdigital.kg"

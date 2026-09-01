@@ -61,12 +61,21 @@ def compute_xp(done_tasks: dict) -> int:
     return total
 
 
-def stage_is_complete(sid: int, done_tasks: dict) -> bool:
-    stage = STAGES.get(sid)
-    if not stage:
-        return False
-    done = done_tasks.get(str(sid)) or []
-    return all(tid in done for tid in stage["tasks"])
+def compute_level(xp: int) -> int:
+    return xp // 100 + 1
+
+
+def is_all_complete(done_tasks: dict) -> bool:
+    for sid, stage in STAGES.items():
+        done = done_tasks.get(str(sid)) or []
+        if not all(tid in done for tid in stage["tasks"]):
+            return False
+    return True
+
+
+_KNOWN_TASK_IDS: dict[str, set[str]] = {
+    str(sid): set(stage["tasks"].keys()) for sid, stage in STAGES.items()
+}
 
 
 def normalize_tasks(done_tasks: dict | None) -> dict:
@@ -76,5 +85,6 @@ def normalize_tasks(done_tasks: dict | None) -> dict:
     for sid in out:
         val = done_tasks.get(sid)
         if isinstance(val, list):
-            out[sid] = [str(x) for x in val]
+            known = _KNOWN_TASK_IDS[sid]
+            out[sid] = [str(x) for x in val if str(x) in known]
     return out
