@@ -81,6 +81,7 @@ export function RoleSelectPage() {
         .role-grid{
           display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 280px));
           gap:18px; width:100%; max-width:920px;
+          justify-content:center;
         }
         .role-card{
           position:relative;

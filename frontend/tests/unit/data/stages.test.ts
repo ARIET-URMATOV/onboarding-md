@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { STAGES } from './stages';
+import { STAGES } from '../../../src/data/stages';
 
 describe('STAGES data', () => {
   it('has 5 stages with stable IDs', () => {

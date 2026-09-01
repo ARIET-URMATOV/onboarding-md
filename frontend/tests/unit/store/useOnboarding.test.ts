@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useOnboarding, getStageStatus, getAllStatuses, getProgress } from './useOnboarding';
-import type { StageId } from '../data/stages';
+import { useOnboarding, getStageStatus, getAllStatuses, getProgress } from '../../../src/store/useOnboarding';
+import type { StageId } from '../../../src/data/stages';
 
 function empty(): Record<StageId, string[]> {
   return { 1: [], 2: [], 3: [], 4: [], 5: [] };
