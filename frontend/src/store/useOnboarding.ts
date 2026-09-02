@@ -126,6 +126,7 @@ export const useOnboarding = create<OnboardingState>()((set, get) => ({
   },
 
   toggleTask: async (stageId, taskId) => {
+    if (!get().role) throw new Error('Сначала выберите роль');
     const prevTasks = get().doneTasks;
     const prevXp = get().xp;
     const prevLevel = get().level;
@@ -149,6 +150,7 @@ export const useOnboarding = create<OnboardingState>()((set, get) => ({
   },
 
   completeStage: async (stageId) => {
+    if (!get().role) throw new Error('Сначала выберите роль');
     const stage = STAGES.find((s) => s.id === stageId);
     if (!stage) return;
     const prevTasks = get().doneTasks;
@@ -177,6 +179,7 @@ export const useOnboarding = create<OnboardingState>()((set, get) => ({
   },
 
   uncompleteStage: async (stageId) => {
+    if (!get().role) throw new Error('Сначала выберите роль');
     const stage = STAGES.find((s) => s.id === stageId);
     if (!stage) return;
     const prevTasks = get().doneTasks;

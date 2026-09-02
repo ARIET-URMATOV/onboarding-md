@@ -29,7 +29,6 @@ export function AuthGate({ children }: { children: JSX.Element }) {
   const hydrate = useOnboarding((s) => s.hydrate);
   const hydrated = useOnboarding((s) => s.hydrated);
   const user = useOnboarding((s) => s.user);
-  const role = useOnboarding((s) => s.role);
   const loc = useLocation();
 
   useEffect(() => {
@@ -42,7 +41,12 @@ export function AuthGate({ children }: { children: JSX.Element }) {
   if (isLoading && !hydrated) return <BootLoader />;
   if (!hydrated) return <BootLoader />;
   if (!user) return <Navigate to="/login" state={{ from: loc }} replace />;
-  if (!role && loc.pathname !== '/role') return <Navigate to="/role" replace />;
+  return children;
+}
+
+export function RequireRole({ children }: { children: JSX.Element }) {
+  const role = useOnboarding((s) => s.role);
+  if (!role) return <Navigate to="/role" replace />;
   return children;
 }
 

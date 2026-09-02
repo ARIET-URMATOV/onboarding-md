@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models import Progress, User
-from app.routes.auth import get_current_user
+from app.routes.auth import get_current_user, require_role
 from app.schemas import OkOut, ProgressOut, StageActionIn, TaskIn, VoiceIn
 from app.stages_data import STAGES, compute_level, compute_xp, is_all_complete, normalize_tasks
 
@@ -45,7 +45,7 @@ async def save_progress(db: AsyncSession, prog: Progress, done_tasks: dict) -> P
 async def toggle_task(
     payload: TaskIn,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_role),
 ):
     stage = STAGES.get(payload.stage_id)
     if stage is None or payload.task_id not in stage["tasks"]:
@@ -66,7 +66,7 @@ async def toggle_task(
 async def stage_action(
     payload: StageActionIn,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_role),
 ):
     stage = STAGES.get(payload.stage_id)
     if stage is None:

@@ -1,6 +1,6 @@
 import { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthGate, GuestOnly } from './components/auth/AuthGate';
+import { AuthGate, GuestOnly, RequireRole } from './components/auth/AuthGate';
 import './styles/global.css';
 
 // Eager: auth pages (small, needed before hydration)
@@ -30,11 +30,11 @@ export default function App() {
               <Route path="/login" element={<GuestOnly><LoginPage /></GuestOnly>} />
               <Route path="/register" element={<GuestOnly><RegisterPage /></GuestOnly>} />
               <Route path="/role" element={<AuthGate><RoleSelectPage /></AuthGate>} />
-              <Route path="/dashboard" element={<AuthGate><DashboardPage /></AuthGate>} />
-              <Route path="/roadmap" element={<AuthGate><RoadmapPage /></AuthGate>} />
-              <Route path="/map" element={<AuthGate><MapPage /></AuthGate>} />
-              <Route path="/profile" element={<AuthGate><ProfilePage /></AuthGate>} />
-              <Route path="/complete" element={<AuthGate><CompletePage /></AuthGate>} />
+              <Route path="/dashboard" element={<AuthGate><RequireRole><DashboardPage /></RequireRole></AuthGate>} />
+              <Route path="/roadmap" element={<AuthGate><RequireRole><RoadmapPage /></RequireRole></AuthGate>} />
+              <Route path="/map" element={<AuthGate><RequireRole><MapPage /></RequireRole></AuthGate>} />
+              <Route path="/profile" element={<AuthGate><RequireRole><ProfilePage /></RequireRole></AuthGate>} />
+              <Route path="/complete" element={<AuthGate><RequireRole><CompletePage /></RequireRole></AuthGate>} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </Suspense>

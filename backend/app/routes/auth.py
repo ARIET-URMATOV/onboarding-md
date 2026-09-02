@@ -76,6 +76,12 @@ async def get_current_user(
     return user
 
 
+async def require_role(user: User = Depends(get_current_user)) -> User:
+    if not user.role:
+        raise HTTPException(status_code=403, detail="Сначала выберите роль")
+    return user
+
+
 async def ensure_progress(db: AsyncSession, user: User) -> Progress:
     res = await db.execute(select(Progress).where(Progress.user_id == user.id))
     prog = res.scalar_one_or_none()
@@ -127,12 +133,11 @@ async def register(
         name=(payload.name or email.split("@")[0]).strip(),
     )
     db.add(user)
-    await db.commit()
-    await db.refresh(user)
-
+    await db.flush()
     prog = Progress(user_id=user.id)
     db.add(prog)
     await db.commit()
+    await db.refresh(user)
     await db.refresh(prog)
 
     set_auth_cookie(response, create_token(user.id))

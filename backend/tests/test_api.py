@@ -119,6 +119,7 @@ def test_register_login_me_flow(client):
 def test_progress_toggle_and_stage(client):
     email = _unique_email()
     client.post("/api/register", json={"email": email, "password": "secret123"})
+    client.post("/api/role", json={"role": "frontend"})
 
     t = client.post("/api/progress/task", json={"stage_id": 1, "task_id": "1-docs"})
     assert t.status_code == 200
@@ -196,6 +197,8 @@ def test_demo_login_and_reset(client):
     d2 = client.post("/api/demo/login")
     assert d2.status_code == 200
 
+    # выбрать роль — иначе 403
+    client.post("/api/role", json={"role": "frontend"})
     # накрутить прогресс
     client.post("/api/progress/task", json={"stage_id": 3, "task_id": "3-watch"})
     me = client.get("/api/me")
