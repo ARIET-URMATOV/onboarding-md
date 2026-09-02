@@ -22,8 +22,20 @@ async function req<T>(path: string, opts?: RequestInit & { json?: unknown }): Pr
   });
   const data = await res.json().catch(() => null);
   if (!res.ok) {
-    const detail = (data as { detail?: string } | null)?.detail;
-    throw new ApiError(res.status, detail ?? 'Ошибка сервера');
+    const raw = (data as { detail?: unknown } | null)?.detail;
+    let message = 'Ошибка сервера';
+    if (typeof raw === 'string' && raw.trim()) message = raw;
+    else if (Array.isArray(raw)) {
+      const msgs = raw
+        .map((e) =>
+          e && typeof e === 'object' && 'msg' in e ? String((e as { msg: unknown }).msg) : '',
+        )
+        .filter(Boolean);
+      if (msgs.length) message = msgs.join('\n');
+    } else if (raw && typeof raw === 'object' && 'msg' in raw) {
+      message = String((raw as { msg: unknown }).msg);
+    }
+    throw new ApiError(res.status, message);
   }
   return data as T;
 }

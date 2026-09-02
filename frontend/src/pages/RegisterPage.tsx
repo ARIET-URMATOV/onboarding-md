@@ -18,7 +18,7 @@ export function RegisterPage() {
     e.preventDefault();
     setError(null);
     if (!name || !email || !password) { setError('Заполни все поля'); return; }
-    if (password.length < 6) { setError('Пароль должен быть не короче 6 символов'); return; }
+    if (password.length < 8) { setError('Пароль должен быть не короче 8 символов'); return; }
     setLoading(true);
     try {
       const me = await api.post<MeResponse>('/api/register', { name, email, password });
@@ -58,7 +58,7 @@ export function RegisterPage() {
           </label>
           <label className="field">
             <span>Пароль</span>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Минимум 6 символов" required minLength={6} />
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Минимум 8 символов" required minLength={8} />
           </label>
           {error && <div className="error">{error}</div>}
           <button type="submit" className="btn-primary" disabled={loading}>
