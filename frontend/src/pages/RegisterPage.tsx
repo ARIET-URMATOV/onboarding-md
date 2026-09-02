@@ -58,7 +58,7 @@ export function RegisterPage() {
           </label>
           <label className="field">
             <span>Пароль</span>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Минимум 8 символов" required minLength={8} />
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Минимум 8 символов" required />
           </label>
           {error && <div className="error">{error}</div>}
           <button type="submit" className="btn-primary" disabled={loading}>

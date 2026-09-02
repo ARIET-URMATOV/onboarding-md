@@ -96,7 +96,7 @@ export function ProfilePage() {
   const changePassword = async () => {
     setPwError(null);
     if (!pwCurrent || !pwNew || !pwConfirm) { setPwError('Заполни все поля'); return; }
-    if (pwNew.length < 6) { setPwError('Новый пароль — минимум 6 символов'); return; }
+    if (pwNew.length < 8) { setPwError('Новый пароль — минимум 8 символов'); return; }
     if (pwNew !== pwConfirm) { setPwError('Пароли не совпадают'); return; }
     setPwLoading(true);
     try {
@@ -184,7 +184,7 @@ export function ProfilePage() {
             <div className="pf-row">
               <label className="pf-field">
                 <span>Новый пароль</span>
-                <input type="password" value={pwNew} onChange={(e) => setPwNew(e.target.value)} placeholder="Минимум 6 символов" autoComplete="new-password" />
+                <input type="password" value={pwNew} onChange={(e) => setPwNew(e.target.value)} placeholder="Минимум 8 символов" autoComplete="new-password" />
               </label>
               <label className="pf-field">
                 <span>Повтори новый</span>

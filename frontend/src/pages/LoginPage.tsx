@@ -85,7 +85,7 @@ export function LoginPage() {
           </label>
           <label className="field">
             <span>Пароль</span>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required minLength={8} />
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required />
           </label>
           {error && <div className="error">{error}</div>}
           <button type="submit" className="btn-primary" disabled={loading}>
