@@ -32,12 +32,28 @@ export function LoginPage() {
 
   const onDemoReset = async () => {
     setDemoResetting(true);
+    setError(null);
     try {
-      await api.post('/api/demo/reset');
+      // demo/reset now requires demo session → auto-login first if not demo
+      try {
+        await api.post('/api/demo/reset');
+      } catch (e) {
+        if (e instanceof Error && (e.message.includes('Только демо') || (e as unknown as { status?: number }).status === 403)) {
+          await api.post<MeResponse>('/api/demo/login');
+          await api.post('/api/demo/reset');
+        } else {
+          throw e;
+        }
+      }
       setDemoResetDone(true);
       window.setTimeout(() => setDemoResetDone(false), 2500);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ошибка сброса демо');
+      const msg = err instanceof Error ? err.message : 'Ошибка сброса демо';
+      if (msg.includes('Сначала выберите роль') || msg.includes('Сессия истекла') || msg.includes('Не авторизован')) {
+        setError('Войдите в демо, затем сбрасывайте');
+      } else {
+        setError(msg);
+      }
     } finally {
       setDemoResetting(false);
     }

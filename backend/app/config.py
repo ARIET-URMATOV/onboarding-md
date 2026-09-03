@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     # JWT
     jwt_secret_key: str = "dev-secret-change-in-production"
     jwt_algorithm: str = "HS256"
-    jwt_access_token_expire_days: int = 30
+    jwt_access_token_expire_days: int = 7
 
     DEV_JWT_SECRET: str = "dev-secret-change-in-production"
 

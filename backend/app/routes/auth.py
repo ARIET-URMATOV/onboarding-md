@@ -27,14 +27,17 @@ router = APIRouter()
 
 pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
 COOKIE_NAME = "md_token"
-TOKEN_TTL = timedelta(days=settings.jwt_access_token_expire_days)
+
+
+def get_token_ttl() -> timedelta:
+    return timedelta(days=settings.jwt_access_token_expire_days)
 
 AVATAR_RE = re.compile(r"^data:image/(png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=\s]+$")
 AVATAR_MAX_BYTES = 300 * 1024
 
 
 def create_token(user_id: int) -> str:
-    payload = {"sub": str(user_id), "exp": datetime.now(timezone.utc) + TOKEN_TTL}
+    payload = {"sub": str(user_id), "exp": datetime.now(timezone.utc) + get_token_ttl()}
     return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 
 
@@ -51,7 +54,7 @@ def set_auth_cookie(response: Response, token: str) -> None:
         httponly=True,
         samesite="none" if cross else "lax",
         secure=cross,
-        max_age=int(TOKEN_TTL.total_seconds()),
+        max_age=int(get_token_ttl().total_seconds()),
         path="/",
     )
 
@@ -83,12 +86,20 @@ async def require_role(user: User = Depends(get_current_user)) -> User:
 
 
 async def ensure_progress(db: AsyncSession, user: User) -> Progress:
-    res = await db.execute(select(Progress).where(Progress.user_id == user.id))
+    res = await db.execute(select(Progress).where(Progress.user_id == user.id).with_for_update())
     prog = res.scalar_one_or_none()
     if prog is None:
         prog = Progress(user_id=user.id)
         db.add(prog)
-        await db.commit()
+        try:
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            res2 = await db.execute(select(Progress).where(Progress.user_id == user.id))
+            prog2 = res2.scalar_one_or_none()
+            if prog2 is not None:
+                return prog2
+            raise
         await db.refresh(prog)
     return prog
 
@@ -133,10 +144,16 @@ async def register(
         name=(payload.name or email.split("@")[0]).strip(),
     )
     db.add(user)
-    await db.flush()
-    prog = Progress(user_id=user.id)
-    db.add(prog)
-    await db.commit()
+    try:
+        await db.flush()
+        prog = Progress(user_id=user.id)
+        db.add(prog)
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        if "unique" in str(e).lower() or "duplicate" in str(e).lower():
+            raise HTTPException(status_code=409, detail="Пользователь с такой почтой уже существует")
+        raise
     await db.refresh(user)
     await db.refresh(prog)
 
@@ -174,7 +191,9 @@ async def me(db: AsyncSession = Depends(get_db), user: User = Depends(get_curren
 
 
 @router.post("/role", response_model=UserOut)
+@limiter.limit("20/minute")
 async def set_role(
+    request: Request,
     payload: RoleIn,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
@@ -186,7 +205,9 @@ async def set_role(
 
 
 @router.patch("/profile", response_model=UserOut)
+@limiter.limit("20/minute")
 async def update_profile(
+    request: Request,
     payload: ProfileIn,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
@@ -215,7 +236,9 @@ async def update_profile(
 
 
 @router.post("/profile/password", response_model=OkOut)
+@limiter.limit("10/minute")
 async def change_password(
+    request: Request,
     payload: PasswordChangeIn,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
@@ -255,7 +278,14 @@ async def demo_login(request: Request, response: Response, db: AsyncSession = De
 
 
 @router.post("/demo/reset", response_model=OkOut)
-async def demo_reset(db: AsyncSession = Depends(get_db)):
+@limiter.limit("5/minute")
+async def demo_reset(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    if user.email.lower() != settings.demo_email.lower():
+        raise HTTPException(status_code=403, detail="Только демо-аккаунт может сбросить демо")
     """Сброс демо-аккаунта в состояние «как новый». Трогает только demo."""
     user = await get_demo_user(db)
     if user is not None:

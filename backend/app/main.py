@@ -2,7 +2,9 @@ import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi import Request as _Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse as _JSONResponse
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
@@ -79,6 +81,31 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limit_handler)  # type: ignore[arg-type]
 app.add_middleware(SlowAPIMiddleware)
+
+# Trust X-Forwarded-For from Render/Vercel proxy for correct IP in rate-limit
+try:
+    from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+
+    app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
+except ImportError:
+    pass
+
+# CSRF: Origin check for state-changing authed requests (SameSite=None needs it)
+
+
+@app.middleware("http")
+async def csrf_origin_check(request: _Request, call_next):
+    if request.method in ("POST", "PATCH", "PUT", "DELETE") and request.url.path.startswith("/api/"):
+        # skip public auth endpoints and health
+        public = ("/api/register", "/api/login", "/api/demo/login", "/api/health", "/api/logout")
+        if not any(request.url.path.startswith(p) for p in public):
+            origin = request.headers.get("origin")
+            if origin and origin not in settings.cors_origins:
+                # allow same-origin (no Origin) for direct curl/mobile, block cross-site not in whitelist
+                referer_ok = any(o in (request.headers.get("referer") or "") for o in settings.cors_origins)
+                if not referer_ok:
+                    return _JSONResponse(status_code=403, content={"detail": "CSRF: Origin not allowed"})
+    return await call_next(request)
 
 app.add_middleware(
     CORSMiddleware,

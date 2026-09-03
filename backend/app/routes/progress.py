@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.limiter import limiter
 from app.models import Progress, User
 from app.routes.auth import get_current_user, require_role
 from app.schemas import OkOut, ProgressOut, StageActionIn, TaskIn, VoiceIn
@@ -11,11 +12,18 @@ router = APIRouter()
 
 
 async def load_progress(db: AsyncSession, user: User) -> Progress:
-    prog = await db.get(Progress, user.id)
+    prog = await db.get(Progress, user.id, with_for_update=True)
     if prog is None:
         prog = Progress(user_id=user.id)
         db.add(prog)
-        await db.commit()
+        try:
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            prog2 = await db.get(Progress, user.id)
+            if prog2 is not None:
+                return prog2
+            raise
         await db.refresh(prog)
     return prog
 
@@ -42,7 +50,9 @@ async def save_progress(db: AsyncSession, prog: Progress, done_tasks: dict) -> P
 
 
 @router.post("/progress/task", response_model=ProgressOut)
+@limiter.limit("30/minute")
 async def toggle_task(
+    request: Request,
     payload: TaskIn,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_role),
@@ -63,7 +73,9 @@ async def toggle_task(
 
 
 @router.post("/progress/stage", response_model=ProgressOut)
+@limiter.limit("30/minute")
 async def stage_action(
+    request: Request,
     payload: StageActionIn,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_role),
@@ -86,7 +98,9 @@ async def stage_action(
 
 
 @router.post("/intro-seen", response_model=OkOut)
+@limiter.limit("30/minute")
 async def intro_seen(
+    request: Request,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -98,7 +112,9 @@ async def intro_seen(
 
 
 @router.post("/voice", response_model=OkOut)
+@limiter.limit("30/minute")
 async def set_voice(
+    request: Request,
     payload: VoiceIn,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
