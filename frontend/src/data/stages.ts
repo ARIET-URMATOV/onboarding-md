@@ -19,6 +19,7 @@ export interface StageDef {
   subTasks: SubTask[];
 }
 
+// Источник — GET /api/stages (БД stages/stage_tasks), этот массив — fallback для тестов/до загрузки
 export const STAGES: StageDef[] = [
   {
     id: 1,

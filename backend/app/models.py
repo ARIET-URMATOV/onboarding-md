@@ -52,3 +52,33 @@ class Progress(Base):
     )
 
     user: Mapped[User] = relationship(back_populates="progress")
+
+
+class Stage(Base):
+    __tablename__ = "stages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    short_label: Mapped[str] = mapped_column(Text, nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    xp_reward: Mapped[int] = mapped_column(Integer, nullable=False)
+    reward_name: Mapped[str] = mapped_column(Text, nullable=False)
+    reward_desc: Mapped[str] = mapped_column(Text, nullable=False)
+    icon_key: Mapped[str] = mapped_column(String, nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    tasks: Mapped[list["StageTask"]] = relationship(
+        back_populates="stage", cascade="all, delete-orphan", order_by="StageTask.sort_order"
+    )
+
+
+class StageTask(Base):
+    __tablename__ = "stage_tasks"
+
+    id: Mapped[str] = mapped_column(Text, primary_key=True)  # e.g. "1-docs"
+    stage_id: Mapped[int] = mapped_column(ForeignKey("stages.id", ondelete="CASCADE"), nullable=False, index=True)
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    xp: Mapped[int] = mapped_column(Integer, nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    stage: Mapped[Stage] = relationship(back_populates="tasks")

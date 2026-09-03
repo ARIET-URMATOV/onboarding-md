@@ -68,6 +68,12 @@ async def lifespan(_: FastAPI):
     if settings.is_production and settings.jwt_secret_key == settings.DEV_JWT_SECRET:
         raise RuntimeError("JWT_SECRET_KEY must be set to a secure value in production")
     await run_migrations()
+    try:
+        from app.stages_data import warm_stages_cache
+
+        await warm_stages_cache()
+    except Exception as e:
+        print(f"stages warmup: {e}")
     yield
 
 
@@ -115,10 +121,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from app.routes import auth, progress  # noqa: E402 — после создания app
+from app.routes import auth, progress, stages  # noqa: E402 — после создания app
 
 app.include_router(auth.router, prefix="/api", tags=["auth"])
 app.include_router(progress.router, prefix="/api", tags=["progress"])
+app.include_router(stages.router, prefix="/api", tags=["stages"])
 
 
 @app.get("/api/health")

@@ -2,10 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
-import { STAGES } from '../../data/stages';
+import { STAGES as FALLBACK_STAGES } from '../../data/stages';
 import type { StageId } from '../../data/stages';
 import type { StageStatus } from '../../store/useOnboarding';
 import { useOnboarding } from '../../store/useOnboarding';
+import { useStages } from '../../api/queries';
 import { Stage1Documents } from '../stages/Stage1Documents';
 import { Stage2Team } from '../stages/Stage2Team';
 import { Stage3Video } from '../stages/Stage3Video';
@@ -25,6 +26,8 @@ const TABS: { id: string; label: string; path?: string; d: string }[] = [
 
 export function IsometricRoadmap({ statuses, done }: Props) {
   const nav = useNavigate();
+  const { data: stagesData } = useStages();
+  const STAGES = stagesData ?? FALLBACK_STAGES;
   const doneTasks = useOnboarding((s) => s.doneTasks);
   const toggleTask = useOnboarding((s) => s.toggleTask);
   const completeStage = useOnboarding((s) => s.completeStage);
