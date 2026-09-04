@@ -377,7 +377,7 @@ export function DashboardPage() {
           padding-left:."52em;
         }
         .h-title{
-          font-family:'Cinzel',sans-serif; font-weight:900;
+          font-family:'Roboto Condensed',sans-serif; font-weight:700;
           font-size:clamp(48px, 8.8vw, 86px); line-height:1; letter-spacing:-.02em;
           color:#F5F0FF; margin:0 0 20px; text-shadow:0 10px 40px rgba(0,0,0,.6);
           filter: drop-shadow(0 0 28px rgba(37,99,235,.18));

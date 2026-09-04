@@ -30,7 +30,6 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 input,textarea,select{font-family:inherit;color:inherit}
 
 .font-orbitron{font-family:'Orbitron',sans-serif;letter-spacing:.06em}
-.font-serif{font-family:'Unbounded',sans-serif; letter-spacing:-.04em; font-weight:800}
 .font-mono{font-family:'JetBrains Mono',monospace; letter-spacing:.14em}
 .font-chakra{font-family:'Manrope',sans-serif}
 
