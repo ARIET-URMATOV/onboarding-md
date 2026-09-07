@@ -1,7 +1,8 @@
+import json
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ROOT_ENV = Path(__file__).resolve().parents[2] / ".env"
@@ -22,6 +23,29 @@ class Settings(BaseSettings):
     # CORS (JSON-список в .env: ["http://localhost:5173", ...])
     cors_origins: list[str] = ["http://localhost:5173"]
 
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def _parse_cors_origins(cls, v: object) -> list[str]:
+        if isinstance(v, list):
+            return v
+        if isinstance(v, str):
+            s = v.strip()
+            if not s:
+                return ["http://localhost:5173"]
+            # Try JSON array first
+            try:
+                parsed = json.loads(s)
+                if isinstance(parsed, list):
+                    return [str(x).strip() for x in parsed if str(x).strip()]
+            except Exception:
+                pass
+            # Fallback: comma-separated or single origin
+            if "," in s:
+                return [x.strip().strip('"').strip("'") for x in s.split(",") if x.strip()]
+            # Single origin without JSON brackets
+            return [s.strip().strip('"').strip("'")]
+        return v  # type: ignore[return-value]
+
     # PostgreSQL — поле raw_database_url ↔ env var DATABASE_URL
     postgres_host: str = "localhost"
     postgres_port: int = 5432
@@ -30,12 +54,23 @@ class Settings(BaseSettings):
     postgres_password: str = "md_secret"
     raw_database_url: str | None = Field(None, alias="DATABASE_URL")
 
-    # JWT
-    jwt_secret_key: str = "dev-secret-change-in-production"
+    # JWT — alias JWT_SECRET_KEY, fallback JWT_KEY for legacy Render env names
+    jwt_secret_key: str = Field(
+        default="dev-secret-change-in-production", alias="JWT_SECRET_KEY"
+    )
+    # legacy alias without _SECRET (Render typo: JWT_KEY) — handled in model_validator
+    jwt_key_legacy: str | None = Field(default=None, alias="JWT_KEY")
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_days: int = 7
 
     DEV_JWT_SECRET: str = "dev-secret-change-in-production"
+
+    @model_validator(mode="after")
+    def _fallback_jwt_key(self) -> "Settings":
+        # Support legacy env name JWT_KEY (without _SECRET) used on Render before fix
+        if self.jwt_secret_key == self.DEV_JWT_SECRET and self.jwt_key_legacy:
+            self.jwt_secret_key = self.jwt_key_legacy
+        return self
 
     # Demo
     demo_email: str = "demo@mdigital.kg"

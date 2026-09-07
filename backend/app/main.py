@@ -28,7 +28,29 @@ async def _run_alembic_upgrade() -> bool:
             if stdout:
                 print(stdout.decode().strip())
             return True
-        print(f"alembic upgrade failed ({proc.returncode}): {stderr.decode().strip()}")
+        err = stderr.decode().strip()
+        # Tables already created via previous fallback create_all without alembic_version
+        # → "already exists" is not fatal; stamp head so next boot is clean.
+        if "already exists" in err or "DuplicateTableError" in err:
+            print(f"alembic upgrade: tables already exist — stamping head ({err[:200]})")
+            try:
+                proc2 = await asyncio.create_subprocess_exec(
+                    "alembic", "stamp", "head",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                stdout2, stderr2 = await proc2.communicate()
+                if proc2.returncode == 0:
+                    print("alembic stamp head ok")
+                    if stdout2:
+                        print(stdout2.decode().strip())
+                    return True
+                print(f"alembic stamp failed ({proc2.returncode}): {stderr2.decode().strip()}")
+            except Exception as e2:
+                print(f"alembic stamp error: {e2}")
+            # Even if stamp failed, tables exist → treat as ok, avoid noisy fallback
+            return True
+        print(f"alembic upgrade failed ({proc.returncode}): {err}")
         return False
     except FileNotFoundError:
         print("alembic not found — falling back to create_all")
@@ -65,8 +87,12 @@ async def run_migrations():
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    if settings.is_production and not settings.raw_database_url:
+        print("FATAL: DATABASE_URL not set — set External URL (oregon-postgres.render.com) in Render Environment")
+        raise RuntimeError("DATABASE_URL not set in production — set External Database URL in Render Dashboard")
     if settings.is_production and settings.jwt_secret_key == settings.DEV_JWT_SECRET:
-        raise RuntimeError("JWT_SECRET_KEY must be set to a secure value in production")
+        print("FATAL: JWT_SECRET_KEY is default 'dev-secret...' but APP_ENV=production — set random 32+ chars in Render Environment")
+        raise RuntimeError("JWT_SECRET_KEY must be set to a secure value in production — set env var JWT_SECRET_KEY in Render Dashboard (openssl rand -hex 32)")
     await run_migrations()
     try:
         from app.stages_data import warm_stages_cache

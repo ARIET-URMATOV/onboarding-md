@@ -4,7 +4,9 @@ from sqlalchemy.pool import StaticPool
 
 from app.config import settings
 
-_is_external = "onrender.com" in settings.database_url
+# Internal Render URL (dpg-...:5432) is private network without SSL;
+# External URL (*.oregon-postgres.render.com, *.onrender.com) needs SSL.
+_is_external = "postgres.render.com" in settings.database_url or "onrender.com" in settings.database_url
 
 engine_kwargs: dict = {"echo": False}
 if _is_external:
