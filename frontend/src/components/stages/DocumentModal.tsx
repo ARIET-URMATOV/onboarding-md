@@ -12,9 +12,9 @@ interface Props {
 const DOC_META: Record<DocKind, { title: string; sub: string }> = {
   docs: { title: 'Трудовой договор и NDA', sub: 'Прочитай до конца, чтобы подтвердить' },
   lead: { title: 'Елена Петрова — Frontend Lead', sub: 'Твой руководитель · познакомься с профилем' },
-  mplus: { title: 'mPLuse — корпоративный мессенджер', sub: 'Инструкция по установке' },
-  jira: { title: 'Jira — таск-трекер', sub: 'Доски, спринты и задачи · открой и пролистай' },
-  confluence: { title: 'Confluence — база знаний', sub: 'Пространства и доки · открой и пролистай' },
+  mplus: { title: 'mPLuse — корпоративный мессенджер', sub: 'MPulse — мобильное приложение · скачай по ссылкам ниже' },
+  jira: { title: 'Jira — таск-трекер', sub: 'CRM · https://crm.mdigital.kg · открой и пролистай' },
+  confluence: { title: 'Confluence — база знаний', sub: 'https://confluence.mdigital.kg' },
 };
 
 export function DocumentModal({ kind, open, onClose, onConfirm, alreadyDone }: Props) {
@@ -144,7 +144,9 @@ function DocsContent(){
       <h3>2. NDA — конфиденциальность</h3>
       <p>Вся информация о клиентах, проектах и исходном коде является конфиденциальной. Разглашение влечёт ответственность по договору. Срок действия NDA — 3 года после увольнения.</p>
       <p>Запрещается публикация кода в публичных репозиториях, передача макетов третьим лицам, использование клиентских данных в портфолио без согласования.</p>
-      <h3>3. Порядок подписания</h3>
+      <h3>3. Ознакомление с регламентами</h3>
+      <p><b>Рабочее время:</b> гибкий 40ч/нед, ядро 10:00–16:00, дейли 10:30.<br/><b>Отпуска:</b> заявка в HR-портал за 14 дней, согласование с руководителем.<br/><b>Отчётность:</b> статус задач в Jira (`crm.mdigital.kg`), еженедельный апдейт в Confluence (`confluence.mdigital.kg`), 1-1 с Lead раз в 2 недели.</p>
+      <h3>4. Порядок подписания</h3>
       <p>1) Открой HR-портал → Документы → Подписание. 2) Проверь ФИО и должность. 3) Подпиши ЭЦП. 4) Дождись подтверждения HR (обычно до 24 часов). После подписания доступ к mPLuse откроется автоматически.</p>
       <p style={{marginTop:18, padding:'12px', background:'rgba(96,165,250,.08)', border:'1px dashed rgba(96,165,250,.32)', borderRadius:'10px', fontSize:'12px'}}>💡 Совет: если HR-портал не открывается — напиши в #help-hr в mPLuse.</p>
     </div>
@@ -163,6 +165,8 @@ function LeadContent(){
       </div>
       <h3>Как со мной работать</h3>
       <p>• Дейли в 10:30 (15 мин) — что делал, что будешь делать, блокеры.<br/>• Код-ревью — оставляю комментарии, не правлю за тебя.<br/>• 1-1 раз в 2 недели — про рост и цели.</p>
+      <h3>Ознакомление со структурой компании</h3>
+      <p>MDIGITAL — продуктовая студия: <b>Продукт</b> (Frontend/Backend/Design/QA) → <b>Операции</b> (HR, Админ) → <b>Менеджмент</b>. Твоя роль — Frontend в команде Елены Петровой, взаимодействие: задачи — Jira (`crm.mdigital.kg`), знания — Confluence (`confluence.mdigital.kg`), код — Git (`github.com/mdigital`).</p>
       <h3>Команда</h3>
       <p>В команде 6 человек: 3 фронта, 2 бэка, 1 дизайнер. Все — в mPLuse канале #frontend. Задай первый вопрос — это уже засчитается как шаг онбординга.</p>
       <h3>Контакты</h3>
@@ -175,9 +179,21 @@ function MplusContent(){
     <div>
       <h3>Что такое mPLuse</h3>
       <p>mPLuse — наш корпоративный мессенджер (аналог Slack). Там вся жизнь команды: каналы, треды, созвоны, файлы.</p>
-      <h3>Установка</h3>
-      <p><b>Windows/macOS:</b> скачай инсталлятор по кнопке ниже (или возьми ссылку из HR-портала → Инструменты → mPLuse). Запусти, войди через корпоративную почту. <br/><b>Linux:</b> `.deb / .rpm` в том же разделе.</p>
-      <p><b>Мобильный:</b> iOS/Android — найди «mPlus» в сторе, войди тем же аккаунтом — удобно для пушей.</p>
+      <h3>Установка — десктоп</h3>
+      <p><b>Windows/macOS:</b> скачай инсталлятор из HR-портала → Инструменты → mPLuse или по кнопке ниже. Запусти, войди через корпоративную почту. <br/><b>Linux:</b> `.deb / .rpm` в том же разделе.</p>
+      <h3>Мобильное приложение MPulse</h3>
+      <p>MPulse — мобильный клиент mPLuse. Установи чтобы получать пуши и быть на связи вне офиса. Войди тем же корп. аккаунтом.</p>
+      <div style={{display:'flex',gap:'10px',flexWrap:'wrap',marginTop:'10px'}}>
+        <a href="https://apps.apple.com/search?term=MPulse" target="_blank" rel="noopener noreferrer" style={{display:'inline-flex',alignItems:'center',gap:'8px',padding:'10px 16px',borderRadius:'999px',background:'#000',color:'#fff',textDecoration:'none',fontWeight:700,fontSize:'12px'}}>App Store — MPulse</a>
+        <a href="https://play.google.com/store/search?q=MPulse&c=apps" target="_blank" rel="noopener noreferrer" style={{display:'inline-flex',alignItems:'center',gap:'8px',padding:'10px 16px',borderRadius:'999px',background:'#01875f',color:'#fff',textDecoration:'none',fontWeight:700,fontSize:'12px'}}>Google Play — MPulse</a>
+      </div>
+      <p style={{marginTop:'10px',fontSize:'11px',color:'var(--muted)'}}>Прямые ссылки: App Store / Google Play — поиск «MPulse». Если уже установлен корпоративный MDM — MPulse появится автоматически.</p>
+      <h3>Ознакомление со структурой компании</h3>
+      <p>MDIGITAL: <b>Продукт →</b> Frontend / Backend / Design / QA → <b>Операции</b> (HR, Админ) → <b>Менеджмент</b>. Твоя команда — Frontend (3 dev + Lead Елена Петрова). Взаимодействие: задачи — Jira (`crm.mdigital.kg`), знания — Confluence (`confluence.mdigital.kg`), код — Git.</p>
+      <h3>Обзор базовых инструментов</h3>
+      <p><b>Jira (CRM):</b> `crm.mdigital.kg` — доски `MDIG-FE`, спринты, задачи.<br/><b>Confluence:</b> `confluence.mdigital.kg` — handbook, ADR, гайды.<br/><b>Git:</b> `github.com/mdigital` — репозитории, PR, code style.</p>
+      <h3>Ознакомление с регламентами</h3>
+      <p><b>Рабочее время:</b> гибкий 40ч/нед, дейли 10:30.<br/><b>Отпуска:</b> заявка в HR-портал за 2 недели, согласование с Lead.<br/><b>Отчётность:</b> статус в Jira (To Do→Done), еженедельный апдейт в Confluence.</p>
       <h3>После установки</h3>
       <p>1) Вступи в каналы: #general, #frontend, #help-hr.<br/>2) Заполни профиль (фото + статус).<br/>3) Напиши «Привет! Я на борту 👋» в #frontend — это проверит, что мессенджер работает.</p>
       <div style={{marginTop:14, padding:'12px', borderRadius:'10px', background:'rgba(59,130,246,.08)', border:'1px solid rgba(59,130,246,.22)', fontSize:'12px'}}>⚡ Проверка: если после установки не видишь каналы — перезайди и дождись синхронизации 1-2 минуты.</div>
@@ -192,9 +208,10 @@ function JiraContent(){
       <h3>Твои доски</h3>
       <p>MDIGITAL • Frontend — твой рабочий борд: колонки <b>To Do → In Progress → Review → Done</b>. Карточка = задача с приоритетом, оценкой story points и дедлайном. Начни с колонки <b>Onboarding</b>.</p>
       <h3>Как начать</h3>
-      <p>1) Открой Jira по кнопке ниже (mock-ссылка — позже заменим на реальную). 2) Войди через корп. почту (SSO). 3) Найди проект <b>MDIG-FE</b> и фильтр <b>“Мои задачи”</b>. 4) Открой первую задачу и передвинь её в In Progress — это засчитается ботом.</p>
-      <a href="https://jira.mdigital.mock" target="_blank" rel="noopener noreferrer" style={{display:'inline-flex',alignItems:'center',gap:'8px',marginTop:'14px',padding:'10px 16px',borderRadius:'999px',background:'linear-gradient(90deg,#0052CC,#2684FF)',color:'#fff',textDecoration:'none',fontWeight:700,fontSize:'12px',letterSpacing:'.04em',boxShadow:'0 6px 18px rgba(0,82,204,.35)'}}>Открыть Jira →</a>
-      <div style={{marginTop:12, padding:'12px', borderRadius:'10px', background:'rgba(0,82,204,.06)', border:'1px solid rgba(0,82,204,.18)', fontSize:'12px'}}>🔗 Mock-ссылка: сейчас ведёт на заглушку. Позже заменим на реальный домен — интерфейс не поменяется.</div>
+      <p>1) Открой Jira/CRM по кнопке ниже. 2) Войди через корп. почту (SSO). 3) Найди проект <b>MDIG-FE</b> и фильтр <b>“Мои задачи”</b>. 4) Открой первую задачу и передвинь её в In Progress — это засчитается ботом.</p>
+      <a href="https://crm.mdigital.kg" target="_blank" rel="noopener noreferrer" style={{display:'inline-flex',alignItems:'center',gap:'8px',marginTop:'14px',padding:'10px 16px',borderRadius:'999px',background:'linear-gradient(90deg,#0052CC,#2684FF)',color:'#fff',textDecoration:'none',fontWeight:700,fontSize:'12px',letterSpacing:'.04em',boxShadow:'0 6px 18px rgba(0,82,204,.35)'}}>Открыть Jira →</a>
+      <h3>Обзор базовых инструментов</h3>
+      <p><b>Jira (CRM):</b> <a href="https://crm.mdigital.kg" target="_blank" rel="noopener noreferrer" style={{color:'#2684FF'}}>crm.mdigital.kg</a> — задачи и спринты.<br/><b>Confluence:</b> <a href="https://confluence.mdigital.kg" target="_blank" rel="noopener noreferrer" style={{color:'#2684FF'}}>confluence.mdigital.kg</a> — доки и гайды.<br/><b>Git:</b> репозиторий `github.com/mdigital` — код-ревью, ветки, `code style`.</p>
     </div>
   );
 }
@@ -202,13 +219,10 @@ function ConfluenceContent(){
   return (
     <div>
       <h3>Что такое Confluence</h3>
-      <p>Confluence — база знаний MDIGITAL. Тут хранятся: архитектура проекта, гайдлайны, ADR, онбординг-чеки и ретроспективы. Без чтения Confluence легко сломать код-стайл.</p>
-      <h3>Твои пространства</h3>
-      <p><b>MDIG-FE</b> → Frontend Handbook (стек, структура, релизы) · <b>MDIG-OPS</b> → доступы и деплой · <b>Onboarding</b> → этот чек-лист и FAQ. Добавь их в избранное ⭐.</p>
-      <h3>Как начать</h3>
-      <p>1) Открой Confluence по кнопке ниже (mock). 2) Войди SSO. 3) Открой страницу <b>“Frontend · Старт за 30 мин”</b> и пролистай до конца. 4) Нажми reacting 👍 — бот увидит активность.</p>
-      <a href="https://confluence.mdigital.mock" target="_blank" rel="noopener noreferrer" style={{display:'inline-flex',alignItems:'center',gap:'8px',marginTop:'14px',padding:'10px 16px',borderRadius:'999px',background:'linear-gradient(90deg,#172B4D,#344563)',color:'#fff',textDecoration:'none',fontWeight:700,fontSize:'12px',letterSpacing:'.04em',boxShadow:'0 6px 18px rgba(23,43,77,.35)'}}>Открыть Confluence →</a>
-      <div style={{marginTop:12, padding:'12px', borderRadius:'10px', background:'rgba(23,43,77,.06)', border:'1px solid rgba(23,43,77,.18)', fontSize:'12px'}}>🔗 Mock-ссылка: заглушка до выдачи реального домена. Кнопка уже ведёт вовне (target _blank).</div>
+      <p>Добро пожаловать в Confluence от mdigital.kg</p>
+      <p>Мы рады приветствовать вас в нашем пространстве для совместной работы и обмена знаниями. Confluence – это место, где мы собираем всю важную информацию, делимся идеями и создаем документы, которые помогут нам эффективно работать вместе. Если у вас возникнут вопросы или понадобится помощь, не стесняйтесь обращаться – мы всегда рады помочь!</p>
+      <p>Успешной работы и продуктивных обсуждений!</p>
+      <a href="https://confluence.mdigital.kg" target="_blank" rel="noopener noreferrer" style={{display:'inline-flex',alignItems:'center',gap:'8px',marginTop:'14px',padding:'10px 16px',borderRadius:'999px',background:'linear-gradient(90deg,#172B4D,#344563)',color:'#fff',textDecoration:'none',fontWeight:700,fontSize:'12px',letterSpacing:'.04em',boxShadow:'0 6px 18px rgba(23,43,77,.35)'}}>Открыть Confluence →</a>
     </div>
   );
 }

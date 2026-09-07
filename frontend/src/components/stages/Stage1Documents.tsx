@@ -38,7 +38,7 @@ export function Stage1Documents({ stageId }: Props) {
     <div className="stage-content">
       <DocCard k="docs" doneFlag={isDone('docs')} icon="📄" title="Трудовой договор и NDA" sub="Открой и пролистай до конца" action="ЧИТАТЬ →" onOpen={setOpen} />
       <DocCard k="lead" doneFlag={isDone('lead')} icon={<span className="font-orbitron" style={{fontSize:11,fontWeight:800}}>ЕП</span>} title="Елена Петрова — руководитель" sub="Профиль · пролистай до конца" action="ОТКРЫТЬ →" onOpen={setOpen} />
-      <DocCard k="mplus" doneFlag={isDone('mplus')} icon="M+" title="mPLuse · корп. мессенджер" sub="Инструкция · пролистай до конца" action="ИНСТРУКЦИЯ →" onOpen={setOpen} />
+      <DocCard k="mplus" doneFlag={isDone('mplus')} icon="M+" title="mPLuse · корп. мессенджер + MPulse" sub="Инструкция + мобильное MPulse" action="ИНСТРУКЦИЯ →" onOpen={setOpen} />
       <DocCard k="jira" doneFlag={isDone('jira')} icon={<span className="font-orbitron" style={{fontSize:10,fontWeight:800}}>JR</span>} title="Jira · таск-трекер" sub="Доска задач · пролистай до конца" action="ОТКРЫТЬ →" onOpen={setOpen} />
       <DocCard k="confluence" doneFlag={isDone('confluence')} icon={<span className="font-orbitron" style={{fontSize:10,fontWeight:800}}>CF</span>} title="Confluence · база знаний" sub="Пространства · пролистай до конца" action="ОТКРЫТЬ →" onOpen={setOpen} />
 
@@ -81,10 +81,9 @@ export function Stage1Documents({ stageId }: Props) {
 }
 
 function downloadStub() {
-  const blob = new Blob(['mPLuse installer (mock)\n\nЭто мок-файл. В реальной сборке здесь будет бинарь.\n'], { type: 'text/plain' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = 'mPlus-installer.txt';
-  document.body.appendChild(a); a.click();
-  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 100);
+  // Реальные ссылки MPulse — мобильное приложение mPLuse
+  window.open('https://play.google.com/store/search?q=MPulse&c=apps', '_blank', 'noopener');
+  setTimeout(() => {
+    window.open('https://apps.apple.com/search?term=MPulse', '_blank', 'noopener');
+  }, 400);
 }
