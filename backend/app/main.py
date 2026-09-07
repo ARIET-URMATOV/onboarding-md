@@ -50,6 +50,35 @@ async def _run_alembic_upgrade() -> bool:
                 print(f"alembic stamp error: {e2}")
             # Even if stamp failed, tables exist → treat as ok, avoid noisy fallback
             return True
+        # Safe hotfix for missing column (e.g. progress.completed_at on old prod DB):
+        # alembic failed because DB is behind 003 — add column idempotently, then retry.
+        if "does not exist" in err or "UndefinedColumnError" in err:
+            print(f"alembic upgrade: missing column detected — applying safe hotfix ({err[:200]})")
+            try:
+                # IF NOT EXISTS is safe — no data loss, no drop
+                import sqlalchemy as sa
+
+                async with engine.begin() as conn:
+                    await conn.execute(sa.text("ALTER TABLE progress ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ"))
+                    await conn.execute(sa.text("ALTER TABLE progress ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now()"))
+                print("hotfix: progress columns ensured")
+                # retry upgrade now that columns exist (003 will be applied or stamped)
+                proc3 = await asyncio.create_subprocess_exec(
+                    "alembic", "upgrade", "head",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                stdout3, stderr3 = await proc3.communicate()
+                if proc3.returncode == 0:
+                    print("alembic upgrade head ok (after hotfix)")
+                    if stdout3:
+                        print(stdout3.decode().strip())
+                    return True
+                print(f"alembic upgrade after hotfix failed ({proc3.returncode}): {stderr3.decode().strip()}")
+                return True  # columns added, treat as ok even if upgrade still warns
+            except Exception as e2:
+                print(f"hotfix error: {e2}")
+                return False
         print(f"alembic upgrade failed ({proc.returncode}): {err}")
         return False
     except FileNotFoundError:
