@@ -42,3 +42,6 @@ desktop.ini
 
 # Docker volumes
 pgdata
+
+# opencode agent artifacts
+.opencode/
