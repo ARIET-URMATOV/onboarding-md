@@ -54,6 +54,7 @@ class UserOut(BaseModel):
     avatar: str | None
     intro_seen: bool
     voice_enabled: bool
+    created_at: str | None = None
 
 
 class MeOut(BaseModel):

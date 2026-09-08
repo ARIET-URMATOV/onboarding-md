@@ -112,15 +112,95 @@ async def intro_seen(
 
 
 @router.post("/voice", response_model=OkOut)
-@limiter.limit("30/minute")
-async def set_voice(
-    request: Request,
-    payload: VoiceIn,
-    db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
-):
-    if user.voice_enabled != payload.enabled:
-        user.voice_enabled = payload.enabled
-        db.add(user)
-        await db.commit()
-    return OkOut()
+ @limiter.limit("30/minute")
+ async def set_voice(
+     request: Request,
+     payload: VoiceIn,
+     db: AsyncSession = Depends(get_db),
+     user: User = Depends(get_current_user),
+ ):
+     if user.voice_enabled != payload.enabled:
+         user.voice_enabled = payload.enabled
+         db.add(user)
+         await db.commit()
+     return OkOut()
+
+
+ @router.post("/verify-docs", response_model=OkOut)
+ @limiter.limit("10/minute")
+ async def verify_docs(
+     request: Request,
+     db: AsyncSession = Depends(get_db),
+     user: User = Depends(require_role),
+ ):
+     """HR/administrator verifies document completion for Step 1.
+     Marks all Step 1 document tasks as verified.
+     """
+     prog = await load_progress(db, user)
+     tasks = normalize_tasks(prog.done_tasks)
+     sid = "1"
+     # Mark all Step 1 document tasks as done (they are already toggled by user,
+     # this is HR final verification)
+     doc_tasks = [tid for tid in tasks[sid] if tid.startswith("1-") and tid in {
+         "1-dogovor", "1-nda", "1-pdp", "1-ip", "1-sn"
+     }]
+     # Ensure all 5 doc tasks are in the list
+     required = {"1-dogovor", "1-nda", "1-pdp", "1-ip", "1-sn"}
+     current = set(doc_tasks)
+     if required <= current:
+         # All document tasks are present, mark HR verified
+         prog.done_tasks = normalize_tasks({**prog.done_tasks, "1": list(required | current)})
+         db.add(prog)
+         await db.commit()
+         await db.refresh(prog)
+     return OkOut()
+
+
+ @router.post("/verify-mpulse-code", response_model=OkOut)
+ @limiter.limit("10/minute")
+ async def verify_mpulse_code(
+     request: Request,
+     db: AsyncSession = Depends(get_db),
+     user: User = Depends(get_current_user),
+ ):
+     """Verify MPulse verification code entered by employee.
+     The code is the same for all employees in this onboarding batch.
+     """
+     # In a real implementation, this would validate the code against a stored value
+     # For now, we just mark the MPulse tasks as complete
+     prog = await load_progress(db, user)
+     tasks = normalize_tasks(prog.done_tasks)
+     sid = "1"
+     mpulse_tasks = [tid for tid in tasks[sid] if tid.startswith("1-mpulse")]
+     # Mark all MPulse tasks as done
+     new_mpulse = [t for t in ["1-mpulse", "1-mpulse-schedule", "1-mpulse-checkin", "1-mpulse-code", "1-mpulse-news"] if t not in mpulse_tasks]
+     all_mpulse = mpulse_tasks + new_mpulse
+     tasks[sid] = all_mpulse
+     prog.done_tasks = normalize_tasks({**prog.done_tasks, "1": all_mpulse})
+     db.add(prog)
+     await db.commit()
+     await db.refresh(prog)
+     return OkOut()
+
+
+ @router.post("/confirm-confluence", response_model=OkOut)
+ @limiter.limit("10/minute")
+ async def confirm_confluence(
+     request: Request,
+     db: AsyncSession = Depends(get_db),
+     user: User = Depends(get_current_user),
+ ):
+     """Employee confirms familiarity with Confluence knowledge base.
+     Marks the 'I have read' task as complete.
+     """
+     prog = await load_progress(db, user)
+     tasks = normalize_tasks(prog.done_tasks)
+     sid = "1"
+     # Ensure 1-confluence-read is in the tasks list
+     if "1-confluence-read" not in tasks[sid]:
+         tasks[sid] = [*tasks[sid], "1-confluence-read"]
+     prog.done_tasks = normalize_tasks({**prog.done_tasks, "1": tasks[sid]})
+     db.add(prog)
+     await db.commit()
+     await db.refresh(prog)
+     return OkOut()

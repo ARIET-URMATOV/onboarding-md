@@ -2,7 +2,20 @@
 # Фронт стучится GET /api/stages, сервер считает XP только из БД.
 
 _FALLBACK_STAGES: dict[int, dict] = {
-    1: {"xp_reward": 150, "tasks": {"1-docs": 40, "1-lead": 40, "1-mplus": 50, "1-jira": 30, "1-confluence": 30}},
+    1: {"xp_reward": 150, "tasks": {
+        # Old tasks (preserved for backward compatibility)
+        "1-docs": 40, "1-lead": 40, "1-mplus": 50, "1-jira": 30, "1-confluence": 30,
+        # Step 1: Подписание документов (5 баллов)
+        "1-dogovor": 1, "1-nda": 1, "1-pdp": 1, "1-ip": 1, "1-sn": 1,
+        # Step 2: Получение доступов (5 баллов)
+        "1-mbusiness": 1, "1-accountant": 1, "1-wifi": 1, "1-proxy": 1, "1-telegram": 1,
+        # Step 3: Корпоративное приложение MPulse (5 баллов)
+        "1-mpulse": 1, "1-mpulse-schedule": 1, "1-mpulse-checkin": 1, "1-mpulse-code": 1, "1-mpulse-news": 1,
+        # Step 4: База знаний Confluence (10 баллов)
+        "1-confluence-vacation": 1, "1-confluence-grading": 1, "1-confluence-info": 1,
+        "1-confluence-read": 1, "1-confluence-rules": 1, "1-confluence-security": 1,
+        "1-confluence-benefits": 1, "1-confluence-contact": 1, "1-confluence-faq": 1,
+    }},
     2: {"xp_reward": 150, "tasks": {"2-studio": 40, "2-profiles": 40, "2-lead": 40, "2-chat": 30}},
     3: {"xp_reward": 100, "tasks": {"3-watch": 100}},
     4: {"xp_reward": 150, "tasks": {"4-workspace": 25, "4-repo": 25, "4-figma": 25, "4-mail": 25, "4-messenger": 25, "4-style": 25}},
