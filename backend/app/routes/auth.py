@@ -112,6 +112,7 @@ def user_out(user: User) -> UserOut:
         avatar=user.avatar,
         intro_seen=user.intro_seen,
         voice_enabled=user.voice_enabled,
+        created_at=user.created_at.isoformat() if user.created_at else None,
     )
 
 

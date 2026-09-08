@@ -9,6 +9,7 @@ interface User {
   email: string;
   name: string;
   avatar: string | null;
+  createdAt?: string | null;
 }
 
 interface OnboardingState {
@@ -20,6 +21,7 @@ interface OnboardingState {
   xp: number;
   level: number;
   completedAt: string | null;
+  createdAt: string | null;
   hydrated: boolean;
   // actions
   hydrate: (me: MeResponse) => void;
@@ -61,11 +63,12 @@ export const useOnboarding = create<OnboardingState>()((set, get) => ({
   xp: 0,
   level: 1,
   completedAt: null,
+  createdAt: null,
   hydrated: false,
 
   hydrate: (me) =>
     set({
-      user: { email: me.user.email, name: me.user.name, avatar: me.user.avatar },
+      user: { email: me.user.email, name: me.user.name, avatar: me.user.avatar, createdAt: me.user.created_at },
       role: me.user.role,
       introSeen: me.user.intro_seen,
       voiceEnabled: me.user.voice_enabled,
@@ -73,6 +76,7 @@ export const useOnboarding = create<OnboardingState>()((set, get) => ({
       xp: me.progress.xp,
       level: me.progress.level ?? Math.floor(me.progress.xp / 100) + 1,
       completedAt: me.progress.completed_at ?? null,
+      createdAt: me.user.created_at ?? null,
       hydrated: true,
     }),
 

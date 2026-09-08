@@ -50,6 +50,7 @@ export interface MeResponse {
     avatar: string | null;
     intro_seen: boolean;
     voice_enabled: boolean;
+    created_at?: string | null;
   };
   progress: {
     done_tasks: Record<string, string[]>;
@@ -66,6 +67,7 @@ export interface UserResponse {
   avatar: string | null;
   intro_seen: boolean;
   voice_enabled: boolean;
+  created_at?: string | null;
 }
 
 export interface ProgressResponse {
