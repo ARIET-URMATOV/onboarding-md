@@ -101,6 +101,7 @@ class AuditOut(BaseModel):
     task_id: str
     verified_by: int | None = None
     method: str
+    details: str = "{}"
     created_at: str | None = None
 
 

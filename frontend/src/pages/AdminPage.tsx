@@ -54,6 +54,8 @@ export function AdminPage() {
   const [links, setLinks] = useState<Links | null>(null);
   const [newCode, setNewCode] = useState('');
   const [newBatch, setNewBatch] = useState('');
+  const [wifiPw, setWifiPw] = useState<Record<number, string>>({});
+  const [bulkBusy, setBulkBusy] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -98,6 +100,35 @@ export function AdminPage() {
       await load();
     } catch (e) {
       setMsg(e instanceof Error ? e.message : 'Ошибка верификации');
+    }
+  };
+
+  const verifyAllDocs = async (u: AdminUser) => {
+    const docs = DOC_TASKS.filter((t) => u.done_stage1.includes(t));
+    if (!docs.length) return;
+    setBulkBusy(u.id);
+    try {
+      for (const t of docs) {
+        await api.post('/api/verify-docs', { user_id: u.id, task_id: t });
+      }
+      setMsg(`✓ Все документы ${u.email} подтверждены (${docs.length})`);
+      await load();
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : 'Ошибка верификации');
+    } finally {
+      setBulkBusy(null);
+    }
+  };
+
+  const genWifiPassword = async (u: AdminUser) => {
+    try {
+      const r = await api.post<{ ok: boolean; password: string; user_id: number }>(
+        '/api/admin/wifi-password', { user_id: u.id, task_id: '1-wifi' },
+      );
+      setWifiPw((prev) => ({ ...prev, [u.id]: r.password }));
+      setMsg(`✓ Пароль для ${u.email} сгенерирован — передайте вне системы (показан один раз)`);
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : 'Ошибка генерации');
     }
   };
 
@@ -156,6 +187,9 @@ export function AdminPage() {
 
       {tab === 'pending' && (
         <div className="admin-list">
+          {loading && !pending.length && [0, 1, 2].map((i) => (
+            <div key={i} className="admin-card admin-skel"><div className="skel-line" /><div className="skel-line short" /></div>
+          ))}
           {pending.map((u) => (
             <div key={u.id} className="admin-card">
               <div className="admin-card-head">
@@ -164,6 +198,11 @@ export function AdminPage() {
               </div>
               <div className="admin-card-sub">Отмечено: {u.done_stage1.length} · нажмите задачу чтобы подтвердить</div>
               {renderTasks(u)}
+              {DOC_TASKS.some((t) => u.done_stage1.includes(t)) && (
+                <button type="button" onClick={() => verifyAllDocs(u)} className="admin-btn small" disabled={bulkBusy === u.id}>
+                  {bulkBusy === u.id ? 'Подтверждаем…' : 'Подтвердить все документы'}
+                </button>
+              )}
             </div>
           ))}
           {!pending.length && !loading && <div className="admin-empty">Нет ожидающих — все завершили Stage 1</div>}
@@ -185,9 +224,20 @@ export function AdminPage() {
                 </div>
                 <div className="admin-card-sub">Stage 1: {u.done_stage1.length} задач</div>
                 {renderTasks(u)}
-                <button type="button" onClick={() => toggleStaff(u)} className="admin-btn small">
-                  {u.is_staff ? 'Снять staff' : 'Дать staff'}
-                </button>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button type="button" onClick={() => toggleStaff(u)} className="admin-btn small">
+                    {u.is_staff ? 'Снять staff' : 'Дать staff'}
+                  </button>
+                  <button type="button" onClick={() => genWifiPassword(u)} className="admin-btn small">
+                    Wi-Fi пароль
+                  </button>
+                </div>
+                {wifiPw[u.id] && (
+                  <div className="admin-once">
+                    <code>{wifiPw[u.id]}</code>
+                    <span>— показан один раз, скопируйте и передайте сотруднику</span>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -261,6 +311,12 @@ export function AdminPage() {
         .admin-btn.small{ align-self:flex-start; padding:6px 10px; font-size:10px }
         .admin-card.audit{ font-size:12px }
         .admin-empty{ font-size:12.5px; color:var(--muted); text-align:center; padding:20px }
+        .admin-once{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:8px 10px; border-radius:8px; background:rgba(251,191,36,.08); border:1px dashed rgba(251,191,36,.4); font-size:11.5px; color:#FDE68A }
+        .admin-once code{ font-family:monospace; font-size:13px; color:#fff; user-select:all }
+        .admin-skel{ pointer-events:none; }
+        .skel-line{ height:14px; border-radius:6px; background:linear-gradient(90deg, rgba(255,255,255,.04), rgba(255,255,255,.1), rgba(255,255,255,.04)); background-size:200% 100%; animation:skel 1.2s ease-in-out infinite; }
+        .skel-line.short{ width:55%; }
+        @keyframes skel{ to{ background-position:-200% 0 } }
       `}</style>
     </div>
   );

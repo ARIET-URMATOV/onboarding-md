@@ -282,6 +282,8 @@ def test_wifi_flow(client):
     good = client.post("/api/wifi-verify", json={"password": settings.wifi_password})
     assert good.status_code == 200
     assert "1-wifi" in good.json()["done_tasks"]["1"]
+    st2 = client.get("/api/wifi-status")
+    assert st2.json()["verified"] is True
 
 
 def test_mpulse_and_confluence_flow(client):
@@ -343,6 +345,25 @@ def test_staff_verify_and_admin(client):
     assert rot.json()["is_active"] is True
     new_ok = client.post("/api/verify-mpulse-code", json={"code": "BATCH-99"})
     assert new_ok.status_code == 200
+
+    # персональный Wi-Fi пароль: генерация staff → env-пароль больше не подходит
+    gen = client.post("/api/admin/wifi-password", json={"user_id": uid, "task_id": "1-wifi"})
+    assert gen.status_code == 200
+    personal = gen.json()["password"]
+    assert personal
+    from app.config import settings as _s
+
+    assert client.post("/api/wifi-verify", json={"password": _s.wifi_password}).status_code == 400
+    mine = client.post("/api/wifi-verify", json={"password": personal})
+    assert mine.status_code == 200
+
+    # снять staff с себя нельзя
+    selfdem = client.patch(f"/api/admin/users/{uid}/staff", json={"is_staff": False})
+    assert selfdem.status_code == 400
+
+    # Figma без токена — 501 с подсказкой
+    fig = client.post("/api/integrations/figma-invite")
+    assert fig.status_code == 501
 
     # ссылки интеграций
     links = client.get("/api/integrations/links")

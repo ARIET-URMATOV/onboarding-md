@@ -58,9 +58,16 @@ async def load_progress(db: AsyncSession, user: User) -> Progress:
 
 
 async def log_verification(
-    db: AsyncSession, user_id: int, task_id: str, method: str, verified_by: int | None = None
+    db: AsyncSession,
+    user_id: int,
+    task_id: str,
+    method: str,
+    verified_by: int | None = None,
+    details: dict | None = None,
 ) -> None:
     """Аудит: кто/что/когда/кем подтверждён (идемпотентно — дубль не пишем)."""
+    import json
+
     from sqlalchemy import select
 
     res = await db.execute(
@@ -71,7 +78,10 @@ async def log_verification(
         )
     )
     if res.scalar_one_or_none() is None:
-        db.add(VerificationLog(user_id=user_id, task_id=task_id, verified_by=verified_by, method=method))
+        db.add(VerificationLog(
+            user_id=user_id, task_id=task_id, verified_by=verified_by, method=method,
+            details=json.dumps(details or {}, ensure_ascii=False),
+        ))
 
 
 async def save_progress(db: AsyncSession, prog: Progress, done_tasks: dict) -> ProgressOut:
@@ -276,10 +286,23 @@ async def wifi_verify(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Сотрудник вводит Wi-Fi пароль (сверка с WIFI_PASSWORD)."""
+    """Сотрудник вводит Wi-Fi пароль (персональный из wifi_passwords, fallback WIFI_PASSWORD)."""
     import hmac
 
-    if not hmac.compare_digest(payload.password, settings.wifi_password):
+    from app.models import WifiPassword
+
+    expected: str | None = None
+    row = await db.get(WifiPassword, user.id)
+    if row is not None:
+        from app.crypto import decrypt_secret
+
+        try:
+            expected = decrypt_secret(row.password_encrypted)
+        except ValueError as e:
+            raise HTTPException(status_code=500, detail=str(e))
+    else:
+        expected = settings.wifi_password
+    if not hmac.compare_digest(payload.password, expected):
         raise HTTPException(status_code=400, detail="Неверный пароль Wi-Fi")
     prog = await load_progress(db, user)
     tasks = normalize_tasks(prog.done_tasks)
@@ -315,6 +338,19 @@ async def verify_mpulse_code(
             if hmac.compare_digest(code, r.code):
                 ok = True
                 break
+    # динамическая проверка через API MPulse (если настроен) — best effort, не блокирует
+    api_used = False
+    if not ok and settings.mpulse_api_url:
+        import httpx
+
+        try:
+            async with httpx.AsyncClient(timeout=2.0) as client:
+                resp = await client.post(settings.mpulse_api_url, json={"code": code})
+                data = resp.json() if resp.status_code == 200 else {}
+                ok = bool(data.get("ok") or data.get("valid") or data.get("verified"))
+                api_used = True
+        except Exception as e:
+            print(f"mpulse api verify failed: {e}")
     if not ok:
         raise HTTPException(status_code=400, detail="Неверный код MPulse")
     prog = await load_progress(db, user)
@@ -323,7 +359,8 @@ async def verify_mpulse_code(
     for tid in MPULSE_TASKS:
         if tid not in cur:
             tasks["1"].append(tid)
-    await log_verification(db, user.id, "1-mpulse-code", "technical_code")
+    await log_verification(db, user.id, "1-mpulse-code", "technical_code",
+                           details={"via_api": api_used})
     return await save_progress(db, prog, tasks)
 
 
@@ -341,14 +378,15 @@ async def confirm_confluence(
     if CONFLUENCE_READ in normalize_tasks((await load_progress(db, user)).done_tasks)["1"]:
         prog = await load_progress(db, user)
         return await save_progress(db, prog, prog.done_tasks)
+    elapsed_s = 0.0
     if payload.opened_at:
         try:
             opened = datetime.fromisoformat(payload.opened_at.replace("Z", "+00:00"))
-            elapsed = (datetime.now(timezone.utc) - opened).total_seconds()
-            if elapsed < settings.confluence_min_seconds:
+            elapsed_s = (datetime.now(timezone.utc) - opened).total_seconds()
+            if elapsed_s < settings.confluence_min_seconds:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Читайте ещё {int(settings.confluence_min_seconds - elapsed)} сек",
+                    detail=f"Читайте ещё {int(settings.confluence_min_seconds - elapsed_s)} сек",
                 )
         except HTTPException:
             raise
@@ -361,5 +399,6 @@ async def confirm_confluence(
     for tid in [*CONFLUENCE_TASKS, CONFLUENCE_READ]:
         if tid not in tasks["1"]:
             tasks["1"].append(tid)
-    await log_verification(db, user.id, CONFLUENCE_READ, "technical_timer")
+    await log_verification(db, user.id, CONFLUENCE_READ, "technical_timer",
+                           details={"opened_at": payload.opened_at, "elapsed_s": round(elapsed_s, 1)})
     return await save_progress(db, prog, tasks)

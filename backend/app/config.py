@@ -101,6 +101,25 @@ class Settings(BaseSettings):
         default="https://apps.apple.com/search?term=MPulse", alias="MPULSE_IOS_URL"
     )
 
+    # Production integrations (пусто = соответствующий канал отключён, поведение fallback)
+    mpulse_api_url: str = Field(default="", alias="MPULSE_API_URL")
+    figma_api_token: str = Field(default="", alias="FIGMA_API_TOKEN")
+    telegram_bot_token: str = Field(default="", alias="TELEGRAM_BOT_TOKEN")
+    smtp_host: str = Field(default="", alias="SMTP_HOST")
+    smtp_port: int = 587
+    smtp_user: str = Field(default="", alias="SMTP_USER")
+    smtp_password: str = Field(default="", alias="SMTP_PASSWORD")
+    smtp_from: str = Field(default="onboarding@mdigital.kg", alias="SMTP_FROM")
+    hr_notify_email: str = Field(default="", alias="HR_NOTIFY_EMAIL")
+
+    @property
+    def smtp_configured(self) -> bool:
+        return bool(self.smtp_host and self.smtp_user and self.smtp_password)
+
+    @property
+    def telegram_configured(self) -> bool:
+        return bool(self.telegram_bot_token)
+
     @property
     def database_url(self) -> str:
         """DATABASE_URL из env (Render) имеет приоритет, иначе собираем из POSTGRES_*."""

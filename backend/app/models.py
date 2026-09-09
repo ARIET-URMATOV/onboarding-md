@@ -65,6 +65,8 @@ class VerificationLog(Base):
     task_id: Mapped[str] = mapped_column(Text, nullable=False)
     verified_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     method: Mapped[str] = mapped_column(String, nullable=False, default="manual")
+    # JSON-строка с деталями: {"opened_at": ..., "elapsed": ...} для timer и т.п.
+    details: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
@@ -74,6 +76,15 @@ class WifiMac(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     mac: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class WifiPassword(Base):
+    __tablename__ = "wifi_passwords"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    password_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
+    set_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
