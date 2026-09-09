@@ -421,14 +421,14 @@ REDIS_URL=redis://...
 - [ ] Add SLA countdown banner (uses `user.created_at`)
 - [ ] Add overdue warning + manager notification UI (admin panel)
 
-### Phase 3: Admin Panel (Week 2)
-- [ ] HR verification view: pending documents, verify button
-- [ ] Sysadmin view: Wi-Fi MAC list, password management
-- [ ] Lead/PM view: Proxy card requests
-- [ ] Accountant view: Payment details confirmations
-- [ ] Teamlead view: Telegram/Figma/Jira confirmations
-- [ ] MPulse code management (set/rotate per batch)
-- [ ] Audit log viewer
+### Phase 3: Admin Panel (Week 2) — DONE 09.09.2026 (simplified: single staff panel)
+- [x] HR verification view: `AdminPage /admin` pending + Verify buttons (`verify-docs`/`verify-access`)
+- [x] Staff grant: `PATCH /admin/users/{id}/staff` (no DB access needed)
+- [x] Audit log viewer: `verification_log` table (006) + `GET /admin/audit`
+- [x] Wi-Fi MAC persist: `wifi_macs` table (MAC bound to user on submit)
+- [x] Icons: `mpulse-logo.png` + `mbusiness-logo.png` from `public/` in Stage1 UI
+- [ ] MPulse code management UI (env rotation for now)
+- [ ] Per-role views (sysadmin/lead/accountant/teamlead) — deferred, single staff panel covers MVP
 
 ### Phase 4: Integrations (Week 2-3, Deferred)
 - [ ] Corporate portal JWT auto-login endpoint (`/auth/auto-login`)

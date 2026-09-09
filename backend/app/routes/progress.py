@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import get_db
 from app.limiter import limiter
-from app.models import Progress, User
+from app.models import Progress, User, VerificationLog, WifiMac
 from app.routes.auth import get_current_user, require_role, require_staff
 from app.schemas import (
     ConfluenceConfirmIn,
@@ -52,6 +52,23 @@ async def load_progress(db: AsyncSession, user: User) -> Progress:
             raise
         await db.refresh(prog)
     return prog
+
+
+async def log_verification(
+    db: AsyncSession, user_id: int, task_id: str, method: str, verified_by: int | None = None
+) -> None:
+    """Аудит: кто/что/когда/кем подтверждён (идемпотентно — дубль не пишем)."""
+    from sqlalchemy import select
+
+    res = await db.execute(
+        select(VerificationLog).where(
+            VerificationLog.user_id == user_id,
+            VerificationLog.task_id == task_id,
+            VerificationLog.method == method,
+        )
+    )
+    if res.scalar_one_or_none() is None:
+        db.add(VerificationLog(user_id=user_id, task_id=task_id, verified_by=verified_by, method=method))
 
 
 async def save_progress(db: AsyncSession, prog: Progress, done_tasks: dict) -> ProgressOut:
@@ -174,6 +191,7 @@ async def verify_docs(
     tasks = normalize_tasks(prog.done_tasks)
     if payload.task_id not in tasks["1"]:
         tasks["1"] = [*tasks["1"], payload.task_id]
+    await log_verification(db, target.id, payload.task_id, "manual_hr", staff.id)
     return await save_progress(db, prog, tasks)
 
 
@@ -199,6 +217,7 @@ async def verify_access(
     tasks = normalize_tasks(prog.done_tasks)
     if payload.task_id not in tasks["1"]:
         tasks["1"] = [*tasks["1"], payload.task_id]
+    await log_verification(db, target.id, payload.task_id, "manual_staff", staff.id)
     return await save_progress(db, prog, tasks)
 
 
@@ -216,6 +235,13 @@ async def wifi_mac(
     mac = payload.mac.strip().upper()
     if not re.fullmatch(r"([0-9A-F]{2}[:-]){5}[0-9A-F]{2}", mac):
         raise HTTPException(status_code=400, detail="Неверный формат MAC")
+    from sqlalchemy import select as _select
+
+    existing = await db.execute(
+        _select(WifiMac).where(WifiMac.user_id == user.id, WifiMac.mac == mac)
+    )
+    if existing.scalar_one_or_none() is None:
+        db.add(WifiMac(user_id=user.id, mac=mac))
     prog = await load_progress(db, user)
     tasks = normalize_tasks(prog.done_tasks)
     # MAC фиксируем фактом отметки wifi-задачи как «отправлено», staff подтвердит после allowlist
@@ -244,6 +270,7 @@ async def wifi_verify(
     tasks = normalize_tasks(prog.done_tasks)
     if "1-wifi" not in tasks["1"]:
         tasks["1"] = [*tasks["1"], "1-wifi"]
+    await log_verification(db, user.id, "1-wifi", "technical_password")
     return await save_progress(db, prog, tasks)
 
 
@@ -266,6 +293,7 @@ async def verify_mpulse_code(
     for tid in MPULSE_TASKS:
         if tid not in cur:
             tasks["1"].append(tid)
+    await log_verification(db, user.id, "1-mpulse-code", "technical_code")
     return await save_progress(db, prog, tasks)
 
 
@@ -303,4 +331,5 @@ async def confirm_confluence(
     for tid in [*CONFLUENCE_TASKS, CONFLUENCE_READ]:
         if tid not in tasks["1"]:
             tasks["1"].append(tid)
+    await log_verification(db, user.id, CONFLUENCE_READ, "technical_timer")
     return await save_progress(db, prog, tasks)

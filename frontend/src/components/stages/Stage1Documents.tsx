@@ -201,7 +201,7 @@ export function Stage1Documents({ stageId }: Props) {
       <section className="s1-step">
         <StepHeader n={2} title="Получение доступов" reward="0 баллов" desc="Подтверждение staff (HR/лид/сисадмин) — сотрудник отмечает, staff верифицирует" />
         <div className="step-grid">
-          <DocCard k="mbusiness" doneFlag={isDone('mbusiness')} icon="💳" title="MBusiness — открытие" sub="Выплаты 1–10 числа · поможет HR" onOpen={setOpen} />
+          <DocCard k="mbusiness" doneFlag={isDone('mbusiness')} icon={<img src="/mbusiness-logo.png" alt="MBusiness" width={28} height={28} style={{ objectFit: 'contain' }} />} title="MBusiness — открытие" sub="Выплаты 1–10 числа · поможет HR" onOpen={setOpen} />
           <DocCard k="accountant" doneFlag={isDone('accountant')} icon="🧾" title="Доступ бухгалтеру" sub="Инструкция · как предоставить доступ" onOpen={setOpen} />
           <DocCard k="proxy" doneFlag={isDone('proxy')} icon="🪪" title="Прокси-карта и Face ID" sub="Пропуск на 1 этаж · коворкинг · Технопарк / MSpace · через лида/PM" onOpen={setOpen} />
           <DocCard k="telegram" doneFlag={isDone('telegram')} icon="✈️" title="Доступ в Telegram-группы" sub="Авто-добавление · представьтесь команде" onOpen={setOpen} />
@@ -250,7 +250,7 @@ export function Stage1Documents({ stageId }: Props) {
         <StepHeader n={3} title="Корпоративное приложение MPulse" reward="5 баллов" desc="AD · выбор графика · check-in/out · формат работы · новости" />
         <div className="mpulse-card">
           <div className="mpulse-head">
-            <div className="mpulse-icon">M+</div>
+            <img src="/mpulse-logo.png" alt="MPulse" className="mpulse-icon-img" />
             <div>
               <div className="mpulse-title">MPulse — корпоративное приложение</div>
               <div className="mpulse-sub">Авторизация через корпоративный Active Directory (AD) · обязательный выбор рабочего графика (согласованного с руководителем)</div>
@@ -404,6 +404,7 @@ export function Stage1Documents({ stageId }: Props) {
         .mpulse-step .mpulse-card{ display:flex; flex-direction:column; gap:12px; padding:14px; border-radius:12px; background:rgba(37,99,235,.06); border:1px solid rgba(59,130,246,.18) }
         .mpulse-head{ display:flex; gap:12px; align-items:flex-start }
         .mpulse-icon{ width:44px; height:44px; border-radius:11px; display:grid; place-items:center; flex-shrink:0; font-size:14px; font-weight:800; color:#fff; background:linear-gradient(135deg,#1E3A8A,#2563EB) }
+        .mpulse-icon-img{ width:44px; height:44px; border-radius:11px; object-fit:contain; flex-shrink:0; background:rgba(255,255,255,.06); border:1px solid rgba(59,130,246,.18) }
         .mpulse-title{ font-size:13.5px; font-weight:800; color:var(--text) }
         .mpulse-sub{ font-size:11.5px; color:var(--muted); margin-top:4px; line-height:1.45 }
         .mpulse-list{ margin:0; padding-left:18px; font-size:12px; color:var(--muted); line-height:1.6 }

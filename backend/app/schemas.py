@@ -81,6 +81,29 @@ class ConfluenceConfirmIn(BaseModel):
     opened_at: str | None = None
 
 
+class StaffSetIn(BaseModel):
+    is_staff: bool
+
+
+class AdminUserOut(BaseModel):
+    id: int
+    email: str
+    name: str
+    role: str | None = None
+    is_staff: bool = False
+    created_at: str | None = None
+    done_stage1: list[str] = []
+
+
+class AuditOut(BaseModel):
+    id: int
+    user_id: int
+    task_id: str
+    verified_by: int | None = None
+    method: str
+    created_at: str | None = None
+
+
 class MeOut(BaseModel):
     user: UserOut
     progress: ProgressOut

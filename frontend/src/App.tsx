@@ -14,6 +14,7 @@ const RoadmapPage = lazy(() => import('./pages/RoadmapPage').then((m) => ({ defa
 const MapPage = lazy(() => import('./pages/MapPage').then((m) => ({ default: m.MapPage })));
 const ProfilePage = lazy(() => import('./pages/ProfilePage').then((m) => ({ default: m.ProfilePage })));
 const CompletePage = lazy(() => import('./pages/CompletePage').then((m) => ({ default: m.CompletePage })));
+const AdminPage = lazy(() => import('./pages/AdminPage').then((m) => ({ default: m.AdminPage })));
 
 function PageFallback() {
   return <div style={{ display: 'grid', placeItems: 'center', minHeight: '60vh', color: '#60A5FA', fontSize: 14 }}>Загрузка...</div>;
@@ -35,6 +36,7 @@ export default function App() {
               <Route path="/map" element={<AuthGate><RequireRole><MapPage /></RequireRole></AuthGate>} />
               <Route path="/profile" element={<AuthGate><RequireRole><ProfilePage /></RequireRole></AuthGate>} />
               <Route path="/complete" element={<AuthGate><RequireRole><CompletePage /></RequireRole></AuthGate>} />
+              <Route path="/admin" element={<AuthGate><RequireRole><AdminPage /></RequireRole></AuthGate>} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </Suspense>
