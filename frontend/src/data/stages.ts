@@ -50,16 +50,8 @@ export const STAGES: StageDef[] = [
       { id: '1-mpulse-checkin', title: 'Daily check-in/check-out', xp: 1 },
       { id: '1-mpulse-code', title: 'Ввод проверочного кода', xp: 1 },
       { id: '1-mpulse-news', title: 'Получение новостей и уведомлений', xp: 1 },
-      // Step 4: База знаний Confluence (10 баллов, таймер 120с)
-      { id: '1-confluence-vacation', title: 'Правила оформления отпусков', xp: 1 },
-      { id: '1-confluence-grading', title: 'Система грейдинга и повышения', xp: 1 },
-      { id: '1-confluence-info', title: 'Общая информация о компании', xp: 1 },
-      { id: '1-confluence-rules', title: 'Правила внутреннего трудового распорядка', xp: 1 },
-      { id: '1-confluence-security', title: 'Безопасность информации', xp: 1 },
-      { id: '1-confluence-benefits', title: 'Соцпакет', xp: 1 },
-      { id: '1-confluence-contact', title: 'Контакты отделов', xp: 1 },
-      { id: '1-confluence-faq', title: 'Частые вопросы', xp: 1 },
-      { id: '1-confluence-read', title: 'Я ознакомился(ась)', xp: 2 },
+      // Step 4: База знаний Confluence (10 баллов, один тогглер; 5 ссылок + видимый таймер 120с)
+      { id: '1-confluence-read', title: 'Я ознакомился(ась)', xp: 10 },
     ],
   },
   {

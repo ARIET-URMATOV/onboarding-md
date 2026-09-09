@@ -310,12 +310,17 @@ def test_mpulse_and_confluence_flow(client):
 
     from datetime import datetime, timedelta, timezone
 
+    links = ["51479172", "15370476", "86868582", "86868604", "51478978"]
     now = datetime.now(timezone.utc).isoformat()
-    early = client.post("/api/confirm-confluence", json={"opened_at": now})
+    # не все ссылки -> 400
+    few = client.post("/api/confirm-confluence", json={"opened_at": now, "links_clicked": links[:2]})
+    assert few.status_code == 400
+    # все ссылки, но рано -> 400
+    early = client.post("/api/confirm-confluence", json={"opened_at": now, "links_clicked": links})
     assert early.status_code == 400
 
     past = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
-    done = client.post("/api/confirm-confluence", json={"opened_at": past})
+    done = client.post("/api/confirm-confluence", json={"opened_at": past, "links_clicked": links})
     assert done.status_code == 200
     assert "1-confluence-read" in done.json()["done_tasks"]["1"]
 

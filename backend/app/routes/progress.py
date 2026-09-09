@@ -30,13 +30,9 @@ DOC_TASKS = {"1-dogovor", "1-nda", "1-pdp", "1-ip", "1-sn"}
 ACCESS_TASKS = {"1-mbusiness", "1-accountant", "1-wifi", "1-proxy", "1-telegram"}
 # Step 3: MPulse (5 баллов, код)
 MPULSE_TASKS = ["1-mpulse", "1-mpulse-schedule", "1-mpulse-checkin", "1-mpulse-code", "1-mpulse-news"]
-# Step 4: Confluence (10 баллов, таймер 120с)
-CONFLUENCE_TASKS = [
-    "1-confluence-vacation", "1-confluence-grading", "1-confluence-info",
-    "1-confluence-rules", "1-confluence-security", "1-confluence-benefits",
-    "1-confluence-contact", "1-confluence-faq",
-]
+# Step 4: Confluence (10 баллов, один тогглер; 5 обязательных ссылок + видимый таймер 120с)
 CONFLUENCE_READ = "1-confluence-read"
+CONFLUENCE_PAGE_IDS = frozenset({"51479172", "15370476", "86868582", "86868604", "51478978"})
 
 router = APIRouter()
 
@@ -505,12 +501,24 @@ async def confirm_confluence(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """«Я ознакомился» — идемпотентно, минимум 120с после открытия (confluence_min_seconds)."""
+    """«Я ознакомился» — идемпотентно: все 5 ссылок + минимум 120с видимого чтения."""
+    import re
     from datetime import datetime, timezone
 
     if CONFLUENCE_READ in normalize_tasks((await load_progress(db, user)).done_tasks)["1"]:
         prog = await load_progress(db, user)
         return await save_progress(db, prog, prog.done_tasks)
+    # все 5 pageId (принимаем голые id или полные URL — выдираем pageId)
+    clicked: set[str] = set()
+    for raw in payload.links_clicked:
+        m = re.search(r"pageId=(\d+)", str(raw))
+        clicked.add(m.group(1) if m else str(raw).strip())
+    missing = CONFLUENCE_PAGE_IDS - clicked
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Откройте все 5 страниц Confluence (не хватает: {len(missing)})",
+        )
     elapsed_s = 0.0
     if payload.opened_at:
         try:
@@ -529,11 +537,12 @@ async def confirm_confluence(
         raise HTTPException(status_code=400, detail="Нет отметки времени открытия")
     prog = await load_progress(db, user)
     tasks = normalize_tasks(prog.done_tasks)
-    for tid in [*CONFLUENCE_TASKS, CONFLUENCE_READ]:
-        if tid not in tasks["1"]:
-            tasks["1"].append(tid)
+    if CONFLUENCE_READ not in tasks["1"]:
+        tasks["1"].append(CONFLUENCE_READ)
     await log_verification(db, user.id, CONFLUENCE_READ, "technical_timer",
-                           details={"opened_at": payload.opened_at, "elapsed_s": round(elapsed_s, 1)})
+                           details={"opened_at": payload.opened_at,
+                                    "elapsed_s": round(elapsed_s, 1),
+                                    "links": sorted(clicked)})
     out = await save_progress(db, prog, tasks)
     from app.notify import notify_verified
 

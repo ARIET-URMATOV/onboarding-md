@@ -71,12 +71,23 @@ export function Stage1Documents({ stageId }: Props) {
   const [mpulseVerifying, setMpulseVerifying] = useState(false);
   const [mpulseMsg, setMpulseMsg] = useState<string | null>(null);
 
-  // Confluence: таймер 120с после открытия ссылки
+  // Confluence: 5 обязательных ссылок + видимые 120с (таймер стоит на паузе когда вкладка скрыта)
   const CONF_MIN_SECONDS = 120;
+  const CONF_LINKS = [
+    { pageId: '51479172', title: 'Корпоративная культура', url: 'https://confluence.mdigital.kg/pages/viewpage.action?pageId=51479172' },
+    { pageId: '15370476', title: 'Система грейдов в компании', url: 'https://confluence.mdigital.kg/pages/viewpage.action?pageId=15370476' },
+    { pageId: '86868582', title: 'О компании и структура', url: 'https://confluence.mdigital.kg/pages/viewpage.action?pageId=86868582' },
+    { pageId: '86868604', title: 'Команды и роли', url: 'https://confluence.mdigital.kg/pages/viewpage.action?pageId=86868604' },
+    { pageId: '51478978', title: 'Общие принципы разработки', url: 'https://confluence.mdigital.kg/pages/viewpage.action?pageId=51478978' },
+  ];
   const [confOpenedAt, setConfOpenedAt] = useState<string | null>(null);
-  const [confRemain, setConfRemain] = useState<number>(0);
+  const [confClicked, setConfClicked] = useState<Record<string, string>>({});
+  const [confVisibleSec, setConfVisibleSec] = useState<number>(0);
   const [confConfirming, setConfConfirming] = useState(false);
   const [confMsg, setConfMsg] = useState<string | null>(null);
+  const confClickedCount = Object.keys(confClicked).length;
+  const confRemain = Math.max(0, Math.ceil(CONF_MIN_SECONDS - confVisibleSec));
+  const confReady = confClickedCount >= CONF_LINKS.length && confRemain <= 0;
 
   const isDone = (k: DocKey) => done.includes(docToTask[k]);
   const isTaskDone = (taskId: string) => done.includes(taskId);
@@ -121,15 +132,12 @@ export function Stage1Documents({ stageId }: Props) {
     return eff === n ? null : n;
   });
 
-  // Confluence countdown
+  // Confluence: считаем только видимые секунды после первого клика
   useEffect(() => {
-    if (!confOpenedAt) { setConfRemain(0); return; }
-    const tick = () => {
-      const elapsed = (Date.now() - new Date(confOpenedAt).getTime()) / 1000;
-      setConfRemain(Math.max(0, Math.ceil(CONF_MIN_SECONDS - elapsed)));
-    };
-    tick();
-    const id = setInterval(tick, 1000);
+    if (!confOpenedAt) return;
+    const id = setInterval(() => {
+      if (!document.hidden) setConfVisibleSec((v) => v + 1);
+    }, 1000);
     return () => clearInterval(id);
   }, [confOpenedAt]);
 
@@ -182,16 +190,19 @@ export function Stage1Documents({ stageId }: Props) {
     }
   };
 
-  const handleConfluenceOpen = () => {
-    if (!confOpenedAt) setConfOpenedAt(new Date().toISOString());
+  const handleConfluenceLink = (pageId: string) => {
+    const now = new Date().toISOString();
+    if (!confOpenedAt) setConfOpenedAt(now);
+    setConfClicked((prev) => (prev[pageId] ? prev : { ...prev, [pageId]: now }));
   };
 
   const handleConfluenceConfirm = async () => {
-    if (!confOpenedAt) { setConfMsg('Сначала откройте Confluence по ссылке выше'); return; }
+    if (confClickedCount < CONF_LINKS.length) { setConfMsg(`Откройте все ${CONF_LINKS.length} страниц (открыто ${confClickedCount})`); return; }
+    if (!confOpenedAt) { setConfMsg('Сначала откройте страницы по ссылкам выше'); return; }
     setConfConfirming(true);
     setConfMsg(null);
     try {
-      await api.post('/api/confirm-confluence', { opened_at: confOpenedAt });
+      await api.post('/api/confirm-confluence', { opened_at: confOpenedAt, links_clicked: Object.keys(confClicked) });
       await refreshMe();
     } catch (e) {
       setConfMsg(e instanceof Error ? e.message : 'Подтвердить пока нельзя');
@@ -342,44 +353,29 @@ export function Stage1Documents({ stageId }: Props) {
 
       {/* ── Шаг 4. База знаний Confluence ── */}
       <section className={`s1-step ${effectiveOpen === 4 ? 'open' : ''}`}>
-        <StepHeader n={4} title="База знаний Confluence" reward="10 баллов" desc="Отпуска · грейдинг · информация о компании · кнопка активна через 2 мин после открытия" open={effectiveOpen === 4} done={step4ExplicitDone} onToggle={() => toggleStep(4)} />
+        <StepHeader n={4} title="База знаний Confluence" reward="10 баллов" desc="Откройте все 5 страниц · читайте 2 мин с открытой вкладкой · нажмите «Я ознакомился(-ась)»" open={effectiveOpen === 4} done={step4ExplicitDone} onToggle={() => toggleStep(4)} />
         <div className="s1-step-body">
-        <a href="https://confluence.mdigital.kg" target="_blank" rel="noopener noreferrer" className="confluence-link" onClick={handleConfluenceOpen}>
-          <span className="cf-icon">CF</span>
-          <span className="cf-body">
-            <span className="cf-title">Confluence — пространства команды</span>
-            <span className="cf-sub">confluence.mdigital.kg · откройте и пролистайте до конца</span>
-          </span>
-          <span className="cf-arrow">→</span>
-        </a>
-        <ul className="cf-list">
-          <li>Правила оформления отпусков и отгулов</li>
-          <li>Система грейдинга и повышения</li>
-          <li>Общая информация о компании MDIGITAL</li>
-        </ul>
-        <div className="cf-tasks">
-          {[
-            { id: '1-confluence-vacation', label: 'Правила оформления отпусков' },
-            { id: '1-confluence-grading', label: 'Система грейдинга и повышения' },
-            { id: '1-confluence-info', label: 'Общая информация о компании' },
-            { id: '1-confluence-rules', label: 'Правила внутреннего трудового распорядка' },
-            { id: '1-confluence-security', label: 'Безопасность информации' },
-            { id: '1-confluence-benefits', label: 'Соцпакет' },
-            { id: '1-confluence-contact', label: 'Контакты отделов' },
-            { id: '1-confluence-faq', label: 'Частые вопросы' },
-          ].map(t => (
-            <label key={t.id} className={`mtask ro ${isTaskDone(t.id) ? 'done' : ''}`} title="Закрывается кнопкой «Я ознакомился», не галочкой">
-              <input type="checkbox" checked={isTaskDone(t.id)} readOnly />
-              <span className="mtask-box">{isTaskDone(t.id) ? '✓' : ''}</span>
-              <span>{t.label}</span>
-            </label>
-          ))}
+        <div className="cf-links">
+          {CONF_LINKS.map((l) => {
+            const seen = Boolean(confClicked[l.pageId]);
+            return (
+              <a key={l.pageId} href={l.url} target="_blank" rel="noopener noreferrer" className={`confluence-link ${seen ? 'seen' : ''}`} onClick={() => handleConfluenceLink(l.pageId)}>
+                <span className="cf-icon">{seen ? '✓' : 'CF'}</span>
+                <span className="cf-body">
+                  <span className="cf-title">{l.title}</span>
+                  <span className="cf-sub">confluence.mdigital.kg · {seen ? 'открыта ✓' : 'нажмите чтобы открыть'}</span>
+                </span>
+                <span className="cf-arrow">→</span>
+              </a>
+            );
+          })}
         </div>
-        <button type="button" className={`cf-confirm ${step4ExplicitDone ? 'done' : ''}`} onClick={handleConfluenceConfirm} disabled={confConfirming || step4ExplicitDone || (confRemain > 0)}>
-          {confConfirming ? 'Фиксируем…' : step4ExplicitDone ? 'Ознакомление зафиксировано ✓' : confRemain > 0 ? `Читайте… ${Math.floor(confRemain / 60)}:${String(confRemain % 60).padStart(2, '0')}` : 'Я ознакомился(-ась)'}
+        <div className="cf-progress">Открыто {confClickedCount}/{CONF_LINKS.length} · видимое чтение {Math.floor(confVisibleSec / 60)}:{String(confVisibleSec % 60).padStart(2, '0')} / 2:00</div>
+        <button type="button" className={`cf-confirm ${step4ExplicitDone ? 'done' : ''}`} onClick={handleConfluenceConfirm} disabled={confConfirming || step4ExplicitDone || !confReady}>
+          {confConfirming ? 'Фиксируем…' : step4ExplicitDone ? 'Ознакомление зафиксировано ✓' : confReady ? 'Я ознакомился(-ась)' : `Откройте все страницы и читайте (${confClickedCount}/${CONF_LINKS.length}, ${Math.floor(confRemain / 60)}:${String(confRemain % 60).padStart(2, '0')})`}
         </button>
         {confMsg && <div className="wifi-err">{confMsg}</div>}
-        <div className="cf-hint">{confOpenedAt ? (confRemain > 0 ? 'Кнопка активируется через 2 мин после открытия' : 'Можно фиксировать ознакомление') : 'Сначала откройте Confluence по ссылке выше — запустится таймер 2 мин'}</div>
+        <div className="cf-hint">Таймер идёт только пока вкладка открыта — свернули, поставили на паузу</div>
         </div>
         {step4ExplicitDone && <div className="step-done-badge">Шаг 4 выполнен ✓ +10 баллов</div>}
       </section>
@@ -491,6 +487,10 @@ export function Stage1Documents({ stageId }: Props) {
         .mpulse-tasks, .cf-tasks{ display:flex; flex-direction:column; gap:7px; margin-top:6px }
         .confluence-link{ display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:11px; background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.08); text-decoration:none; color:inherit; transition:background .15s, border-color .15s }
         .confluence-link:hover{ background:rgba(59,130,246,.06); border-color:rgba(59,130,246,.22) }
+        .cf-links{ display:flex; flex-direction:column; gap:8px; }
+        .confluence-link.seen{ border-color:rgba(34,197,94,.3); }
+        .confluence-link.seen .cf-icon{ background:rgba(34,197,94,.14); border-color:rgba(34,197,94,.35); color:#86EFAC; }
+        .cf-progress{ font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; }
         .cf-icon{ width:36px; height:36px; border-radius:9px; display:grid; place-items:center; font-size:11px; font-weight:800; background:rgba(59,130,246,.12); border:1px solid rgba(59,130,246,.25); color:#60A5FA }
         .cf-title{ font-size:13.5px; font-weight:800; color:var(--text) }
         .cf-sub{ font-size:11.5px; color:var(--muted) }
