@@ -657,12 +657,16 @@ export function IsometricRoadmap({ statuses, done }: Props) {
         @media (min-width:861px){
           .gm-root{ grid-template-columns:380px 1fr; gap:14px; min-height:640px; border-radius:18px; overflow:visible; }
           .gm-left{
-            position:sticky; top:72px; align-self:start;
+            /* fixed: не зависит от скролла правой колонки; левая grid-ячейка остаётся пустым placeholder 380px */
+            position:fixed; top:72px; left:max(18px, calc((100vw - 1220px) / 2 + 18px)); width:380px; z-index:20;
             padding:18px 16px 16px 18px;
-            border-right:1px solid rgba(30,58,138,.14); border-bottom:none;
-            background:linear-gradient(180deg, rgba(13,21,38,.5), rgba(10,15,30,.3));
+            border:1px solid rgba(30,58,138,.14);
+            background:linear-gradient(180deg, rgba(13,21,38,.96), rgba(10,15,30,.94));
+            backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+            box-shadow:0 12px 40px rgba(0,0,0,.45);
             max-height: calc(100vh - 84px); overflow-y:auto; overflow-x:hidden;
-            border-radius:18px 0 0 18px;
+            scrollbar-gutter:stable;
+            border-radius:18px;
           }
           .gl-brand{ gap:10px; margin-bottom:14px }
           .gl-mark{ width:32px; height:32px; border-radius:8px; } .gl-mark svg{ width:16px; height:16px; }
@@ -670,7 +674,7 @@ export function IsometricRoadmap({ statuses, done }: Props) {
           .gm-tabs{ gap:10px; margin-bottom:14px }
           .gm-tab{ width:38px; height:38px; } .gm-tab svg{ width:16px; height:16px; }
           .gm-sect{ margin-bottom:12px } .gs-title{ font-size:14px } .gs-rule{ margin:8px 0 } .gs-meta{ font-size:10px }
-          .gm-list{ overflow-y:auto; padding-right:2px; gap:1px; }
+          .gm-list{ overflow:visible; padding-right:2px; gap:1px; }
           .gm-connector{ height:10px; margin-left:22px; }
           .gm-cardWrap{ filter:drop-shadow(0 2px 8px rgba(0,0,0,.3)); }
           .gm-cardWrap.sel{ filter:drop-shadow(0 0 10px rgba(30,58,138,.4)) drop-shadow(0 3px 10px rgba(0,0,0,.35)); }
