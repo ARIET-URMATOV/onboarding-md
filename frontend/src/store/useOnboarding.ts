@@ -24,18 +24,29 @@ interface OnboardingState {
   completedAt: string | null;
   createdAt: string | null;
   hydrated: boolean;
+  pending: string[];
   // actions
   hydrate: (me: MeResponse) => void;
   refreshMe: () => Promise<void>;
+  fetchPending: () => Promise<void>;
   login: (me: MeResponse) => void;
   logout: () => Promise<void>;
   setRole: (r: Role) => Promise<void>;
   updateProfile: (patch: { name?: string; avatar?: string | null }) => Promise<void>;
   toggleTask: (stageId: StageId, taskId: string) => Promise<void>;
+  requestTask: (taskId: string, note?: string) => Promise<void>;
   completeStage: (stageId: StageId) => Promise<void>;
   uncompleteStage: (stageId: StageId) => Promise<void>;
   markIntroSeen: () => Promise<void>;
   setVoiceEnabled: (enabled: boolean) => Promise<void>;
+  connectLive: () => () => void;
+}
+
+let liveSocket: WebSocket | null = null;
+
+function wsUrl(path: string): string {
+  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${proto}//${window.location.host}${path}`;
 }
 
 const emptyTasks = (): Record<StageId, string[]> => ({
@@ -66,6 +77,7 @@ export const useOnboarding = create<OnboardingState>()((set, get) => ({
   completedAt: null,
   createdAt: null,
   hydrated: false,
+  pending: [],
 
   hydrate: (me) =>
     set({
@@ -84,17 +96,27 @@ export const useOnboarding = create<OnboardingState>()((set, get) => ({
   refreshMe: async () => {
     const me = await api.get<MeResponse>('/api/me');
     get().hydrate(me);
+    await get().fetchPending();
+  },
+
+  fetchPending: async () => {
+    try {
+      const r = await api.get<{ pending: string[] }>('/api/progress/pending');
+      set({ pending: r.pending });
+    } catch { /* не критично */ }
   },
 
   login: (me) => {
     get().hydrate(me);
+    void get().fetchPending();
   },
 
   logout: async () => {
     try { await api.post('/api/logout'); } catch { /* cookie уже могла истечь */ }
+    if (liveSocket) { liveSocket.close(); liveSocket = null; }
     set({
       user: null, role: null, introSeen: false, voiceEnabled: true,
-      doneTasks: emptyTasks(), xp: 0, level: 1, completedAt: null, hydrated: true,
+      doneTasks: emptyTasks(), xp: 0, level: 1, completedAt: null, hydrated: true, pending: [],
     });
   },
   setRole: async (r) => {
@@ -128,6 +150,39 @@ export const useOnboarding = create<OnboardingState>()((set, get) => ({
       if (prevUser) set({ user: prevUser });
       throw e;
     }
+  },
+
+  requestTask: async (taskId, note) => {
+    // Запрос на верификацию вместо свободного toggle (Stage 1 manual_*).
+    // XP не меняется — сервер вернёт текущий прогресс; обновляем pending.
+    const res = await api.post<ProgressResponse>('/api/progress/request', { task_id: taskId, note: note ?? '' });
+    set({
+      doneTasks: { ...emptyTasks(), ...res.done_tasks } as Record<StageId, string[]>,
+      xp: res.xp,
+      level: res.level,
+      completedAt: res.completed_at,
+    });
+    await get().fetchPending();
+  },
+
+  connectLive: () => {
+    // Live-лента сотрудника: HR подтвердил → обновить прогресс без рефреша.
+    if (liveSocket) return () => undefined;
+    try {
+      const ws = new WebSocket(wsUrl('/ws/me'));
+      liveSocket = ws;
+      ws.onmessage = (ev) => {
+        try {
+          const data = JSON.parse(ev.data as string);
+          if (data && data.type === 'verified') {
+            void get().refreshMe();
+          }
+        } catch { /* ignore */ }
+      };
+      ws.onclose = () => { if (liveSocket === ws) liveSocket = null; };
+      ws.onerror = () => { try { ws.close(); } catch { /* ignore */ } };
+    } catch { /* WS недоступен — polling fallback */ }
+    return () => undefined;
   },
 
   toggleTask: async (stageId, taskId) => {

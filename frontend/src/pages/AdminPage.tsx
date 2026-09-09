@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { useOnboarding } from '../store/useOnboarding';
@@ -19,6 +19,17 @@ interface AuditRow {
   task_id: string;
   verified_by: number | null;
   method: string;
+  details: string;
+  created_at: string | null;
+}
+
+interface PendingRow {
+  id: number;
+  user_id: number;
+  email: string;
+  name: string;
+  task_id: string;
+  note: string;
   created_at: string | null;
 }
 
@@ -41,44 +52,106 @@ interface Links {
 const DOC_TASKS = ['1-dogovor', '1-nda', '1-pdp', '1-ip', '1-sn'];
 const ACCESS_TASKS = ['1-mbusiness', '1-accountant', '1-wifi', '1-proxy', '1-telegram'];
 
+function ago(iso: string): string {
+  const s = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
+  if (s < 60) return `${s} сек назад`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m} мин назад`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h} ч назад`;
+  return `${Math.floor(h / 24)} дн назад`;
+}
+
+function prettyDetails(raw: string): string {
+  try {
+    const d = JSON.parse(raw || '{}') as Record<string, unknown>;
+    const parts: string[] = [];
+    if (d.elapsed_s !== undefined) parts.push(`читал ${d.elapsed_s}с`);
+    if (d.via_api) parts.push('через API');
+    if (d.opened_at) parts.push(`открыт ${new Date(String(d.opened_at)).toLocaleString('ru-RU')}`);
+    return parts.join(' · ');
+  } catch {
+    return '';
+  }
+}
+
 export function AdminPage() {
   const user = useOnboarding((s) => s.user);
   const [q, setQ] = useState('');
   const [users, setUsers] = useState<AdminUser[]>([]);
-  const [pending, setPending] = useState<AdminUser[]>([]);
+  const [pending, setPending] = useState<PendingRow[]>([]);
   const [audit, setAudit] = useState<AuditRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [tab, setTab] = useState<'pending' | 'users' | 'audit' | 'codes'>('pending');
+  const [liveOn, setLiveOn] = useState(false);
+  const prevPending = useRef(0);
   const [codes, setCodes] = useState<MpulseCode[]>([]);
   const [links, setLinks] = useState<Links | null>(null);
   const [newCode, setNewCode] = useState('');
   const [newBatch, setNewBatch] = useState('');
   const [wifiPw, setWifiPw] = useState<Record<number, string>>({});
-  const [bulkBusy, setBulkBusy] = useState<number | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setMsg(null);
+  const load = useCallback(async (quiet = false) => {
+    if (!quiet) { setLoading(true); setMsg(null); }
     try {
       const [p, a, c, l] = await Promise.all([
-        api.get<AdminUser[]>('/api/admin/pending-verifications'),
+        api.get<PendingRow[]>('/api/admin/pending-verifications'),
         api.get<AuditRow[]>('/api/admin/audit'),
         api.get<MpulseCode[]>('/api/admin/mpulse-code'),
         api.get<Links>('/api/integrations/links'),
       ]);
+      // тост о новых запросах (не при первой загрузке)
+      if (prevPending.current && p.length > prevPending.current) {
+        const fresh = p[0];
+        const text = fresh ? `🔔 Новый запрос: ${fresh.name} — ${fresh.task_id}` : '🔔 Новые запросы';
+        setMsg(text);
+        try {
+          if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification('Онбординг HR', { body: text });
+          }
+        } catch { /* ignore */ }
+      }
+      prevPending.current = p.length;
       setPending(p);
       setAudit(a);
       setCodes(c);
       setLinks(l);
     } catch (e) {
-      setMsg(e instanceof Error ? e.message : 'Ошибка загрузки');
+      if (!quiet) setMsg(e instanceof Error ? e.message : 'Ошибка загрузки');
     } finally {
-      setLoading(false);
+      if (!quiet) setLoading(false);
     }
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  // live: WS + polling 15с + refetch на focus/visible
+  useEffect(() => {
+    let ws: WebSocket | null = null;
+    try {
+      const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      ws = new WebSocket(`${proto}//${window.location.host}/ws/admin`);
+      ws.onmessage = () => { setLiveOn(true); void load(true); };
+      ws.onclose = () => setLiveOn(false);
+      ws.onerror = () => { try { ws?.close(); } catch { /* ignore */ } };
+    } catch { /* WS недоступен — polling */ }
+    const id = setInterval(() => void load(true), 15000);
+    const refetch = () => void load(true);
+    document.addEventListener('visibilitychange', refetch);
+    window.addEventListener('focus', refetch);
+    try {
+      if ('Notification' in window && Notification.permission === 'default') {
+        void Notification.requestPermission();
+      }
+    } catch { /* ignore */ }
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', refetch);
+      window.removeEventListener('focus', refetch);
+      try { ws?.close(); } catch { /* ignore */ }
+    };
+  }, [load]);
 
   const search = async () => {
     setLoading(true);
@@ -97,26 +170,37 @@ export function AdminPage() {
     try {
       await api.post(endpoint, { user_id: userId, task_id: taskId });
       setMsg(`✓ ${taskId} подтверждена`);
-      await load();
+      await load(true);
     } catch (e) {
       setMsg(e instanceof Error ? e.message : 'Ошибка верификации');
+    }
+  };
+
+  const verifyRow = async (r: PendingRow) => {
+    await verify(r.user_id, r.task_id);
+  };
+
+  const rejectRow = async (r: PendingRow) => {
+    try {
+      await api.del(`/api/admin/pending/${r.id}`);
+      setMsg(`Запрос ${r.task_id} (${r.email}) отклонён`);
+      await load(true);
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : 'Ошибка отклонения');
     }
   };
 
   const verifyAllDocs = async (u: AdminUser) => {
     const docs = DOC_TASKS.filter((t) => u.done_stage1.includes(t));
     if (!docs.length) return;
-    setBulkBusy(u.id);
     try {
       for (const t of docs) {
         await api.post('/api/verify-docs', { user_id: u.id, task_id: t });
       }
       setMsg(`✓ Все документы ${u.email} подтверждены (${docs.length})`);
-      await load();
+      await load(true);
     } catch (e) {
       setMsg(e instanceof Error ? e.message : 'Ошибка верификации');
-    } finally {
-      setBulkBusy(null);
     }
   };
 
@@ -174,14 +258,19 @@ export function AdminPage() {
 
   return (
     <div className="admin-page">
-      <h1 className="admin-title">HR-панель · Этап 1 «Документы и доступы»</h1>
+      <h1 className="admin-title">
+        HR-панель · Этап 1 «Документы и доступы»{' '}
+        <span className={`admin-live ${liveOn ? 'on' : ''}`} title={liveOn ? 'Live-подключение активно' : 'Live недоступен, polling 15с'}>
+          {liveOn ? '● live' : '○ polling'}
+        </span>
+      </h1>
       <div className="admin-tabs">
         {(['pending', 'users', 'audit', 'codes'] as const).map((t) => (
           <button key={t} type="button" onClick={() => setTab(t)} className={`admin-tab ${tab === t ? 'active' : ''}`}>
             {t === 'pending' ? `Ожидают (${pending.length})` : t === 'users' ? 'Сотрудники' : t === 'audit' ? `Журнал (${audit.length})` : 'Коды и ссылки'}
           </button>
         ))}
-        <button type="button" onClick={load} className="admin-tab" disabled={loading}>↻</button>
+        <button type="button" onClick={() => load()} className="admin-tab" disabled={loading}>↻</button>
       </div>
       {msg && <div className="admin-msg">{msg}</div>}
 
@@ -190,22 +279,24 @@ export function AdminPage() {
           {loading && !pending.length && [0, 1, 2].map((i) => (
             <div key={i} className="admin-card admin-skel"><div className="skel-line" /><div className="skel-line short" /></div>
           ))}
-          {pending.map((u) => (
-            <div key={u.id} className="admin-card">
+          {pending.map((r) => (
+            <div key={r.id} className="admin-card">
               <div className="admin-card-head">
-                <b>{u.name}</b> <span className="admin-email">{u.email}</span>
-                {u.is_staff && <span className="admin-staff-badge">staff</span>}
+                <b>{r.name}</b> <span className="admin-email">{r.email}</span>
               </div>
-              <div className="admin-card-sub">Отмечено: {u.done_stage1.length} · нажмите задачу чтобы подтвердить</div>
-              {renderTasks(u)}
-              {DOC_TASKS.some((t) => u.done_stage1.includes(t)) && (
-                <button type="button" onClick={() => verifyAllDocs(u)} className="admin-btn small" disabled={bulkBusy === u.id}>
-                  {bulkBusy === u.id ? 'Подтверждаем…' : 'Подтвердить все документы'}
-                </button>
-              )}
+              <div className="admin-card-sub">
+                <code style={{ fontFamily: 'monospace' }}>{r.task_id}</code>
+                {' · '}
+                {r.created_at ? ago(r.created_at) : '—'}
+                {r.note ? ` · «${r.note}»` : ''}
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button type="button" onClick={() => verifyRow(r)} className="admin-verify-btn">Подтвердить ✓</button>
+                <button type="button" onClick={() => rejectRow(r)} className="admin-reject-btn">Отклонить</button>
+              </div>
             </div>
           ))}
-          {!pending.length && !loading && <div className="admin-empty">Нет ожидающих — все завершили Stage 1</div>}
+          {!pending.length && !loading && <div className="admin-empty">Нет ожидающих запросов</div>}
         </div>
       )}
 
@@ -231,6 +322,9 @@ export function AdminPage() {
                   <button type="button" onClick={() => genWifiPassword(u)} className="admin-btn small">
                     Wi-Fi пароль
                   </button>
+                  <button type="button" onClick={() => verifyAllDocs(u)} className="admin-btn small">
+                    Все доки ✓
+                  </button>
                 </div>
                 {wifiPw[u.id] && (
                   <div className="admin-once">
@@ -250,6 +344,7 @@ export function AdminPage() {
             <div key={r.id} className="admin-card audit">
               <b>{r.task_id}</b> · user #{r.user_id} · {r.method} · by #{r.verified_by ?? '—'} ·{' '}
               {r.created_at ? new Date(r.created_at).toLocaleString('ru-RU') : '—'}
+              {prettyDetails(r.details) && <span className="admin-detail"> · {prettyDetails(r.details)}</span>}
             </div>
           ))}
           {!audit.length && !loading && <div className="admin-empty">Журнал пуст</div>}
@@ -305,6 +400,11 @@ export function AdminPage() {
         .admin-card-sub{ font-size:11.5px; color:var(--muted) }
         .admin-verify-btn{ padding:5px 10px; border-radius:7px; border:1px solid rgba(34,197,94,.35); background:rgba(34,197,94,.08); color:#86EFAC; font-size:11px; cursor:pointer; font-family:monospace }
         .admin-verify-btn:hover{ background:rgba(34,197,94,.18) }
+        .admin-reject-btn{ padding:5px 10px; border-radius:7px; border:1px solid rgba(239,68,68,.35); background:rgba(239,68,68,.08); color:#FCA5A5; font-size:11px; cursor:pointer }
+        .admin-reject-btn:hover{ background:rgba(239,68,68,.18) }
+        .admin-live{ font-size:10px; font-weight:400; color:#64748b; }
+        .admin-live.on{ color:#86EFAC; }
+        .admin-detail{ color:var(--muted); font-size:11px; }
         .admin-search{ display:flex; gap:8px }
         .admin-input{ flex:1; padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,.1); background:rgba(0,0,0,.22); color:var(--text); font-size:12.5px }
         .admin-btn{ padding:8px 14px; border-radius:8px; border:none; cursor:pointer; font-size:11px; font-weight:800; text-transform:uppercase; background:linear-gradient(90deg,#1E3A8A,#2563EB); color:#fff }

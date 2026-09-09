@@ -68,6 +68,22 @@ class VerifyTargetIn(BaseModel):
     task_id: str = Field(min_length=1, max_length=40)
 
 
+class RequestIn(BaseModel):
+    """Сотрудник запрашивает верификацию задачи (вместо свободного toggle)."""
+    task_id: str = Field(min_length=1, max_length=40)
+    note: str = Field(default="", max_length=300)
+
+
+class PendingRequestOut(BaseModel):
+    id: int
+    user_id: int
+    email: str = ""
+    name: str = ""
+    task_id: str
+    note: str = ""
+    created_at: str | None = None
+
+
 class WifiMacIn(BaseModel):
     mac: str = Field(min_length=17, max_length=17)
 

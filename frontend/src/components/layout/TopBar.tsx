@@ -1,5 +1,7 @@
+import { useEffect, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useOnboarding, getProgress } from '../../store/useOnboarding';
+import { api } from '../../api/client';
 
 export function DefaultAvatar({ size = 32 }: { size?: number }) {
   return (
@@ -21,6 +23,22 @@ export function TopBar() {
   const lvl = Math.floor(xp / 100) + 1;
   const pct = progress.pct;
   const isDashboard = pathname === '/dashboard';
+  const isStaff = user?.isStaff ?? false;
+  const [pendingCount, setPendingCount] = useState(0);
+
+  // HR-колокольчик: счётчик ожидающих запросов, polling 30с
+  useEffect(() => {
+    if (!isStaff) { setPendingCount(0); return; }
+    let alive = true;
+    const fetchCount = () => {
+      api.get<{ pending: number }>('/api/admin/pending-count')
+        .then((r) => { if (alive) setPendingCount(r.pending); })
+        .catch(() => { /* ignore */ });
+    };
+    fetchCount();
+    const id = setInterval(fetchCount, 30000);
+    return () => { alive = false; clearInterval(id); };
+  }, [isStaff]);
 
   return (
     <header className={`topbar-min ${isDashboard ? 'mode-overlay' : 'mode-sticky'}`}>
@@ -36,6 +54,11 @@ export function TopBar() {
       </div>
 
       <div className="t-right">
+        {isStaff && (
+          <button type="button" className="t-bell" onClick={() => navigate('/admin')} title="HR-панель: ожидающие запросы" aria-label="Открыть HR-панель">
+            🔔{pendingCount > 0 && <span className="t-bell-count">{pendingCount > 99 ? '99+' : pendingCount}</span>}
+          </button>
+        )}
         <div className="t-xp" title={`${xp} XP · ${progress.done}/5 этапов`}>
           <span className="t-lvl">Lv.{lvl}</span>
           <div className="t-bar">
@@ -122,6 +145,9 @@ export function TopBar() {
         @keyframes linkSlide { from{ transform:scaleX(0); opacity:0 } to{ transform:scaleX(1); opacity:1 } }
 
         .t-right { display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
+        .t-bell{ position:relative; width:36px; height:36px; border-radius:8px; display:grid; place-items:center; font-size:17px; background:rgba(37,99,235,.06); border:1px solid rgba(37,99,235,.12); cursor:pointer; transition:all .2s ease; }
+        .t-bell:hover{ background:rgba(37,99,235,.14); }
+        .t-bell-count{ position:absolute; top:-6px; right:-6px; min-width:17px; height:17px; padding:0 4px; border-radius:999px; background:#EF4444; color:#fff; font-size:10px; font-weight:800; display:grid; place-items:center; box-shadow:0 0 10px rgba(239,68,68,.6); }
 
         .t-xp {
           display: flex; align-items: center; gap: 10px; padding: 8px 14px;

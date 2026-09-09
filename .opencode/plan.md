@@ -42,7 +42,7 @@ Implementation of Stage 1 «Документы и доступы» per Technical
 |----|-------------|
 | NFR-01 | Persist completed task IDs in user progress (JSONB) |
 | NFR-02 | XP computation includes new tasks (total 20 pts for Stage 1) |
-| NFR-03 | Backward compatibility with existing 5 legacy tasks |
+| NFR-03 | ~~Backward compatibility with legacy tasks~~ SUPERSEDED 09.09.2026: legacy dropped; `normalize_tasks()` prunes old IDs silently |
 | NFR-04 | All API endpoints validate task IDs against known stage tasks |
 | NFR-05 | HTTPS on all public endpoints |
 | NFR-06 | Rate limiting on verification endpoints (brute-force protection) |
@@ -52,7 +52,7 @@ Implementation of Stage 1 «Документы и доступы» per Technical
 
 | ID | Constraint |
 |----|------------|
-| CON-01 | Existing task IDs (1-docs, 1-lead, 1-mplus, 1-jira, 1-confluence) must remain functional |
+| CON-01 | ~~Existing task IDs must remain functional~~ SUPERSEDED 09.09.2026: legacy 1-docs/lead/mplus/jira/confluence DROPPED (ADR-001); unknown IDs → 400 |
 | CON-02 | Progress JSONB format must not break existing queries |
 | CON-04 | HR verification step cannot be auto-completed by client click |
 | CON-05 | HR details still being filled — some instructions are placeholders |
@@ -356,9 +356,9 @@ Onboarding start → created_at stored in User
 │                    ┌───────────────────────────┼───────────────────────┐   │
 │                    │                           │                       │   │
 │              ┌─────▼─────┐              ┌──────▼──────┐         ┌──────▼──────┐ │
-│              │   Redis   │              │   AD/LDAPS  │         │  External   │ │
-│              │ (Cache/   │              │  (Domain    │         │   APIs      │ │
-│              │  PubSub)  │              │  Controller)│         │ (Figma,     │ │
+│              │   Redis   │              │  Corp SSO   │         │  External   │ │
+│              │ (Cache/   │              │  (JWT auto- │         │   links     │ │
+│              │  PubSub)  │              │  login)     │         │ (Figma,     │ │
 │              └───────────┘              └─────────────┘         │  MPulse,    │ │
 │                                                                    │  Telegram)  │ │
 │                                                                    └─────────────┘ │
@@ -400,26 +400,27 @@ REDIS_URL=redis://...
 
 ## Implementation Plan (Phased)
 
-### Phase 1: Backend Core (Week 1)
-- [ ] Extend `stages_data.py` with 24 new task IDs, XP values, verification types
-- [ ] Add `verification_type` field to task definitions: `manual_hr`, `manual_sysadmin`, `manual_lead`, `manual_accountant`, `manual_teamlead`, `technical_code`, `technical_password`, `technical_timer`
-- [ ] Add `responsible_role` field to tasks for admin panel routing
-- [ ] Create `verify-docs`, `verify-mpulse-code`, `confirm-confluence` endpoints (stubs exist, need real logic)
-- [ ] Add Wi-Fi password storage (encrypted) + verification endpoint
-- [ ] Add MPulse code storage (per batch) + verification endpoint
-- [ ] Add Confluence timestamp recording + idempotent confirmation
-- [ ] Add `created_at` to User (already done) + SLA computation utility
-- [ ] Add background job for SLA notifications (APScheduler or Celery beat)
+### Phase 1: Backend Core (Week 1) — DONE 09.09.2026, hardened same day
+- [x] `toggle_task` locked per `TASK_META` (manual_* → 403 + hint; technical_* → 403); stage-1 mass complete staff-only
+- [x] `pending_requests` table (009) + `POST /progress/request` (no XP, idempotent) + `GET /progress/pending`
+- [x] verify-* clears pending + `notify_verified` (email + WS); reject + reset-stage1 admin endpoints
+- [x] WS `/ws/admin` (staff) + `/ws/me` (own verified only), cookie auth, `/ws/` proxied in nginx + vite
+- [x] Extend `stages_data.py` with 24 new task IDs, XP values (5+0+5+10=20)
+- [x] `verification_type` + `responsible_role` columns (007) + `TASK_META` SSOT + exposed in `GET /stages`
+- [x] Real `verify-docs`, `verify-access`, `verify-mpulse-code`, `confirm-confluence` (+ `wifi-mac`/`wifi-verify`, `wifi-status`)
+- [x] Wi-Fi per-user encrypted passwords (Fernet, `wifi_passwords` + `POST /admin/wifi-password` one-time show; env fallback)
+- [x] MPulse per-batch table (`mpulse_codes` + admin rotation; env fallback) + dynamic API stub (MPULSE_API_URL, best-effort)
+- [x] Confluence 120s + idempotent confirmation + `opened_at`/`elapsed` in audit details
+- [x] `created_at` + SLA background asyncio job (`sla.py`, 24h; SMTP/HR email guarded by env, log fallback)
 
-### Phase 2: Frontend Core (Week 1-2)
-- [ ] Update `data/stages.ts` with new subTasks grouped by step (4 sections)
-- [ ] Redesign `Stage1Documents.tsx` → `Stage1Steps.tsx` with 4 step sections
-- [ ] Step 1: Document cards with "Submitted to HR" button + status badge
-- [ ] Step 2: Access cards with appropriate inputs (MAC, buttons for requests)
-- [ ] Step 3: MPulse download link + code input + verification button
-- [ ] Step 4: Confluence links + timer + "I have read" button
-- [ ] Add SLA countdown banner (uses `user.created_at`)
-- [ ] Add overdue warning + manager notification UI (admin panel)
+### Phase 2: Frontend Core (Week 1-2) — DONE 09.09.2026
+- [x] `data/stages.ts` synced (Step2 xp 0, xpReward 150, read xp 2)
+- [x] `Stage1Documents.tsx` 4 step sections (kept name, no rename to Stage1Steps)
+- [x] Step 1: doc cards + HR note + staff verify
+- [x] Step 2: access cards + MAC/password inputs + `wifi-status` pending/verified split
+- [x] Step 3: MPulse download links + code verify + logo
+- [x] Step 4: Confluence links + 120s countdown + confirm
+- [x] SLA countdown banner + overdue warning (manager notify UI — later with SMTP)
 
 ### Phase 3: Admin Panel (Week 2) — DONE 09.09.2026 (simplified: single staff panel)
 - [x] HR verification view: `AdminPage /admin` pending + Verify buttons (`verify-docs`/`verify-access`)
@@ -427,18 +428,20 @@ REDIS_URL=redis://...
 - [x] Audit log viewer: `verification_log` table (006) + `GET /admin/audit`
 - [x] Wi-Fi MAC persist: `wifi_macs` table (MAC bound to user on submit)
 - [x] Icons: `mpulse-logo.png` + `mbusiness-logo.png` from `public/` in Stage1 UI
-- [ ] MPulse code management UI (env rotation for now)
+- [x] MPulse code management UI (codes tab + rotation + env-fallback banner)
+- [x] Wi-Fi password generator UI (one-time show) + bulk docs verify + skeletons
+- [x] Mobile nav hardcoded (bottom ≤640px, stacked 641–860px; drawer try-out removed)
 - [ ] Per-role views (sysadmin/lead/accountant/teamlead) — deferred, single staff panel covers MVP
 
-### Phase 4: Integrations (Week 2-3, Deferred)
-- [ ] Corporate portal JWT auto-login endpoint (`/auth/auto-login`)
-- [ ] Figma API invite
-- [ ] Telegram bot invite
-- [ ] MPulse API verification (if dynamic codes)
+### Phase 4: Integrations (Week 2-3) — PARTIAL 09.09.2026
+- [x] Corporate portal JWT auto-login (`GET /auth/auto-login?token=`, SHARED_SECRET_KEY, 302 → dashboard; 503 if unconfigured)
+- [x] Links endpoint (`GET /integrations/links`: telegram/figma/confluence/mpulse URLs from env; TZ: onboarding gives links only)
+- [x] Figma/Telegram invite stubs (`POST .../figma-invite`, `/telegram-invite`: 501 + hint until tokens arrive)
+- [x] `render.yaml`: entrypoint (migrations on prod) + all Stage 1 envs documented; `.env.example` synced
 
-### Phase 5: Testing & Polish (Week 3)
-- [ ] Unit tests for new endpoints
-- [ ] Integration tests for verification flows
+### Phase 5: Testing & Polish (Week 3) — PARTIAL 09.09.2026
+- [x] Unit tests for new endpoints (wifi/mpulse/confluence/staff-verify/admin/links, incl. 403 cases)
+- [x] SQLite `create_all` session fixture (suite self-sufficient; needs CI run with deps)
 - [ ] E2E tests for 4 steps
 - [ ] Load test SLA notification job
 - [ ] Security review (CSRF, rate limits, secrets)
@@ -449,10 +452,10 @@ REDIS_URL=redis://...
 
 | ID | Question | Status |
 |----|----------|--------|
-| OQ-01 | Step 2 points: TZ says "not specified (0)" — confirm 0 or assign? | Pending HR |
-| OQ-02 | MPulse code: static per batch or dynamic API? | Pending MPulse team |
-| OQ-03 | Wi-Fi password: static or per-device? | Pending Sysadmin |
-| OQ-04 | Confluence timer: 2 min or 3 min? | Pending HR |
+| OQ-01 | Step 2 points: TZ says "not specified (0)" — confirm 0 or assign? | Confirmed 0 (09.09.2026) |
+| OQ-02 | MPulse code: static per batch or dynamic API? | Static batch table + admin rotation (MVP); API later |
+| OQ-03 | Wi-Fi password: static or per-device? | Static env (MVP); per-user encrypted later |
+| OQ-04 | Confluence timer: 2 min or 3 min? | Confirmed 120s (09.09.2026) |
 | OQ-05 | Telegram: bot API available or invite links only? | Pending DevOps |
 | OQ-06 | Figma: API token available for auto-invite? | Pending Design team |
 | OQ-07 | Notification channels: email only or Telegram too? | Pending HR |

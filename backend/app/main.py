@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket
 from fastapi import Request as _Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse as _JSONResponse
@@ -89,6 +89,64 @@ app.include_router(progress.router, prefix="/api", tags=["progress"])
 app.include_router(stages.router, prefix="/api", tags=["stages"])
 app.include_router(admin.router, prefix="/api", tags=["admin"])
 app.include_router(integrations.router, prefix="/api", tags=["integrations"])
+
+
+@app.websocket("/ws/admin")
+async def ws_admin(websocket: WebSocket):
+    """Live-лента для HR-панели: pending_new / verified. Только staff (cookie md_token)."""
+    from app.database import SessionLocal
+    from app.notify import publish, subscribe, unsubscribe
+    from app.routes.auth import user_from_token
+
+    await websocket.accept()
+    async with SessionLocal() as db:
+        user = await user_from_token(websocket.cookies.get("md_token", ""), db)
+    if user is None or not user.is_staff:
+        await websocket.close(code=4401)
+        return
+    q = subscribe()
+    try:
+        publish({"type": "hello", "pending": "subscribe-ok"})
+        while True:
+            msg = await q.get()
+            await websocket.send_text(msg)
+    except Exception:
+        pass
+    finally:
+        unsubscribe(q)
+
+
+@app.websocket("/ws/me")
+async def ws_me(websocket: WebSocket):
+    """Live-лента сотрудника: verified (его задачи) — фронт делает refreshMe."""
+    from app.database import SessionLocal
+    from app.notify import subscribe, unsubscribe
+    from app.routes.auth import user_from_token
+
+    await websocket.accept()
+    async with SessionLocal() as db:
+        user = await user_from_token(websocket.cookies.get("md_token", ""), db)
+    if user is None:
+        await websocket.close(code=4401)
+        return
+    email = user.email
+    q = subscribe()
+    try:
+        while True:
+            msg = await q.get()
+            try:
+                import json
+
+                evt = json.loads(msg)
+            except Exception:
+                continue
+            # сотруднику — только его verified; pending_new видят staff в /ws/admin
+            if evt.get("type") == "verified" and evt.get("email") == email:
+                await websocket.send_text(msg)
+    except Exception:
+        pass
+    finally:
+        unsubscribe(q)
 
 
 @app.get("/api/health")

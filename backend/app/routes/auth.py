@@ -111,6 +111,15 @@ def require_staff(user: User = Depends(get_current_user)) -> User:
     return user
 
 
+async def user_from_token(token: str, db: AsyncSession) -> User | None:
+    """Валидация md_token для WebSocket (?token=). None если невалиден."""
+    try:
+        payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+        return await db.get(User, int(payload.get("sub", 0)))
+    except Exception:
+        return None
+
+
 def user_out(user: User) -> UserOut:
     return UserOut(
         email=user.email,

@@ -14,6 +14,7 @@ from app.schemas import (
     MpulseCodeIn,
     OkOut,
     ProgressOut,
+    RequestIn,
     StageActionIn,
     TaskIn,
     VerifyTargetIn,
@@ -21,7 +22,7 @@ from app.schemas import (
     WifiMacIn,
     WifiVerifyIn,
 )
-from app.stages_data import STAGES, compute_level, compute_xp, is_all_complete, normalize_tasks
+from app.stages_data import STAGES, compute_level, compute_xp, is_all_complete, normalize_tasks, task_meta
 
 # Step 1: документы (HR-верификация, 5 баллов)
 DOC_TASKS = {"1-dogovor", "1-nda", "1-pdp", "1-ip", "1-sn"}
@@ -117,6 +118,16 @@ async def toggle_task(
     if stage is None or payload.task_id not in stage["tasks"]:
         raise HTTPException(status_code=400, detail="Неизвестная задача")
 
+    # Замок TZ: задачи с верификацией нельзя закрыть свободным кликом.
+    # manual_* → POST /progress/request (HR очередь); technical_* → код/таймер/пароль.
+    vt, _rr = task_meta(payload.task_id)
+    if vt == "manual_hr":
+        raise HTTPException(status_code=403, detail="Защита от случайных галочек: документы подтверждает HR. Нажмите «Я передал документы HR».")
+    if vt == "manual_staff":
+        raise HTTPException(status_code=403, detail="Доступ подтверждает staff. Отправьте запрос на верификацию.")
+    if vt in ("technical_code", "technical_timer", "technical_password"):
+        raise HTTPException(status_code=403, detail="Задача закрывается кодом/таймером/паролем, а не галочкой.")
+
     prog = await load_progress(db, user)
     tasks = normalize_tasks(prog.done_tasks)
     sid = str(payload.stage_id)
@@ -125,6 +136,77 @@ async def toggle_task(
         tasks[sid] = [t for t in cur if t != payload.task_id]
     else:
         tasks[sid] = [*cur, payload.task_id]
+    return await save_progress(db, prog, tasks)
+
+
+@router.get("/progress/pending")
+@limiter.limit("30/minute")
+async def my_pending(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Мои ожидающие запросы (для pending-бейджей на фронте)."""
+    from sqlalchemy import select as _select
+
+    from app.models import PendingRequest
+
+    rows = (
+        await db.execute(
+            _select(PendingRequest.task_id).where(
+                PendingRequest.user_id == user.id,
+                PendingRequest.status == "pending",
+            )
+        )
+    ).scalars().all()
+    return {"pending": list(rows)}
+
+
+@router.post("/progress/request", response_model=ProgressOut)
+@limiter.limit("30/minute")
+async def request_verification(
+    request: Request,
+    payload: RequestIn,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role),
+):
+    """Сотрудник создаёт запрос на верификацию (manual_hr/manual_staff).
+
+    XP не начисляется — только статус «Ожидает HR». HR подтверждает через /verify-*.
+    Идемпотентно: повтор возвращает текущий прогресс.
+    """
+    from sqlalchemy import select as _select
+
+    from app.models import PendingRequest
+
+    stage = STAGES.get(1)
+    if payload.task_id not in stage["tasks"]:
+        raise HTTPException(status_code=400, detail="Неизвестная задача")
+    vt, _rr = task_meta(payload.task_id)
+    if vt not in ("manual_hr", "manual_staff"):
+        raise HTTPException(status_code=400, detail="Эта задача не требует запроса (код/таймер/пароль)")
+    prog = await load_progress(db, user)
+    tasks = normalize_tasks(prog.done_tasks)
+    if payload.task_id in tasks["1"]:
+        return await save_progress(db, prog, tasks)  # уже подтверждена
+    existing = await db.execute(
+        _select(PendingRequest).where(
+            PendingRequest.user_id == user.id,
+            PendingRequest.task_id == payload.task_id,
+            PendingRequest.status == "pending",
+        )
+    )
+    if existing.scalar_one_or_none() is None:
+        db.add(PendingRequest(
+            user_id=user.id, task_id=payload.task_id,
+            note=payload.note.strip()[:300], status="pending",
+        ))
+        await db.commit()
+        from app.notify import notify_new_request, publish
+
+        publish({"type": "pending_new", "email": user.email, "name": user.name,
+                 "task_id": payload.task_id})
+        await notify_new_request(user.email, user.name, payload.task_id)
     return await save_progress(db, prog, tasks)
 
 
@@ -139,6 +221,10 @@ async def stage_action(
     stage = STAGES.get(payload.stage_id)
     if stage is None:
         raise HTTPException(status_code=400, detail="Неизвестный этап")
+
+    # Замок TZ: Этап 1 нельзя закрыть массово — только по одной задаче через верификацию.
+    if payload.stage_id == 1 and payload.action == "complete" and not user.is_staff:
+        raise HTTPException(status_code=403, detail="Этап 1 закрывается только через верификацию каждой задачи.")
 
     prog = await load_progress(db, user)
     tasks = normalize_tasks(prog.done_tasks)
@@ -205,7 +291,27 @@ async def verify_docs(
     if payload.task_id not in tasks["1"]:
         tasks["1"] = [*tasks["1"], payload.task_id]
     await log_verification(db, target.id, payload.task_id, "manual_hr", staff.id)
-    return await save_progress(db, prog, tasks)
+    out = await save_progress(db, prog, tasks)
+    # закрыть запрос + уведомить сотрудника (письмо + WS)
+    from sqlalchemy import select as _select
+
+    from app.models import PendingRequest
+    from app.notify import notify_verified
+
+    req = await db.execute(
+        _select(PendingRequest).where(
+            PendingRequest.user_id == target.id,
+            PendingRequest.task_id == payload.task_id,
+            PendingRequest.status == "pending",
+        )
+    )
+    row = req.scalar_one_or_none()
+    if row is not None:
+        row.status = "verified"
+        db.add(row)
+        await db.commit()
+    await notify_verified(target.email, payload.task_id, out.xp)
+    return out
 
 
 @router.post("/verify-access", response_model=ProgressOut)
@@ -231,7 +337,26 @@ async def verify_access(
     if payload.task_id not in tasks["1"]:
         tasks["1"] = [*tasks["1"], payload.task_id]
     await log_verification(db, target.id, payload.task_id, "manual_staff", staff.id)
-    return await save_progress(db, prog, tasks)
+    out = await save_progress(db, prog, tasks)
+    from sqlalchemy import select as _select
+
+    from app.models import PendingRequest
+    from app.notify import notify_verified
+
+    req = await db.execute(
+        _select(PendingRequest).where(
+            PendingRequest.user_id == target.id,
+            PendingRequest.task_id == payload.task_id,
+            PendingRequest.status == "pending",
+        )
+    )
+    row = req.scalar_one_or_none()
+    if row is not None:
+        row.status = "verified"
+        db.add(row)
+        await db.commit()
+    await notify_verified(target.email, payload.task_id, out.xp)
+    return out
 
 
 @router.post("/wifi-mac", response_model=OkOut)
@@ -309,7 +434,11 @@ async def wifi_verify(
     if "1-wifi" not in tasks["1"]:
         tasks["1"] = [*tasks["1"], "1-wifi"]
     await log_verification(db, user.id, "1-wifi", "technical_password")
-    return await save_progress(db, prog, tasks)
+    out = await save_progress(db, prog, tasks)
+    from app.notify import notify_verified
+
+    await notify_verified(user.email, "1-wifi", out.xp)
+    return out
 
 
 @router.post("/verify-mpulse-code", response_model=ProgressOut)
@@ -361,7 +490,11 @@ async def verify_mpulse_code(
             tasks["1"].append(tid)
     await log_verification(db, user.id, "1-mpulse-code", "technical_code",
                            details={"via_api": api_used})
-    return await save_progress(db, prog, tasks)
+    out = await save_progress(db, prog, tasks)
+    from app.notify import notify_verified
+
+    await notify_verified(user.email, "1-mpulse-code", out.xp)
+    return out
 
 
 @router.post("/confirm-confluence", response_model=ProgressOut)
@@ -401,4 +534,8 @@ async def confirm_confluence(
             tasks["1"].append(tid)
     await log_verification(db, user.id, CONFLUENCE_READ, "technical_timer",
                            details={"opened_at": payload.opened_at, "elapsed_s": round(elapsed_s, 1)})
-    return await save_progress(db, prog, tasks)
+    out = await save_progress(db, prog, tasks)
+    from app.notify import notify_verified
+
+    await notify_verified(user.email, CONFLUENCE_READ, out.xp)
+    return out

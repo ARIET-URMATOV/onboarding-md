@@ -6,7 +6,16 @@ from app.database import get_db
 from app.limiter import limiter
 from app.models import MpulseCode, Progress, User, VerificationLog
 from app.routes.auth import require_staff
-from app.schemas import AdminUserOut, AuditOut, MpulseCodeOut, MpulseRotateIn, StaffSetIn, VerifyTargetIn
+from app.schemas import (
+    AdminUserOut,
+    AuditOut,
+    MpulseCodeOut,
+    MpulseRotateIn,
+    OkOut,
+    PendingRequestOut,
+    StaffSetIn,
+    VerifyTargetIn,
+)
 from app.stages_data import normalize_tasks
 
 
@@ -62,29 +71,113 @@ async def list_users(
     return out
 
 
-@router.get("/admin/pending-verifications", response_model=list[AdminUserOut])
+@router.get("/admin/pending-verifications", response_model=list[PendingRequestOut])
 @limiter.limit("30/minute")
 async def pending_verifications(
     request: Request,
     db: AsyncSession = Depends(get_db),
     staff: User = Depends(require_staff),
 ):
-    """Сотрудники, начавшие Stage 1, но не завершившие (есть отметки, 24 задачи не все)."""
+    """Очередь запросов сотрудников (pending_requests), новые сверху."""
+    from app.models import PendingRequest
+    from app.schemas import PendingRequestOut
+
+    rows = (
+        await db.execute(
+            select(PendingRequest, User)
+            .join(User, User.id == PendingRequest.user_id)
+            .where(PendingRequest.status == "pending")
+            .order_by(desc(PendingRequest.created_at))
+            .limit(100)
+        )
+    ).all()
+    return [
+        PendingRequestOut(
+            id=r.id, user_id=r.user_id, email=u.email, name=u.name,
+            task_id=r.task_id, note=r.note,
+            created_at=r.created_at.isoformat() if r.created_at else None,
+        )
+        for r, u in rows
+    ]
+
+
+@router.get("/admin/pending-count")
+@limiter.limit("30/minute")
+async def pending_count(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    staff: User = Depends(require_staff),
+):
+    """Счётчик для колокольчика TopBar."""
+    from sqlalchemy import func
+
+    from app.models import PendingRequest
+
+    n = (await db.execute(
+        select(func.count()).select_from(PendingRequest).where(PendingRequest.status == "pending")
+    )).scalar() or 0
+    return {"pending": n}
+
+
+@router.delete("/admin/pending/{pending_id}", response_model=OkOut)
+@limiter.limit("20/minute")
+async def reject_pending(
+    pending_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    staff: User = Depends(require_staff),
+):
+    """Отклонить запрос (сотрудник увидит, что нужно переделать)."""
+    from app.models import PendingRequest
+
+    row = await db.get(PendingRequest, pending_id)
+    if row is None or row.status != "pending":
+        raise HTTPException(status_code=404, detail="Запрос не найден")
+    row.status = "rejected"
+    db.add(row)
+    await db.commit()
+    return OkOut()
+
+
+@router.post("/admin/users/{user_id}/reset-stage1", response_model=OkOut)
+@limiter.limit("10/minute")
+async def reset_stage1(
+    user_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    staff: User = Depends(require_staff),
+):
+    """Сбросить Stage 1 сотрудника (тесты/HR): done, pending, wifi, audit Stage 1."""
+    from sqlalchemy import delete
+
+    from app.models import PendingRequest, VerificationLog, WifiMac, WifiPassword
     from app.stages_data import get_stages_sync
 
-    all_ids = set(get_stages_sync()[1]["tasks"].keys())
-    users = (await db.execute(select(User).order_by(desc(User.created_at)).limit(100))).scalars().all()
-    out = []
-    for u in users:
-        prog = await db.get(Progress, u.id)
-        if prog is None:
-            continue
-        done1 = set(normalize_tasks(prog.done_tasks).get("1", []))
-        if done1 - all_ids:
-            done1 &= all_ids  # защита от мусора
-        if done1 and not all_ids <= done1:
-            out.append(_admin_user_out(u, sorted(done1)))
-    return out
+    target = await db.get(User, user_id)
+    if target is None:
+        raise HTTPException(status_code=404, detail="Сотрудник не найден")
+    s1 = set(get_stages_sync()[1]["tasks"].keys())
+    prog = await db.get(Progress, user_id)
+    if prog is not None:
+        tasks = normalize_tasks(prog.done_tasks)
+        tasks["1"] = []
+        prog.done_tasks = normalize_tasks(tasks)
+        from app.stages_data import compute_xp
+
+        prog.xp = compute_xp(prog.done_tasks)
+        prog.completed_at = None
+        db.add(prog)
+    await db.execute(delete(PendingRequest).where(PendingRequest.user_id == user_id))
+    await db.execute(delete(WifiMac).where(WifiMac.user_id == user_id))
+    await db.execute(delete(WifiPassword).where(WifiPassword.user_id == user_id))
+    await db.execute(
+        delete(VerificationLog).where(
+            VerificationLog.user_id == user_id,
+            VerificationLog.task_id.in_(s1),
+        )
+    )
+    await db.commit()
+    return OkOut()
 
 
 @router.post("/admin/wifi-password")

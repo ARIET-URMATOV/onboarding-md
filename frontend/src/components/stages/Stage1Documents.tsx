@@ -14,14 +14,14 @@ const docToTask: Record<DocKey, string> = {
 };
 
 /* helpers */
-function DocCard({ k, doneFlag, icon, title, sub, onOpen }: {
-  k: DocKey; doneFlag: boolean; icon: React.ReactNode; title: string; sub: string; onOpen: (k: DocKey) => void;
+function DocCard({ k, doneFlag, pendingFlag, icon, title, sub, onOpen }: {
+  k: DocKey; doneFlag: boolean; pendingFlag?: boolean; icon: React.ReactNode; title: string; sub: string; onOpen: (k: DocKey) => void;
 }) {
   return (
-    <button type="button" className={`doc-card ${doneFlag ? 'done' : ''}`} onClick={() => onOpen(k)} aria-label={title}>
-      <div className={`dc-icon ${doneFlag ? 'dc-done' : ''}`}>{doneFlag ? '✓' : icon}</div>
+    <button type="button" className={`doc-card ${doneFlag ? 'done' : ''} ${pendingFlag ? 'pending' : ''}`} onClick={() => onOpen(k)} aria-label={title}>
+      <div className={`dc-icon ${doneFlag ? 'dc-done' : ''}`}>{doneFlag ? '✓' : pendingFlag ? '…' : icon}</div>
       <div className="dc-body">
-        <div className="dc-title">{title} {doneFlag && <span className="dc-badge">готово</span>}</div>
+        <div className="dc-title">{title} {doneFlag && <span className="dc-badge">подтверждено</span>}{!doneFlag && pendingFlag && <span className="dc-badge pending">ожидает HR</span>}</div>
         <div className="dc-sub">{sub}</div>
       </div>
       <span className={`dc-chevron ${doneFlag ? 'is-done' : ''}`} aria-hidden>
@@ -49,8 +49,10 @@ function StepHeader({ n, title, reward, desc, open, done, onToggle }: {
 
 export function Stage1Documents({ stageId }: Props) {
   const done = useOnboarding((s) => s.doneTasks[stageId] || []);
-  const toggle = useOnboarding((s) => s.toggleTask);
+  const pending = useOnboarding((s) => s.pending);
+  const requestTask = useOnboarding((s) => s.requestTask);
   const refreshMe = useOnboarding((s) => s.refreshMe);
+  const connectLive = useOnboarding((s) => s.connectLive);
   const createdAt = useOnboarding((s) => s.createdAt);
   const user = useOnboarding((s) => s.user);
   const resolvedCreatedAt = (user as unknown as { createdAt?: string | null })?.createdAt ?? createdAt ?? null;
@@ -78,9 +80,19 @@ export function Stage1Documents({ stageId }: Props) {
 
   const isDone = (k: DocKey) => done.includes(docToTask[k]);
   const isTaskDone = (taskId: string) => done.includes(taskId);
+  const isPending = (k: DocKey) => pending.includes(docToTask[k]);
+  const [reqMsg, setReqMsg] = useState<string | null>(null);
+
+  // live-лента: HR подтвердил → прогресс обновится сам
+  useEffect(() => { connectLive(); }, [connectLive]);
 
   const handleConfirm = (k: DocKey) => {
-    if (!isDone(k)) toggle(stageId, docToTask[k]);
+    // Модалка: "передал HR" = запрос на верификацию, НЕ свободная галочка (CON-04).
+    if (isDone(k) || isPending(k)) return;
+    setReqMsg(null);
+    requestTask(docToTask[k]).catch((e) => {
+      setReqMsg(e instanceof Error ? e.message : 'Не удалось отправить запрос');
+    });
   };
 
   // SLA: 1 неделя с момента старта онбординга (created_at)
@@ -206,12 +218,13 @@ export function Stage1Documents({ stageId }: Props) {
         <div className="hr-note">
           <span className="hr-dot" /> Защита от случайных галочек: этап не может быть пройден автоматически. Требуется верификация HR / администратора, подтверждающего физическое получение и проверку документов.
         </div>
+        {reqMsg && <div className="wifi-err">{reqMsg}</div>}
         <div className="step-grid">
-          <DocCard k="dogovor" doneFlag={isDone('dogovor')} icon="📄" title="Договор об оказании услуг" sub="2 экземпляра · один остаётся у вас, второй — у компании" onOpen={setOpen} />
-          <DocCard k="nda" doneFlag={isDone('nda')} icon="🔒" title="NDA — Соглашение о неразглашении" sub="Строгий режим · партнёры и клиенты · защита репутации" onOpen={setOpen} />
-          <DocCard k="pdp" doneFlag={isDone('pdp')} icon="🛡️" title="Соглашение об обработке персональных данных" sub="Обязательный документ" onOpen={setOpen} />
-          <DocCard k="ip" doneFlag={isDone('ip')} icon="🏢" title="Свидетельство ИП" sub="Копия / реквизиты" onOpen={setOpen} />
-          <DocCard k="sn" doneFlag={isDone('sn')} icon="✅" title="Справка о несудимости" sub="Актуальный документ" onOpen={setOpen} />
+          <DocCard k="dogovor" doneFlag={isDone('dogovor')} pendingFlag={isPending('dogovor')} icon="📄" title="Договор об оказании услуг" sub="2 экземпляра · один остаётся у вас, второй — у компании" onOpen={setOpen} />
+          <DocCard k="nda" doneFlag={isDone('nda')} pendingFlag={isPending('nda')} icon="🔒" title="NDA — Соглашение о неразглашении" sub="Строгий режим · партнёры и клиенты · защита репутации" onOpen={setOpen} />
+          <DocCard k="pdp" doneFlag={isDone('pdp')} pendingFlag={isPending('pdp')} icon="🛡️" title="Соглашение об обработке персональных данных" sub="Обязательный документ" onOpen={setOpen} />
+          <DocCard k="ip" doneFlag={isDone('ip')} pendingFlag={isPending('ip')} icon="🏢" title="Свидетельство ИП" sub="Копия / реквизиты" onOpen={setOpen} />
+          <DocCard k="sn" doneFlag={isDone('sn')} pendingFlag={isPending('sn')} icon="✅" title="Справка о несудимости" sub="Актуальный документ" onOpen={setOpen} />
         </div>
         </div>
         {step1Done && <div className="step-done-badge">Шаг 1 выполнен ✓ +5 баллов</div>}
@@ -222,10 +235,10 @@ export function Stage1Documents({ stageId }: Props) {
         <StepHeader n={2} title="Получение доступов" reward="0 баллов" desc="Подтверждение staff (HR/лид/сисадмин) — сотрудник отмечает, staff верифицирует" open={effectiveOpen === 2} done={step2Done} onToggle={() => toggleStep(2)} />
         <div className="s1-step-body">
         <div className="step-grid">
-          <DocCard k="mbusiness" doneFlag={isDone('mbusiness')} icon={<img src="/mbusiness-logo.png" alt="MBusiness" width={28} height={28} loading="lazy" decoding="async" style={{ objectFit: 'contain' }} />} title="MBusiness — открытие" sub="Выплаты 1–10 числа · поможет HR" onOpen={setOpen} />
-          <DocCard k="accountant" doneFlag={isDone('accountant')} icon="🧾" title="Доступ бухгалтеру" sub="Инструкция · как предоставить доступ" onOpen={setOpen} />
-          <DocCard k="proxy" doneFlag={isDone('proxy')} icon="🪪" title="Прокси-карта и Face ID" sub="Пропуск на 1 этаж · коворкинг · Технопарк / MSpace · через лида/PM" onOpen={setOpen} />
-          <DocCard k="telegram" doneFlag={isDone('telegram')} icon="✈️" title="Доступ в Telegram-группы" sub="Авто-добавление · представьтесь команде" onOpen={setOpen} />
+          <DocCard k="mbusiness" doneFlag={isDone('mbusiness')} pendingFlag={isPending('mbusiness')} icon={<img src="/mbusiness-logo.png" alt="MBusiness" width={28} height={28} loading="lazy" decoding="async" style={{ objectFit: 'contain' }} />} title="MBusiness — открытие" sub="Выплаты 1–10 числа · поможет HR" onOpen={setOpen} />
+          <DocCard k="accountant" doneFlag={isDone('accountant')} pendingFlag={isPending('accountant')} icon="🧾" title="Доступ бухгалтеру" sub="Инструкция · как предоставить доступ" onOpen={setOpen} />
+          <DocCard k="proxy" doneFlag={isDone('proxy')} pendingFlag={isPending('proxy')} icon="🪪" title="Прокси-карта и Face ID" sub="Пропуск на 1 этаж · коворкинг · Технопарк / MSpace · через лида/PM" onOpen={setOpen} />
+          <DocCard k="telegram" doneFlag={isDone('telegram')} pendingFlag={isPending('telegram')} icon="✈️" title="Доступ в Telegram-группы" sub="Авто-добавление · представьтесь команде" onOpen={setOpen} />
           <div className="doc-card wifi-card">
             <div className={`dc-icon ${isTaskDone('1-wifi') ? 'dc-done' : ''}`}>{isTaskDone('1-wifi') ? '✓' : '📶'}</div>
             <div className="dc-body" style={{ flex: 1 }}>
@@ -314,8 +327,8 @@ export function Stage1Documents({ stageId }: Props) {
                 { id: '1-mpulse-code', label: 'Ввод проверочного кода' },
                 { id: '1-mpulse-news', label: 'Новости и уведомления' },
               ].map(t => (
-                <label key={t.id} className={`mtask ${isTaskDone(t.id) ? 'done' : ''}`}>
-                  <input type="checkbox" checked={isTaskDone(t.id)} onChange={() => toggle(stageId, t.id)} />
+                <label key={t.id} className={`mtask ro ${isTaskDone(t.id) ? 'done' : ''}`} title="Закрывается кодом MPulse, не галочкой">
+                  <input type="checkbox" checked={isTaskDone(t.id)} readOnly />
                   <span className="mtask-box">{isTaskDone(t.id) ? '✓' : ''}</span>
                   <span>{t.label}</span>
                 </label>
@@ -355,8 +368,8 @@ export function Stage1Documents({ stageId }: Props) {
             { id: '1-confluence-contact', label: 'Контакты отделов' },
             { id: '1-confluence-faq', label: 'Частые вопросы' },
           ].map(t => (
-            <label key={t.id} className={`mtask ${isTaskDone(t.id) ? 'done' : ''}`}>
-              <input type="checkbox" checked={isTaskDone(t.id)} onChange={() => toggle(stageId, t.id)} />
+            <label key={t.id} className={`mtask ro ${isTaskDone(t.id) ? 'done' : ''}`} title="Закрывается кнопкой «Я ознакомился», не галочкой">
+              <input type="checkbox" checked={isTaskDone(t.id)} readOnly />
               <span className="mtask-box">{isTaskDone(t.id) ? '✓' : ''}</span>
               <span>{t.label}</span>
             </label>
@@ -433,6 +446,9 @@ export function Stage1Documents({ stageId }: Props) {
         .dc-body{ flex:1; min-width:0 }
         .dc-title{ font-family:'Open Sans',sans-serif; font-size:13.5px; color:var(--text); font-weight:700; display:flex; align-items:center; gap:8px; flex-wrap:wrap }
         .dc-badge{ font-size:9px; letter-spacing:.14em; padding:2px 6px; border-radius:999px; background:rgba(96,165,250,.14); border:1px solid rgba(96,165,250,.3); color:#60A5FA; font-family:'Open Sans',sans-serif; text-transform:uppercase }
+        .dc-badge.pending{ background:rgba(251,191,36,.12); border-color:rgba(251,191,36,.35); color:#FBBF24; }
+        .doc-card.pending{ border-style:dashed; border-color:rgba(251,191,36,.3); }
+        .mtask.ro{ cursor:default; }
         .dc-sub{ font-family:'Open Sans',sans-serif; font-size:11.5px; color:var(--muted); margin-top:2px; line-height:1.4 }
         .dc-chevron{ width:18px; height:18px; display:grid; place-items:center; flex-shrink:0; color:rgba(96,165,250,.72); transition: transform .18s ease, color .18s ease, filter .18s ease, opacity .18s ease }
         .dc-chevron svg{ width:14px; height:14px }

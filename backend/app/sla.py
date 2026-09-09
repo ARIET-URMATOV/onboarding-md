@@ -8,6 +8,7 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 
 from app.config import settings
+from app.notify import send_email
 
 SLA_DAYS = 7
 WARN_DAYS = 6
@@ -38,49 +39,6 @@ async def find_overdue(db) -> list[dict]:
             "days": days, "overdue": days >= SLA_DAYS, "done": len(done1),
         })
     return out
-
-
-async def send_email(to: str, subject: str, body: str) -> bool:
-    """SMTP через aiosmtplib; False если не настроен или ошибка."""
-    if not settings.smtp_configured:
-        return False
-    try:
-        from email.message import EmailMessage
-
-        import aiosmtplib
-
-        msg = EmailMessage()
-        msg["From"] = settings.smtp_from
-        msg["To"] = to
-        msg["Subject"] = subject
-        msg.set_content(body)
-        await aiosmtplib.send(
-            msg, hostname=settings.smtp_host, port=settings.smtp_port,
-            username=settings.smtp_user, password=settings.smtp_password,
-            start_tls=True, timeout=10,
-        )
-        return True
-    except Exception as e:
-        print(f"sla: smtp failed to {to}: {e}")
-        return False
-
-
-async def send_telegram(chat_id: str, text: str) -> bool:
-    """Telegram Bot API; chat_id здесь = email-подпись (нужен маппинг; пока заглушка)."""
-    if not settings.telegram_configured:
-        return False
-    try:
-        import httpx
-
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.post(
-                f"https://api.telegram.org/bot{settings.telegram_bot_token}/sendMessage",
-                json={"chat_id": chat_id, "text": text},
-            )
-            return resp.status_code == 200
-    except Exception as e:
-        print(f"sla: telegram failed: {e}")
-        return False
 
 
 async def sla_check_once() -> list[dict]:

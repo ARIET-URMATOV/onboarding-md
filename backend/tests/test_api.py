@@ -126,14 +126,22 @@ def test_progress_toggle_and_stage(client):
     client.post("/api/register", json={"email": email, "password": "secret123"})
     client.post("/api/role", json={"role": "frontend"})
 
-    t = client.post("/api/progress/task", json={"stage_id": 1, "task_id": "1-dogovor"})
-    assert t.status_code == 200
-    assert t.json()["xp"] == 1
+    # свободный toggle Stage 1 запрещён (замок TZ: только request/код/таймер)
+    locked = client.post("/api/progress/task", json={"stage_id": 1, "task_id": "1-dogovor"})
+    assert locked.status_code == 403
+    locked2 = client.post("/api/progress/task", json={"stage_id": 1, "task_id": "1-wifi"})
+    assert locked2.status_code == 403
+    locked3 = client.post("/api/progress/task", json={"stage_id": 1, "task_id": "1-mpulse-code"})
+    assert locked3.status_code == 403
 
-    # Step 2 — 0 баллов
-    z = client.post("/api/progress/task", json={"stage_id": 1, "task_id": "1-wifi"})
-    assert z.status_code == 200
-    assert z.json()["xp"] == 1  # только dogovor даёт XP
+    # массовое закрытие Этапа 1 запрещено не-staff
+    mass = client.post("/api/progress/stage", json={"stage_id": 1, "action": "complete"})
+    assert mass.status_code == 403
+
+    # свободный toggle работает для этапов без верификации (Stage 2)
+    t = client.post("/api/progress/task", json={"stage_id": 2, "task_id": "2-studio"})
+    assert t.status_code == 200
+    assert t.json()["xp"] == 40
 
     # неизвестная задача
     bad = client.post("/api/progress/task", json={"stage_id": 1, "task_id": "hax"})
@@ -143,9 +151,8 @@ def test_progress_toggle_and_stage(client):
     legacy = client.post("/api/progress/task", json={"stage_id": 1, "task_id": "1-docs"})
     assert legacy.status_code == 400
 
-    st = client.post("/api/progress/stage", json={"stage_id": 1, "action": "complete"})
+    st = client.post("/api/progress/stage", json={"stage_id": 2, "action": "complete"})
     assert st.status_code == 200
-    assert st.json()["xp"] == 170  # 20 + 150 бонус
 
     un = client.post("/api/progress/stage", json={"stage_id": 1, "action": "uncomplete"})
     assert un.json()["xp"] == 0
@@ -379,3 +386,60 @@ def test_verify_docs_forbidden_for_employee(client):
     assert r.status_code == 403
     adm = client.get("/api/admin/users")
     assert adm.status_code == 403
+
+
+def test_request_queue_flow(client):
+    """Замок: request -> pending -> staff verify -> done + XP. Без свободного toggle."""
+    email = _unique_email()
+    client.post("/api/register", json={"email": email, "password": "secret123"})
+    client.post("/api/role", json={"role": "frontend"})
+    uid = _grant_staff(email)
+
+    # запрос (не toggle): XP не начисляется, задача не в done
+    q = client.post("/api/progress/request", json={"task_id": "1-dogovor"})
+    assert q.status_code == 200
+    assert "1-dogovor" not in q.json()["done_tasks"]["1"]
+    assert q.json()["xp"] == 0
+
+    # повтор идемпотентен
+    q2 = client.post("/api/progress/request", json={"task_id": "1-dogovor"})
+    assert q2.status_code == 200
+
+    # мои pending видны
+    mine = client.get("/api/progress/pending")
+    assert "1-dogovor" in mine.json()["pending"]
+
+    # очередь HR видит запрос
+    pend = client.get("/api/admin/pending-verifications")
+    assert pend.status_code == 200
+    row = next(r for r in pend.json() if r["task_id"] == "1-dogovor" and r["user_id"] == uid)
+    assert row["email"] == email
+
+    # техническая задача через request отклоняется
+    tech = client.post("/api/progress/request", json={"task_id": "1-mpulse-code"})
+    assert tech.status_code == 400
+
+    # staff подтверждает -> done + XP + запрос закрыт
+    v = client.post("/api/verify-docs", json={"user_id": uid, "task_id": "1-dogovor"})
+    assert v.status_code == 200
+    assert "1-dogovor" in v.json()["done_tasks"]["1"]
+    assert v.json()["xp"] == 1
+    pend2 = client.get("/api/admin/pending-verifications")
+    assert all(not (r["task_id"] == "1-dogovor" and r["user_id"] == uid) for r in pend2.json())
+
+    # отклонение
+    client.post("/api/progress/request", json={"task_id": "1-nda"})
+    pend3 = client.get("/api/admin/pending-verifications")
+    row2 = next(r for r in pend3.json() if r["task_id"] == "1-nda" and r["user_id"] == uid)
+    rej = client.delete(f"/api/admin/pending/{row2['id']}")
+    assert rej.status_code == 200
+    mine2 = client.get("/api/progress/pending")
+    assert "1-nda" not in mine2.json()["pending"]
+
+    # сброс Stage 1
+    client.post("/api/progress/request", json={"task_id": "1-nda"})
+    reset = client.post(f"/api/admin/users/{uid}/reset-stage1")
+    assert reset.status_code == 200
+    me = client.get("/api/me")
+    assert me.json()["progress"]["done_tasks"]["1"] == []
+    assert me.json()["progress"]["xp"] == 0
