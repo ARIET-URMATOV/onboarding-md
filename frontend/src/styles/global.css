@@ -30,9 +30,22 @@ body::after{
 
 .app-shell{
   position:relative; min-height:100vh;
+  min-height:100dvh;
 }
 .app-content{
   position:relative; z-index:1;
+  padding-bottom:env(safe-area-inset-bottom, 0px);
+}
+
+/* ===== ADAPTIVE BASE (all screens from 320px) ===== */
+/* fluid root size: 14px @320px → 16px @861px+ */
+html{ font-size:clamp(14px, 3.9vw + 6px, 16px); }
+
+img{ max-width:100%; height:auto; }
+
+/* very small screens ≤360px: tighten page gutters */
+@media (max-width:360px){
+  .container{ padding:0 12px; }
 }
 
 .container{

@@ -47,6 +47,21 @@ export function IsometricRoadmap({ statuses, done }: Props) {
   }, [statuses, selected]);
 
   const [shakeId, setShakeId] = useState<StageId | null>(null);
+  // mobile nav variant try-out: stacked (default) | drawer | bottom — persisted, switcher cycles
+  type MNav = 'stacked' | 'drawer' | 'bottom';
+  const [mnav, setMnav] = useState<MNav>(() => {
+    try {
+      const v = localStorage.getItem('gm-mnav');
+      return v === 'drawer' || v === 'bottom' ? v : 'stacked';
+    } catch { return 'stacked'; }
+  });
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const cycleMnav = () => {
+    const next: MNav = mnav === 'stacked' ? 'drawer' : mnav === 'drawer' ? 'bottom' : 'stacked';
+    setMnav(next);
+    setDrawerOpen(false);
+    try { localStorage.setItem('gm-mnav', next); } catch { /* ignore */ }
+  };
   const [finale, setFinale] = useState(false);
   const [unlockingId, setUnlockingId] = useState<StageId | null>(null);
   const [videoEnded, setVideoEnded] = useState(false);
@@ -118,6 +133,7 @@ export function IsometricRoadmap({ statuses, done }: Props) {
       return;
     }
     setSelected(id);
+    setDrawerOpen(false);
   };
 
   const handleComplete = () => {
@@ -133,8 +149,14 @@ export function IsometricRoadmap({ statuses, done }: Props) {
     }
   };
 
+  const MNAV_LABEL: Record<'stacked' | 'drawer' | 'bottom', string> = {
+    stacked: 'Список', drawer: 'Шторка', bottom: 'Панель снизу',
+  };
+
   return (
-    <div className="gm-root">
+    <div className="gm-root" data-mnav={mnav} data-drawer={drawerOpen ? 'open' : 'closed'}>
+      {/* вариант-переключатель (только мобайл, убрать после выбора) */}
+      <button type="button" className="gm-navswitch" onClick={cycleMnav} title={`Навигация: ${MNAV_LABEL[mnav]} — нажать для следующего варианта`} aria-label="Сменить вариант навигации">☰</button>
       {/* ================= ЛЕВАЯ ПАНЕЛЬ ================= */}
       <aside className="gm-left">
         <div className="gl-brand">
@@ -215,6 +237,37 @@ export function IsometricRoadmap({ statuses, done }: Props) {
           })}
         </div>
       </aside>
+
+      {/* drawer: scrim + burger (видны только в варианте drawer на мобайле) */}
+      {mnav === 'drawer' && (
+        <>
+          <button type="button" className="gm-scrim" aria-label="Закрыть меню" onClick={() => setDrawerOpen(false)} tabIndex={drawerOpen ? 0 : -1} />
+          <button type="button" className="gm-burger" aria-label="Открыть этапы" onClick={() => setDrawerOpen(true)}>☰</button>
+        </>
+      )}
+
+      {/* bottom: нижняя таб-панель этапов (видна только в варианте bottom на мобайле) */}
+      {mnav === 'bottom' && (
+        <nav className="gm-bottombar" aria-label="Этапы">
+          {STAGES.map((s) => {
+            const st = statuses[s.id];
+            return (
+              <button
+                key={s.id}
+                type="button"
+                className={`gm-btab ${st} ${selected === s.id ? 'on' : ''}`}
+                onClick={() => pick(s.id as StageId)}
+                disabled={st === 'locked'}
+                aria-label={`Этап ${s.id}: ${s.title}`}
+              >
+                <span className="n">0{s.id}</span>
+                <span className="t">{s.shortLabel}</span>
+                <span className={`dot ${st}`} />
+              </button>
+            );
+          })}
+        </nav>
+      )}
 
       {/* ================= ПРАВАЯ ПАНЕЛЬ — INLINE CONTENT ================= */}
       <AnimatePresence mode="wait">
@@ -699,6 +752,62 @@ export function IsometricRoadmap({ statuses, done }: Props) {
           .locked-body{ padding:14px 0 6px } .locked-icon{ font-size:22px; margin-bottom:8px } .locked-title{ font-size:11px } .locked-desc{ font-size:10.5px; max-width:260px }
           .gr-foot{ gap:10px; padding-top:12px; margin-top:14px } .gr-hint{ font-size:9px } .gr-cta{ display:inline-flex; align-items:center; gap:6px; padding:10px 22px; font-size:10.5px; letter-spacing:.11em; clip-path:polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%) }
           .gr-emblem.done .ge-core{ color:#3B82F6 }
+        }
+        /* ===== МОБАЙЛ-ВАРИАНТЫ НАВИГАЦИИ (≤860) — try-out, desktop не трогаем ===== */
+        .gm-navswitch, .gm-scrim, .gm-burger, .gm-bottombar{ display:none; }
+        @media (max-width:860px){
+          .gm-navswitch{
+            display:grid; place-items:center; position:fixed; z-index:60;
+            right:12px; bottom:calc(12px + env(safe-area-inset-bottom, 0px));
+            width:38px; height:38px; border-radius:50%;
+            background:rgba(13,21,38,.85); border:1px solid rgba(37,99,235,.4);
+            color:#93C5FD; font-size:16px; backdrop-filter:blur(8px);
+          }
+          /* --- DRAWER: сайдбар выезжает слева --- */
+          .gm-root[data-mnav="drawer"] .gm-left{
+            position:fixed; top:0; bottom:0; left:0; z-index:70;
+            width:min(320px, 86vw); max-height:none; border-radius:0;
+            border-right:1px solid rgba(37,99,235,.25);
+            background:linear-gradient(180deg, rgba(13,21,38,.98), rgba(10,15,30,.97));
+            transform:translateX(-105%); transition:transform .28s cubic-bezier(.16,1,.3,1);
+            overflow-y:auto; padding-bottom:calc(16px + env(safe-area-inset-bottom, 0px));
+          }
+          .gm-root[data-mnav="drawer"][data-drawer="open"] .gm-left{
+            transform:none; box-shadow:24px 0 60px rgba(0,0,0,.5);
+          }
+          .gm-root[data-mnav="drawer"][data-drawer="open"] .gm-scrim{
+            display:block; position:fixed; inset:0; z-index:65;
+            background:rgba(4,8,18,.6); border:none; padding:0; cursor:pointer;
+          }
+          .gm-root[data-mnav="drawer"] .gm-burger{
+            display:grid; place-items:center; position:fixed; z-index:55;
+            top:68px; left:12px; width:40px; height:40px; border-radius:10px;
+            background:rgba(13,21,38,.88); border:1px solid rgba(37,99,235,.35);
+            color:#DBEAFE; font-size:17px;
+          }
+          .gm-root[data-mnav="drawer"][data-drawer="open"] .gm-burger{ display:none; }
+          /* --- BOTTOM: нижняя таб-панель вместо сайдбара --- */
+          .gm-root[data-mnav="bottom"] .gm-left{ display:none; }
+          .gm-root[data-mnav="bottom"] .gm-bottombar{
+            display:flex; position:fixed; left:0; right:0; bottom:0; z-index:60;
+            padding:8px 8px calc(8px + env(safe-area-inset-bottom, 0px));
+            background:rgba(10,15,30,.94); border-top:1px solid rgba(37,99,235,.25);
+            backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+            gap:2px;
+          }
+          .gm-btab{
+            flex:1; display:flex; flex-direction:column; align-items:center; gap:2px;
+            padding:6px 2px; border-radius:8px; color:#8c88a6; min-width:0;
+          }
+          .gm-btab .n{ font-size:12px; font-weight:800; }
+          .gm-btab .t{ font-size:8.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
+          .gm-btab .dot{ width:5px; height:5px; border-radius:50%; background:#64748b; }
+          .gm-btab .dot.done{ background:#3B82F6; box-shadow:0 0 6px rgba(59,130,246,.8); }
+          .gm-btab .dot.current{ background:#fff; box-shadow:0 0 6px rgba(255,255,255,.7); }
+          .gm-btab.on{ color:#fff; background:rgba(37,99,235,.18); }
+          .gm-btab.done{ color:#93C5FD; }
+          .gm-btab:disabled{ opacity:.45; }
+          .gm-root[data-mnav="bottom"] .gm-right{ padding-bottom:84px; }
         }
         @media (prefers-reduced-motion: reduce){
           .gc-spark, .ge-ring, .gr-chip, .gm-cardWrap.shake, .reward::after{ animation:none !important }

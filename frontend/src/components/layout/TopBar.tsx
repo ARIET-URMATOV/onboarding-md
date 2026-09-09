@@ -181,6 +181,13 @@ export function TopBar() {
           .t-avatar { width: 32px; height: 32px; }
           .t-name { font-size: 12.5px; font-weight: 600; max-width: 85px; color: rgba(255,255,255,.85); display: inline; }
         }
+        @media (max-width: 360px) {
+          .topbar-min { padding:0 10px; gap:12px; }
+          .t-nav { gap:12px; } .t-link { font-size:13px; min-height:44px; }
+          .t-right { gap:8px; }
+          .t-name { display:none; }
+          .t-user { padding:6px; }
+        }
         @media (max-width: 380px) {
           .topbar-min { padding: 0 12px; }
           .topbar-min.mode-overlay { height: 58px; } .topbar-min.mode-sticky { height: 56px; }

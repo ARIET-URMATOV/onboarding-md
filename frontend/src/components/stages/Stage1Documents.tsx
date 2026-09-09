@@ -31,14 +31,18 @@ function DocCard({ k, doneFlag, icon, title, sub, onOpen }: {
   );
 }
 
-function StepHeader({ n, title, reward, desc }: { n: number; title: string; reward: string; desc?: string }) {
+function StepHeader({ n, title, reward, desc, open, done, onToggle }: {
+  n: number; title: string; reward: string; desc?: string; open?: boolean; done?: boolean; onToggle?: () => void;
+}) {
   return (
-    <div className="step-head">
-      <div className="sh-num">{n}</div>
+    <div className={`step-head ${onToggle ? 'clickable' : ''}`} onClick={onToggle} role={onToggle ? 'button' : undefined} tabIndex={onToggle ? 0 : undefined}
+      onKeyDown={onToggle ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(); } } : undefined}>
+      <div className="sh-num">{done ? '✓' : n}</div>
       <div className="sh-body">
         <div className="sh-title">{title} <span className="sh-reward">{reward}</span></div>
         {desc && <div className="sh-desc">{desc}</div>}
       </div>
+      {onToggle && <span className={`sh-chevron ${open ? 'open' : ''}`} aria-hidden>⌄</span>}
     </div>
   );
 }
@@ -96,6 +100,14 @@ export function Stage1Documents({ stageId }: Props) {
   const step3Done = ['1-mpulse','1-mpulse-schedule','1-mpulse-checkin','1-mpulse-code','1-mpulse-news'].every(id => done.includes(id));
   // at least the explicit confluence tasks count as step 4 (user must click "Я ознакомился")
   const step4ExplicitDone = isTaskDone('1-confluence-read');
+
+  // mobile accordion: auto-open first incomplete step, manual override sticks
+  const [openStep, setOpenStep] = useState<number | null>(null);
+  const effectiveOpen = openStep ?? (step1Done ? (step2Done ? (step3Done ? (step4ExplicitDone ? null : 4) : 3) : 2) : 1);
+  const toggleStep = (n: number) => setOpenStep((cur) => {
+    const eff = cur ?? (step1Done ? (step2Done ? (step3Done ? (step4ExplicitDone ? null : 4) : 3) : 2) : 1);
+    return eff === n ? null : n;
+  });
 
   // Confluence countdown
   useEffect(() => {
@@ -188,8 +200,9 @@ export function Stage1Documents({ stageId }: Props) {
       </div>
 
       {/* ── Шаг 1. Подписание документов ── */}
-      <section className="s1-step">
-        <StepHeader n={1} title="Подписание документов" reward="5 баллов" desc="Двух экземплярах NDA и договора · проверка HR обязательна" />
+      <section className={`s1-step ${effectiveOpen === 1 ? 'open' : ''}`}>
+        <StepHeader n={1} title="Подписание документов" reward="5 баллов" desc="Двух экземплярах NDA и договора · проверка HR обязательна" open={effectiveOpen === 1} done={step1Done} onToggle={() => toggleStep(1)} />
+        <div className="s1-step-body">
         <div className="hr-note">
           <span className="hr-dot" /> Защита от случайных галочек: этап не может быть пройден автоматически. Требуется верификация HR / администратора, подтверждающего физическое получение и проверку документов.
         </div>
@@ -200,14 +213,16 @@ export function Stage1Documents({ stageId }: Props) {
           <DocCard k="ip" doneFlag={isDone('ip')} icon="🏢" title="Свидетельство ИП" sub="Копия / реквизиты" onOpen={setOpen} />
           <DocCard k="sn" doneFlag={isDone('sn')} icon="✅" title="Справка о несудимости" sub="Актуальный документ" onOpen={setOpen} />
         </div>
+        </div>
         {step1Done && <div className="step-done-badge">Шаг 1 выполнен ✓ +5 баллов</div>}
       </section>
 
       {/* ── Шаг 2. Получение доступов ── */}
-      <section className="s1-step">
-        <StepHeader n={2} title="Получение доступов" reward="0 баллов" desc="Подтверждение staff (HR/лид/сисадмин) — сотрудник отмечает, staff верифицирует" />
+      <section className={`s1-step ${effectiveOpen === 2 ? 'open' : ''}`}>
+        <StepHeader n={2} title="Получение доступов" reward="0 баллов" desc="Подтверждение staff (HR/лид/сисадмин) — сотрудник отмечает, staff верифицирует" open={effectiveOpen === 2} done={step2Done} onToggle={() => toggleStep(2)} />
+        <div className="s1-step-body">
         <div className="step-grid">
-          <DocCard k="mbusiness" doneFlag={isDone('mbusiness')} icon={<img src="/mbusiness-logo.png" alt="MBusiness" width={28} height={28} style={{ objectFit: 'contain' }} />} title="MBusiness — открытие" sub="Выплаты 1–10 числа · поможет HR" onOpen={setOpen} />
+          <DocCard k="mbusiness" doneFlag={isDone('mbusiness')} icon={<img src="/mbusiness-logo.png" alt="MBusiness" width={28} height={28} loading="lazy" decoding="async" style={{ objectFit: 'contain' }} />} title="MBusiness — открытие" sub="Выплаты 1–10 числа · поможет HR" onOpen={setOpen} />
           <DocCard k="accountant" doneFlag={isDone('accountant')} icon="🧾" title="Доступ бухгалтеру" sub="Инструкция · как предоставить доступ" onOpen={setOpen} />
           <DocCard k="proxy" doneFlag={isDone('proxy')} icon="🪪" title="Прокси-карта и Face ID" sub="Пропуск на 1 этаж · коворкинг · Технопарк / MSpace · через лида/PM" onOpen={setOpen} />
           <DocCard k="telegram" doneFlag={isDone('telegram')} icon="✈️" title="Доступ в Telegram-группы" sub="Авто-добавление · представьтесь команде" onOpen={setOpen} />
@@ -249,15 +264,17 @@ export function Stage1Documents({ stageId }: Props) {
             </div>
           </div>
         </div>
+        </div>
         {step2Done && <div className="step-done-badge">Шаг 2 выполнен ✓ (0 баллов)</div>}
       </section>
 
       {/* ── Шаг 3. Корпоративное приложение MPulse ── */}
-      <section className="s1-step mpulse-step">
-        <StepHeader n={3} title="Корпоративное приложение MPulse" reward="5 баллов" desc="AD · выбор графика · check-in/out · формат работы · новости" />
+      <section className={`s1-step mpulse-step ${effectiveOpen === 3 ? 'open' : ''}`}>
+        <StepHeader n={3} title="Корпоративное приложение MPulse" reward="5 баллов" desc="AD · выбор графика · check-in/out · формат работы · новости" open={effectiveOpen === 3} done={step3Done} onToggle={() => toggleStep(3)} />
+        <div className="s1-step-body">
         <div className="mpulse-card">
           <div className="mpulse-head">
-            <img src="/mpulse-logo.png" alt="MPulse" className="mpulse-icon-img" />
+            <img src="/mpulse-logo.png" alt="MPulse" loading="lazy" decoding="async" className="mpulse-icon-img" />
             <div>
               <div className="mpulse-title">MPulse — корпоративное приложение</div>
               <div className="mpulse-sub">Авторизация через корпоративный Active Directory (AD) · обязательный выбор рабочего графика (согласованного с руководителем)</div>
@@ -306,12 +323,14 @@ export function Stage1Documents({ stageId }: Props) {
             </div>
           </div>
         </div>
+        </div>
         {step3Done && <div className="step-done-badge">Шаг 3 выполнен ✓ +5 баллов</div>}
       </section>
 
       {/* ── Шаг 4. База знаний Confluence ── */}
-      <section className="s1-step">
-        <StepHeader n={4} title="База знаний Confluence" reward="10 баллов" desc="Отпуска · грейдинг · информация о компании · кнопка активна через 2 мин после открытия" />
+      <section className={`s1-step ${effectiveOpen === 4 ? 'open' : ''}`}>
+        <StepHeader n={4} title="База знаний Confluence" reward="10 баллов" desc="Отпуска · грейдинг · информация о компании · кнопка активна через 2 мин после открытия" open={effectiveOpen === 4} done={step4ExplicitDone} onToggle={() => toggleStep(4)} />
+        <div className="s1-step-body">
         <a href="https://confluence.mdigital.kg" target="_blank" rel="noopener noreferrer" className="confluence-link" onClick={handleConfluenceOpen}>
           <span className="cf-icon">CF</span>
           <span className="cf-body">
@@ -348,6 +367,7 @@ export function Stage1Documents({ stageId }: Props) {
         </button>
         {confMsg && <div className="wifi-err">{confMsg}</div>}
         <div className="cf-hint">{confOpenedAt ? (confRemain > 0 ? 'Кнопка активируется через 2 мин после открытия' : 'Можно фиксировать ознакомление') : 'Сначала откройте Confluence по ссылке выше — запустится таймер 2 мин'}</div>
+        </div>
         {step4ExplicitDone && <div className="step-done-badge">Шаг 4 выполнен ✓ +10 баллов</div>}
       </section>
 
@@ -374,6 +394,27 @@ export function Stage1Documents({ stageId }: Props) {
         .sla-icon{ font-size:14px }
         .sla-date{ margin-left:auto; font-size:10.5px; opacity:.85; color:var(--muted) }
         .s1-step{ display:flex; flex-direction:column; gap:10px; padding:14px 12px; border-radius:14px; background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.06) }
+        .s1-step-body{ display:flex; flex-direction:column; gap:10px; }
+        .step-head.clickable{ cursor:pointer; }
+        .sh-chevron{ margin-left:auto; color:#60A5FA; font-size:16px; line-height:1; transition:transform .2s ease; flex-shrink:0; display:none; }
+        /* mobile accordion ≤640px: виден только открытый шаг */
+        @media (max-width:640px){
+          .s1-step-body{ display:none; }
+          .s1-step.open .s1-step-body{ display:flex; }
+          .sh-chevron{ display:block; }
+          .s1-step.open .sh-chevron{ transform:rotate(180deg); }
+          .s1-step{ padding:12px 10px; }
+        }
+        @media (min-width:641px){
+          .s1-step-body{ display:flex !important; }
+        }
+        /* 320px: инпуты в столбик, не сжимаются */
+        @media (max-width:360px){
+          .wifi-inline, .mpulse-row{ flex-wrap:wrap; }
+          .wifi-input, .mpulse-input{ flex:1 1 100%; }
+          .wifi-btn, .mpulse-btn{ flex:1 1 100%; }
+          .s1-step{ padding:10px 8px; }
+        }
         .step-head{ display:flex; gap:10px; align-items:flex-start }
         .sh-num{ width:32px; height:32px; border-radius:9px; display:grid; place-items:center; flex-shrink:0; font-size:13px; font-weight:800; color:#fff; background:linear-gradient(135deg,#1E3A8A,#2563EB); box-shadow:0 4px 14px rgba(37,99,235,.35) }
         .sh-title{ font-size:13.5px; font-weight:800; color:var(--text); display:flex; align-items:center; gap:8px; flex-wrap:wrap }
