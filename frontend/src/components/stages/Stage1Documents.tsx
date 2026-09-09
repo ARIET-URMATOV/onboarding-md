@@ -19,7 +19,7 @@ function DocCard({ k, doneFlag, icon, title, sub, onOpen }: {
 }) {
   return (
     <button type="button" className={`doc-card ${doneFlag ? 'done' : ''}`} onClick={() => onOpen(k)} aria-label={title}>
-      <div className={`dc-icon ${k === 'mplus' ? 'mplus' : ''} ${doneFlag ? 'dc-done' : ''}`}>{doneFlag ? '✓' : icon}</div>
+      <div className={`dc-icon ${doneFlag ? 'dc-done' : ''}`}>{doneFlag ? '✓' : icon}</div>
       <div className="dc-body">
         <div className="dc-title">{title} {doneFlag && <span className="dc-badge">готово</span>}</div>
         <div className="dc-sub">{sub}</div>
@@ -441,7 +441,3 @@ export function Stage1Documents({ stageId }: Props) {
   );
 }
 
-function downloadStub() {
-  window.open('https://play.google.com/store/search?q=MPulse&c=apps', '_blank', 'noopener');
-  setTimeout(() => { window.open('https://apps.apple.com/search?term=MPulse', '_blank', 'noopener'); }, 400);
-}

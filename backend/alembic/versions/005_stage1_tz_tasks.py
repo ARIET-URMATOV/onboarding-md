@@ -59,9 +59,10 @@ def upgrade() -> None:
     op.execute(
         sa.text("DELETE FROM stage_tasks WHERE id IN ('1-docs','1-lead','1-mplus','1-jira','1-confluence')")
     )
+    conn = op.get_bind()
     for t in TASKS:
         # upsert по PK: обновить если есть, вставить если нет
-        op.execute(
+        conn.execute(
             sa.text(
                 "INSERT INTO stage_tasks (id, stage_id, title, xp, sort_order) "
                 "VALUES (:id, :sid, :title, :xp, :so) "
