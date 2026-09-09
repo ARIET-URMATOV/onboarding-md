@@ -657,16 +657,13 @@ export function IsometricRoadmap({ statuses, done }: Props) {
         @media (min-width:861px){
           .gm-root{ grid-template-columns:380px 1fr; gap:14px; min-height:640px; border-radius:18px; overflow:visible; }
           .gm-left{
-            /* fixed: не зависит от скролла правой колонки; левая grid-ячейка остаётся пустым placeholder 380px */
-            position:fixed; top:72px; left:max(18px, calc((100vw - 1220px) / 2 + 18px)); width:380px; z-index:20;
+            position:sticky; top:72px; align-self:start; z-index:2;
             padding:18px 16px 16px 18px;
-            border:1px solid rgba(30,58,138,.14);
-            background:linear-gradient(180deg, rgba(13,21,38,.96), rgba(10,15,30,.94));
-            backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
-            box-shadow:0 12px 40px rgba(0,0,0,.45);
+            border-right:1px solid rgba(30,58,138,.14); border-bottom:none;
+            background:linear-gradient(180deg, rgba(13,21,38,.5), rgba(10,15,30,.3));
             max-height: calc(100vh - 84px); overflow-y:auto; overflow-x:hidden;
             scrollbar-gutter:stable;
-            border-radius:18px;
+            border-radius:18px 0 0 18px;
           }
           .gl-brand{ gap:10px; margin-bottom:14px }
           .gl-mark{ width:32px; height:32px; border-radius:8px; } .gl-mark svg{ width:16px; height:16px; }
