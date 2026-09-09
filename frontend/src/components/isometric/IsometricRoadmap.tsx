@@ -653,17 +653,24 @@ export function IsometricRoadmap({ statuses, done }: Props) {
           .gr-title{ font-size:16px; }
         }
 
-        /* ===== ДЕСКТОП / ТАБЛЕТ (≥861) — компактный дизайн ===== */
+        /* ===== ДЕСКТОП / ТАБЛЕТ (≥861) — app-shell: страница не скроллится,
+           левая и правая панели скроллятся независимо внутри фиксированной высоты.
+           (position:sticky ненадёжен: body{overflow-x:hidden} ломает его в grid) ===== */
         @media (min-width:861px){
-          .gm-root{ grid-template-columns:380px 1fr; gap:14px; min-height:640px; border-radius:18px; overflow:visible; }
+          .gm-root{
+            grid-template-columns:380px 1fr; gap:14px;
+            height:calc(100vh - 60px - 18px - 40px); min-height:480px;
+            border-radius:18px; overflow:hidden;
+          }
           .gm-left{
-            position:sticky; top:72px; align-self:start; z-index:2;
+            position:static; z-index:2;
+            height:100%; max-height:none;
             padding:18px 16px 16px 18px;
             border-right:1px solid rgba(30,58,138,.14); border-bottom:none;
             background:linear-gradient(180deg, rgba(13,21,38,.5), rgba(10,15,30,.3));
-            max-height: calc(100vh - 84px); overflow-y:auto; overflow-x:hidden;
+            overflow-y:auto; overflow-x:hidden;
             scrollbar-gutter:stable;
-            border-radius:18px 0 0 18px;
+            border-radius:0;
           }
           .gl-brand{ gap:10px; margin-bottom:14px }
           .gl-mark{ width:32px; height:32px; border-radius:8px; } .gl-mark svg{ width:16px; height:16px; }
@@ -680,7 +687,7 @@ export function IsometricRoadmap({ statuses, done }: Props) {
           .gc-ico{ width:34px; height:34px; } .gc-ico svg{ width:15px; height:15px; }
           .gc-spark{ font-size:14px; }
           .gc-body{ gap:3px } .gc-name{ font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } .gc-state{ font-size:9.5px; letter-spacing:.12em } .gc-num{ font-size:8px }
-          .gm-right{ padding:16px 18px 18px; overflow:visible; }
+          .gm-right{ padding:16px 18px 18px; height:100%; overflow-y:auto; overflow-x:hidden; scrollbar-gutter:stable; }
           .gr-head{ gap:12px } .gr-title{ font-size:15px; text-shadow:none } .gr-subtitle{ font-size:9.5px; letter-spacing:.14em; margin-top:3px } .gr-emblem{ width:46px; height:46px } .ge-core{ font-size:13px }
           .gr-divider{ margin:12px 0 }
           .gr-desc{ font-size:12px; line-height:1.6; margin:0 0 12px }
