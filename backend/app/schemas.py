@@ -55,6 +55,30 @@ class UserOut(BaseModel):
     intro_seen: bool
     voice_enabled: bool
     created_at: str | None = None
+    is_staff: bool = False
+
+
+class MpulseCodeIn(BaseModel):
+    code: str = Field(min_length=1, max_length=64)
+
+
+class VerifyTargetIn(BaseModel):
+    """Staff подтверждает задачу сотрудника (Step 1 docs / Step 2 access)."""
+    user_id: int
+    task_id: str = Field(min_length=1, max_length=40)
+
+
+class WifiMacIn(BaseModel):
+    mac: str = Field(min_length=17, max_length=17)
+
+
+class WifiVerifyIn(BaseModel):
+    password: str = Field(min_length=1, max_length=128)
+
+
+class ConfluenceConfirmIn(BaseModel):
+    """opened_at — ISO timestamp когда сотрудник открыл Confluence (фронт присылает)."""
+    opened_at: str | None = None
 
 
 class MeOut(BaseModel):

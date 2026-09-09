@@ -31,6 +31,9 @@ class User(Base):
     avatar: Mapped[str | None] = mapped_column(Text, nullable=True)
     intro_seen: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     voice_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # Упрощённая ролевая модель: employee (False) + staff/HR (True).
+    # User.role остаётся job-профилем (frontend/backend/design), не пермишеном.
+    is_staff: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     progress: Mapped["Progress"] = relationship(

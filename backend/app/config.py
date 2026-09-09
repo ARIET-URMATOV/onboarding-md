@@ -77,6 +77,14 @@ class Settings(BaseSettings):
     demo_password: str = "demo1234"
     demo_name: str = "Demo User"
 
+    # Stage 1: MPulse / Wi-Fi (TZ v1.0)
+    # Статический код MPulse на батч (ротируется HR через env, позже — API MPulse)
+    mpulse_verification_code: str = Field(default="ONBOARD-2026", alias="MPULSE_VERIFICATION_CODE")
+    # Wi-Fi пароль по умолчанию (sysadmin может задать через admin endpoint; хранится в env для MVP)
+    wifi_password: str = Field(default="mdigital-wifi-2026", alias="WIFI_PASSWORD")
+    # Confluence таймер: 120 сек (подтверждено)
+    confluence_min_seconds: int = 120
+
     @property
     def database_url(self) -> str:
         """DATABASE_URL из env (Render) имеет приоритет, иначе собираем из POSTGRES_*."""

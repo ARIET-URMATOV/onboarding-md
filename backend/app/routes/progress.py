@@ -1,12 +1,38 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.database import get_db
 from app.limiter import limiter
 from app.models import Progress, User
-from app.routes.auth import get_current_user, require_role
-from app.schemas import OkOut, ProgressOut, StageActionIn, TaskIn, VoiceIn
+from app.routes.auth import get_current_user, require_role, require_staff
+from app.schemas import (
+    ConfluenceConfirmIn,
+    MpulseCodeIn,
+    OkOut,
+    ProgressOut,
+    StageActionIn,
+    TaskIn,
+    VerifyTargetIn,
+    VoiceIn,
+    WifiMacIn,
+    WifiVerifyIn,
+)
 from app.stages_data import STAGES, compute_level, compute_xp, is_all_complete, normalize_tasks
+
+# Step 1: документы (HR-верификация, 5 баллов)
+DOC_TASKS = {"1-dogovor", "1-nda", "1-pdp", "1-ip", "1-sn"}
+# Step 2: доступы (0 баллов, staff-верификация; wifi — пароль)
+ACCESS_TASKS = {"1-mbusiness", "1-accountant", "1-wifi", "1-proxy", "1-telegram"}
+# Step 3: MPulse (5 баллов, код)
+MPULSE_TASKS = ["1-mpulse", "1-mpulse-schedule", "1-mpulse-checkin", "1-mpulse-code", "1-mpulse-news"]
+# Step 4: Confluence (10 баллов, таймер 120с)
+CONFLUENCE_TASKS = [
+    "1-confluence-vacation", "1-confluence-grading", "1-confluence-info",
+    "1-confluence-rules", "1-confluence-security", "1-confluence-benefits",
+    "1-confluence-contact", "1-confluence-faq",
+]
+CONFLUENCE_READ = "1-confluence-read"
 
 router = APIRouter()
 
@@ -126,81 +152,155 @@ async def set_voice(
     return OkOut()
 
 
-@router.post("/verify-docs", response_model=OkOut)
+@router.post("/verify-docs", response_model=ProgressOut)
 @limiter.limit("10/minute")
 async def verify_docs(
     request: Request,
+    payload: VerifyTargetIn,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_role),
+    staff: User = Depends(require_staff),
 ):
-    """HR/administrator verifies document completion for Step 1.
-    Marks all Step 1 document tasks as verified.
+    """Staff подтверждает документы сотрудника (Step 1, 5 баллов).
+
+    Сотрудник сначала отмечает свои 5 задач через /progress/task
+    (статус «ожидает HR»), staff подтверждает каждую по task_id.
     """
+    if payload.task_id not in DOC_TASKS:
+        raise HTTPException(status_code=400, detail="Не задача Step 1")
+    target = await db.get(User, payload.user_id)
+    if target is None:
+        raise HTTPException(status_code=404, detail="Сотрудник не найден")
+    prog = await load_progress(db, target)
+    tasks = normalize_tasks(prog.done_tasks)
+    if payload.task_id not in tasks["1"]:
+        tasks["1"] = [*tasks["1"], payload.task_id]
+    return await save_progress(db, prog, tasks)
+
+
+@router.post("/verify-access", response_model=ProgressOut)
+@limiter.limit("10/minute")
+async def verify_access(
+    request: Request,
+    payload: VerifyTargetIn,
+    db: AsyncSession = Depends(get_db),
+    staff: User = Depends(require_staff),
+):
+    """Staff подтверждает доступ сотрудника (Step 2, 0 баллов).
+
+    Единая точка для MBusiness / бухгалтера / Wi-Fi / proxy / Telegram.
+    Ответственная роль отображается на фронте подписью, бекенд не делит staff.
+    """
+    if payload.task_id not in ACCESS_TASKS:
+        raise HTTPException(status_code=400, detail="Не задача Step 2")
+    target = await db.get(User, payload.user_id)
+    if target is None:
+        raise HTTPException(status_code=404, detail="Сотрудник не найден")
+    prog = await load_progress(db, target)
+    tasks = normalize_tasks(prog.done_tasks)
+    if payload.task_id not in tasks["1"]:
+        tasks["1"] = [*tasks["1"], payload.task_id]
+    return await save_progress(db, prog, tasks)
+
+
+@router.post("/wifi-mac", response_model=OkOut)
+@limiter.limit("10/minute")
+async def wifi_mac(
+    request: Request,
+    payload: WifiMacIn,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Сотрудник отправляет MAC-адрес (sysadmin добавляет в allowlist)."""
+    import re
+
+    mac = payload.mac.strip().upper()
+    if not re.fullmatch(r"([0-9A-F]{2}[:-]){5}[0-9A-F]{2}", mac):
+        raise HTTPException(status_code=400, detail="Неверный формат MAC")
     prog = await load_progress(db, user)
     tasks = normalize_tasks(prog.done_tasks)
-    sid = "1"
-    # Mark all Step 1 document tasks as done (they are already toggled by user,
-    # this is HR final verification)
-    doc_tasks = [tid for tid in tasks[sid] if tid.startswith("1-") and tid in {
-        "1-dogovor", "1-nda", "1-pdp", "1-ip", "1-sn"
-    }]
-    # Ensure all 5 doc tasks are in the list
-    required = {"1-dogovor", "1-nda", "1-pdp", "1-ip", "1-sn"}
-    current = set(doc_tasks)
-    if required <= current:
-        # All document tasks are present, mark HR verified
-        prog.done_tasks = normalize_tasks({**prog.done_tasks, "1": list(required | current)})
-        db.add(prog)
-        await db.commit()
-        await db.refresh(prog)
+    # MAC фиксируем фактом отметки wifi-задачи как «отправлено», staff подтвердит после allowlist
+    if "1-wifi" not in tasks["1"]:
+        tasks["1"] = [*tasks["1"], "1-wifi"]
+        # NB: отметка ≠ верификация; staff должен подтвердить через /verify-access.
+        # Чтобы не начислять раньше времени — wifi даёт 0 XP, так что безопасно.
+    await save_progress(db, prog, tasks)
     return OkOut()
 
 
-@router.post("/verify-mpulse-code", response_model=OkOut)
+@router.post("/wifi-verify", response_model=ProgressOut)
+@limiter.limit("10/minute")
+async def wifi_verify(
+    request: Request,
+    payload: WifiVerifyIn,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Сотрудник вводит Wi-Fi пароль (сверка с WIFI_PASSWORD)."""
+    import hmac
+
+    if not hmac.compare_digest(payload.password, settings.wifi_password):
+        raise HTTPException(status_code=400, detail="Неверный пароль Wi-Fi")
+    prog = await load_progress(db, user)
+    tasks = normalize_tasks(prog.done_tasks)
+    if "1-wifi" not in tasks["1"]:
+        tasks["1"] = [*tasks["1"], "1-wifi"]
+    return await save_progress(db, prog, tasks)
+
+
+@router.post("/verify-mpulse-code", response_model=ProgressOut)
 @limiter.limit("10/minute")
 async def verify_mpulse_code(
     request: Request,
+    payload: MpulseCodeIn,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Verify MPulse verification code entered by employee.
-    The code is the same for all employees in this onboarding batch.
-    """
-    # In a real implementation, this would validate the code against a stored value
-    # For now, we just mark the MPulse tasks as complete
+    """Сотрудник вводит код из MPulse (одинаковый для батча, MPULSE_VERIFICATION_CODE)."""
+    import hmac
+
+    if not hmac.compare_digest(payload.code.strip(), settings.mpulse_verification_code):
+        raise HTTPException(status_code=400, detail="Неверный код MPulse")
     prog = await load_progress(db, user)
     tasks = normalize_tasks(prog.done_tasks)
-    sid = "1"
-    mpulse_tasks = [tid for tid in tasks[sid] if tid.startswith("1-mpulse")]
-    # Mark all MPulse tasks as done
-    new_mpulse = [t for t in ["1-mpulse", "1-mpulse-schedule", "1-mpulse-checkin", "1-mpulse-code", "1-mpulse-news"] if t not in mpulse_tasks]
-    all_mpulse = mpulse_tasks + new_mpulse
-    tasks[sid] = all_mpulse
-    prog.done_tasks = normalize_tasks({**prog.done_tasks, "1": all_mpulse})
-    db.add(prog)
-    await db.commit()
-    await db.refresh(prog)
-    return OkOut()
+    cur = set(tasks["1"])
+    for tid in MPULSE_TASKS:
+        if tid not in cur:
+            tasks["1"].append(tid)
+    return await save_progress(db, prog, tasks)
 
 
-@router.post("/confirm-confluence", response_model=OkOut)
+@router.post("/confirm-confluence", response_model=ProgressOut)
 @limiter.limit("10/minute")
 async def confirm_confluence(
     request: Request,
+    payload: ConfluenceConfirmIn,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Employee confirms familiarity with Confluence knowledge base.
-    Marks the 'I have read' task as complete.
-    """
+    """«Я ознакомился» — идемпотентно, минимум 120с после открытия (confluence_min_seconds)."""
+    from datetime import datetime, timezone
+
+    if CONFLUENCE_READ in normalize_tasks((await load_progress(db, user)).done_tasks)["1"]:
+        prog = await load_progress(db, user)
+        return await save_progress(db, prog, prog.done_tasks)
+    if payload.opened_at:
+        try:
+            opened = datetime.fromisoformat(payload.opened_at.replace("Z", "+00:00"))
+            elapsed = (datetime.now(timezone.utc) - opened).total_seconds()
+            if elapsed < settings.confluence_min_seconds:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Читайте ещё {int(settings.confluence_min_seconds - elapsed)} сек",
+                )
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(status_code=400, detail="Неверный opened_at")
+    else:
+        raise HTTPException(status_code=400, detail="Нет отметки времени открытия")
     prog = await load_progress(db, user)
     tasks = normalize_tasks(prog.done_tasks)
-    sid = "1"
-    # Ensure 1-confluence-read is in the tasks list
-    if "1-confluence-read" not in tasks[sid]:
-        tasks[sid] = [*tasks[sid], "1-confluence-read"]
-    prog.done_tasks = normalize_tasks({**prog.done_tasks, "1": tasks[sid]})
-    db.add(prog)
-    await db.commit()
-    await db.refresh(prog)
-    return OkOut()
+    for tid in [*CONFLUENCE_TASKS, CONFLUENCE_READ]:
+        if tid not in tasks["1"]:
+            tasks["1"].append(tid)
+    return await save_progress(db, prog, tasks)

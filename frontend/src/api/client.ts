@@ -51,6 +51,7 @@ export interface MeResponse {
     intro_seen: boolean;
     voice_enabled: boolean;
     created_at?: string | null;
+    is_staff?: boolean;
   };
   progress: {
     done_tasks: Record<string, string[]>;
@@ -68,6 +69,7 @@ export interface UserResponse {
   intro_seen: boolean;
   voice_enabled: boolean;
   created_at?: string | null;
+  is_staff?: boolean;
 }
 
 export interface ProgressResponse {

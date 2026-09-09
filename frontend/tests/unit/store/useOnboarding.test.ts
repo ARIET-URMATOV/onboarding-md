@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useOnboarding, getStageStatus, getAllStatuses, getProgress } from '../../../src/store/useOnboarding';
+import { STAGES } from '../../../src/data/stages';
 import type { StageId } from '../../../src/data/stages';
+
+const ALL_STAGE1 = STAGES.find((s) => s.id === 1)!.subTasks.map((t) => t.id);
 
 function empty(): Record<StageId, string[]> {
   return { 1: [], 2: [], 3: [], 4: [], 5: [] };
@@ -13,13 +16,13 @@ describe('getStageStatus', () => {
   });
 
   it('marks done when all subtasks completed', () => {
-    const done = { ...empty(), 1: ['1-docs', '1-lead', '1-mplus', '1-jira', '1-confluence'] };
+    const done = { ...empty(), 1: ALL_STAGE1 };
     expect(getStageStatus(1, done)).toBe('done');
     expect(getStageStatus(2, done)).toBe('current');
   });
 
   it('sequential unlocking', () => {
-    const after1 = { ...empty(), 1: ['1-docs', '1-lead', '1-mplus', '1-jira', '1-confluence'] };
+    const after1 = { ...empty(), 1: ALL_STAGE1 };
     const after2 = { ...after1, 2: ['2-studio', '2-profiles', '2-lead', '2-chat'] };
     expect(getAllStatuses(after2)).toEqual({ 1: 'done', 2: 'done', 3: 'current', 4: 'locked', 5: 'locked' });
   });
@@ -30,7 +33,7 @@ describe('getProgress', () => {
     expect(getProgress(empty())).toEqual({ done: 0, total: 5, pct: 0 });
     const twoDone = {
       ...empty(),
-      1: ['1-docs', '1-lead', '1-mplus', '1-jira', '1-confluence'],
+      1: ALL_STAGE1,
       2: ['2-studio', '2-profiles', '2-lead', '2-chat'],
     };
     expect(getProgress(twoDone)).toEqual({ done: 2, total: 5, pct: 40 });
@@ -55,11 +58,11 @@ describe('useOnboarding hydrate', () => {
   it('hydrates from MeResponse with server level/completedAt', () => {
     const me = {
       user: { email: 'a@b.c', name: 'A', role: 'frontend' as const, avatar: null, intro_seen: true, voice_enabled: false },
-      progress: { done_tasks: { '1': ['1-docs'] }, xp: 40, level: 1, completed_at: null },
+      progress: { done_tasks: { '1': ['1-dogovor'] }, xp: 1, level: 1, completed_at: null },
     };
     useOnboarding.getState().hydrate(me as any);
     const s = useOnboarding.getState();
-    expect(s.xp).toBe(40);
+    expect(s.xp).toBe(1);
     expect(s.level).toBe(1);
     expect(s.role).toBe('frontend');
     expect(s.hydrated).toBe(true);

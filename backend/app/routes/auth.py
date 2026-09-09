@@ -104,6 +104,13 @@ async def ensure_progress(db: AsyncSession, user: User) -> Progress:
     return prog
 
 
+def require_staff(user: User = Depends(get_current_user)) -> User:
+    """Staff/HR: подтверждает задачи сотрудников (Step 1 docs, Step 2 access)."""
+    if not user.is_staff:
+        raise HTTPException(status_code=403, detail="Только для HR/администратора")
+    return user
+
+
 def user_out(user: User) -> UserOut:
     return UserOut(
         email=user.email,
@@ -113,6 +120,7 @@ def user_out(user: User) -> UserOut:
         intro_seen=user.intro_seen,
         voice_enabled=user.voice_enabled,
         created_at=user.created_at.isoformat() if user.created_at else None,
+        is_staff=user.is_staff,
     )
 
 

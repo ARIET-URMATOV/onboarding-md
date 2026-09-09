@@ -1,20 +1,23 @@
 # XP-источник: БД stages/stage_tasks (хардкод — fallback для тестов/до сида).
 # Фронт стучится GET /api/stages, сервер считает XP только из БД.
 
+# Stage 1 «Документы и доступы» — TZ v1.0: 5 + 0 + 5 + 10 = 20 баллов (task XP).
+# Legacy 1-docs/1-lead/1-mplus/1-jira/1-confluence удалены (аддитивность ломала
+# is_all_complete/compute_xp: старые юзеры 5/5 -> 5/29, бонус xp_reward недостижим).
+# normalize_tasks() отфильтрует legacy ID из done_tasks существующих юзеров.
 _FALLBACK_STAGES: dict[int, dict] = {
     1: {"xp_reward": 150, "tasks": {
-        # Old tasks (preserved for backward compatibility)
-        "1-docs": 40, "1-lead": 40, "1-mplus": 50, "1-jira": 30, "1-confluence": 30,
-        # Step 1: Подписание документов (5 баллов)
+        # Step 1: Подписание документов (5 баллов, HR-верификация)
         "1-dogovor": 1, "1-nda": 1, "1-pdp": 1, "1-ip": 1, "1-sn": 1,
-        # Step 2: Получение доступов (5 баллов)
-        "1-mbusiness": 1, "1-accountant": 1, "1-wifi": 1, "1-proxy": 1, "1-telegram": 1,
-        # Step 3: Корпоративное приложение MPulse (5 баллов)
+        # Step 2: Получение доступов (0 баллов, ручная верификация staff)
+        "1-mbusiness": 0, "1-accountant": 0, "1-wifi": 0, "1-proxy": 0, "1-telegram": 0,
+        # Step 3: Корпоративное приложение MPulse (5 баллов, код)
         "1-mpulse": 1, "1-mpulse-schedule": 1, "1-mpulse-checkin": 1, "1-mpulse-code": 1, "1-mpulse-news": 1,
-        # Step 4: База знаний Confluence (10 баллов)
+        # Step 4: База знаний Confluence (10 баллов: 8x1 + read 2, таймер 120с)
         "1-confluence-vacation": 1, "1-confluence-grading": 1, "1-confluence-info": 1,
-        "1-confluence-read": 1, "1-confluence-rules": 1, "1-confluence-security": 1,
+        "1-confluence-rules": 1, "1-confluence-security": 1,
         "1-confluence-benefits": 1, "1-confluence-contact": 1, "1-confluence-faq": 1,
+        "1-confluence-read": 2,
     }},
     2: {"xp_reward": 150, "tasks": {"2-studio": 40, "2-profiles": 40, "2-lead": 40, "2-chat": 30}},
     3: {"xp_reward": 100, "tasks": {"3-watch": 100}},

@@ -10,6 +10,7 @@ interface User {
   name: string;
   avatar: string | null;
   createdAt?: string | null;
+  isStaff?: boolean;
 }
 
 interface OnboardingState {
@@ -68,7 +69,7 @@ export const useOnboarding = create<OnboardingState>()((set, get) => ({
 
   hydrate: (me) =>
     set({
-      user: { email: me.user.email, name: me.user.name, avatar: me.user.avatar, createdAt: me.user.created_at },
+      user: { email: me.user.email, name: me.user.name, avatar: me.user.avatar, createdAt: me.user.created_at, isStaff: me.user.is_staff ?? false },
       role: me.user.role,
       introSeen: me.user.intro_seen,
       voiceEnabled: me.user.voice_enabled,

@@ -24,32 +24,37 @@ def test_compute_xp_empty():
 
 
 def test_compute_xp_single_task():
-    tasks = normalize_tasks({"1": ["1-docs"]})
-    assert compute_xp(tasks) == 40
+    tasks = normalize_tasks({"1": ["1-dogovor"]})
+    assert compute_xp(tasks) == 1
+
+
+def test_compute_xp_step2_zero_xp():
+    # Step 2 доступы — 0 баллов
+    tasks = normalize_tasks({"1": ["1-mbusiness", "1-wifi"]})
+    assert compute_xp(tasks) == 0
 
 
 def test_compute_xp_full_stage_includes_bonus():
-    tasks = normalize_tasks({"1": ["1-docs", "1-lead", "1-mplus", "1-jira", "1-confluence"]})
-    # 190 задач + 150 бонус
-    assert compute_xp(tasks) == 340
+    from app.stages_data import get_stages_sync
+
+    all_ids = list(get_stages_sync()[1]["tasks"].keys())
+    tasks = normalize_tasks({"1": all_ids})
+    # 20 задач + 150 бонус
+    assert compute_xp(tasks) == 170
 
 
 def test_compute_xp_max_all_stages():
-    full = {
-        "1": ["1-docs", "1-lead", "1-mplus", "1-jira", "1-confluence"],
-        "2": ["2-studio", "2-profiles", "2-lead", "2-chat"],
-        "3": ["3-watch"],
-        "4": ["4-workspace", "4-repo", "4-figma", "4-mail", "4-messenger", "4-style"],
-        "5": ["5-take", "5-confirm"],
-    }
-    # 790 задач + 750 бонусов = 1540 (максимум, Lv.16)
-    assert compute_xp(normalize_tasks(full)) == 1540
+    from app.stages_data import get_stages_sync
+
+    full = {str(sid): list(stage["tasks"].keys()) for sid, stage in get_stages_sync().items()}
+    # 620 задач + 750 бонусов = 1370 (максимум, Lv.14)
+    assert compute_xp(normalize_tasks(full)) == 1370
 
 
 def test_normalize_tasks_ignores_unknown():
-    tasks = normalize_tasks({"1": ["1-docs", "hax"], "9": ["x"], "2": "not-a-list"})
+    tasks = normalize_tasks({"1": ["1-dogovor", "hax"], "9": ["x"], "2": "not-a-list"})
     # unknown task "hax" is now dropped (tightened normalize_tasks), unknown stage "9" ignored
-    assert tasks["1"] == ["1-docs"]
+    assert tasks["1"] == ["1-dogovor"]
     assert "9" not in tasks
     assert tasks["2"] == []
 
@@ -66,7 +71,7 @@ def test_compute_level():
     assert compute_level(0) == 1
     assert compute_level(40) == 1
     assert compute_level(100) == 2
-    assert compute_level(1540) == 16
+    assert compute_level(1370) == 14
 
 
 def test_register_short_password_rejected(client):
@@ -121,18 +126,26 @@ def test_progress_toggle_and_stage(client):
     client.post("/api/register", json={"email": email, "password": "secret123"})
     client.post("/api/role", json={"role": "frontend"})
 
-    t = client.post("/api/progress/task", json={"stage_id": 1, "task_id": "1-docs"})
+    t = client.post("/api/progress/task", json={"stage_id": 1, "task_id": "1-dogovor"})
     assert t.status_code == 200
-    assert t.json()["xp"] == 40
+    assert t.json()["xp"] == 1
+
+    # Step 2 — 0 баллов
+    z = client.post("/api/progress/task", json={"stage_id": 1, "task_id": "1-wifi"})
+    assert z.status_code == 200
+    assert z.json()["xp"] == 1  # только dogovor даёт XP
 
     # неизвестная задача
     bad = client.post("/api/progress/task", json={"stage_id": 1, "task_id": "hax"})
     assert bad.status_code == 400
 
+    # legacy задача отклоняется
+    legacy = client.post("/api/progress/task", json={"stage_id": 1, "task_id": "1-docs"})
+    assert legacy.status_code == 400
+
     st = client.post("/api/progress/stage", json={"stage_id": 1, "action": "complete"})
     assert st.status_code == 200
-    assert st.json()["xp"] == 340  # 190 + 150 бонус
-    assert set(st.json()["done_tasks"]["1"]) == {"1-docs", "1-lead", "1-mplus", "1-jira", "1-confluence"}
+    assert st.json()["xp"] == 170  # 20 + 150 бонус
 
     un = client.post("/api/progress/stage", json={"stage_id": 1, "action": "uncomplete"})
     assert un.json()["xp"] == 0

@@ -20,51 +20,46 @@ export interface StageDef {
 }
 
 // Источник — GET /api/stages (БД stages/stage_tasks), этот массив — fallback для тестов/до загрузки
+// Stage 1 «Документы и доступы» TZ v1.0: 5 + 0 + 5 + 10 = 20 XP задач (+150 бонус этапа).
 export const STAGES: StageDef[] = [
   {
     id: 1,
     title: 'Документы и доступы',
     shortLabel: 'Документы',
     description: 'Подписание документов, получение доступов, настройка MPulse и изучение базы знаний Confluence. Устанавливайте график работы и проходите ознакомление.',
-    xpReward: 175,  // 150 (base) + 25 (new steps) — сумма XP всех задач этапа 1
+    xpReward: 150,
     rewardName: 'Ачивка «Старт»',
     rewardDesc: 'Откроется после прохождения этапа',
     iconKey: 'docs',
     subTasks: [
-      // Old tasks (preserved for backward compatibility)
-      { id: '1-docs', title: 'Заполнить документы', xp: 40 },
-      { id: '1-lead', title: 'Ознакомиться с руководителем', xp: 40 },
-      { id: '1-mplus', title: 'Скачать и установить mPLuse + MPulse', xp: 50 },
-      { id: '1-jira', title: 'Доступ к Jira (crm.mdigital.kg)', xp: 30 },
-      { id: '1-confluence', title: 'Доступ к Confluence (confluence.mdigital.kg)', xp: 30 },
-      // Step 1: Подписание документов (5 баллов)
+      // Step 1: Подписание документов (5 баллов, HR-верификация)
       { id: '1-dogovor', title: 'Договор об оказании услуг', xp: 1 },
       { id: '1-nda', title: 'NDA Соглашение о неразглашении', xp: 1 },
       { id: '1-pdp', title: 'Соглашение об обработке персональных данных', xp: 1 },
       { id: '1-ip', title: 'Свидетельство ИП', xp: 1 },
       { id: '1-sn', title: 'Справка о несудимости', xp: 1 },
-      // Step 2: Получение доступов (5 баллов)
-      { id: '1-mbusiness', title: 'MBusiness - открытие', xp: 1 },
-      { id: '1-accountant', title: 'Доступ бухгалтеру', xp: 1 },
-      { id: '1-wifi', title: 'Доступ к Wi-Fi (MAC адрес)', xp: 1 },
-      { id: '1-proxy', title: 'Прокси-карта и Face ID', xp: 1 },
-      { id: '1-telegram', title: 'Доступ в Telegram-группы', xp: 1 },
-      // Step 3: Корпоративное приложение MPulse (5 баллов)
+      // Step 2: Получение доступов (0 баллов, staff-верификация)
+      { id: '1-mbusiness', title: 'MBusiness - открытие', xp: 0 },
+      { id: '1-accountant', title: 'Доступ бухгалтеру', xp: 0 },
+      { id: '1-wifi', title: 'Доступ к Wi-Fi (MAC адрес)', xp: 0 },
+      { id: '1-proxy', title: 'Прокси-карта и Face ID', xp: 0 },
+      { id: '1-telegram', title: 'Доступ в Telegram-группы', xp: 0 },
+      // Step 3: Корпоративное приложение MPulse (5 баллов, код)
       { id: '1-mpulse', title: 'Установка и авторизация MPulse', xp: 1 },
       { id: '1-mpulse-schedule', title: 'Выбор рабочего графика', xp: 1 },
       { id: '1-mpulse-checkin', title: 'Daily check-in/check-out', xp: 1 },
       { id: '1-mpulse-code', title: 'Ввод проверочного кода', xp: 1 },
       { id: '1-mpulse-news', title: 'Получение новостей и уведомлений', xp: 1 },
-      // Step 4: База знаний Confluence (10 баллов)
+      // Step 4: База знаний Confluence (10 баллов, таймер 120с)
       { id: '1-confluence-vacation', title: 'Правила оформления отпусков', xp: 1 },
       { id: '1-confluence-grading', title: 'Система грейдинга и повышения', xp: 1 },
       { id: '1-confluence-info', title: 'Общая информация о компании', xp: 1 },
-      { id: '1-confluence-read', title: 'Я ознакомился(ась)', xp: 1 },
       { id: '1-confluence-rules', title: 'Правила внутреннего трудового распорядка', xp: 1 },
       { id: '1-confluence-security', title: 'Безопасность информации', xp: 1 },
-      { id: '1-confluence-benefits', title: 'Социальные пакеты и beneficios', xp: 1 },
+      { id: '1-confluence-benefits', title: 'Соцпакет', xp: 1 },
       { id: '1-confluence-contact', title: 'Контакты отделов', xp: 1 },
       { id: '1-confluence-faq', title: 'Частые вопросы', xp: 1 },
+      { id: '1-confluence-read', title: 'Я ознакомился(ась)', xp: 2 },
     ],
   },
   {

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { StageId } from '../../data/stages';
 import { useOnboarding } from '../../store/useOnboarding';
 import { DocumentModal, type DocKind } from './DocumentModal';
@@ -6,10 +6,9 @@ import { api } from '../../api/client';
 
 interface Props { stageId: StageId }
 
-/* ── расширенные ключи документов → taskId ── */
-type DocKey = DocKind;
+/* ── ключи документов → taskId (legacy 1-docs/lead/mplus/jira/confluence удалены) ── */
+type DocKey = Exclude<DocKind, 'docs' | 'lead' | 'mplus' | 'jira' | 'confluence'>;
 const docToTask: Record<DocKey, string> = {
-  docs: '1-docs', lead: '1-lead', mplus: '1-mplus', jira: '1-jira', confluence: '1-confluence',
   dogovor: '1-dogovor', nda: '1-nda', pdp: '1-pdp', ip: '1-ip', sn: '1-sn',
   mbusiness: '1-mbusiness', accountant: '1-accountant', wifi: '1-wifi', proxy: '1-proxy', telegram: '1-telegram',
 };
@@ -54,18 +53,24 @@ export function Stage1Documents({ stageId }: Props) {
 
   const [open, setOpen] = useState<DocKind | null>(null);
 
-  // Wi-Fi MAC
+  // Wi-Fi MAC + пароль
   const [mac, setMac] = useState('');
   const [macSent, setMacSent] = useState(false);
   const [macError, setMacError] = useState<string | null>(null);
+  const [wifiPass, setWifiPass] = useState('');
+  const [wifiMsg, setWifiMsg] = useState<string | null>(null);
 
   // MPulse code
   const [mpulseCode, setMpulseCode] = useState('');
   const [mpulseVerifying, setMpulseVerifying] = useState(false);
   const [mpulseMsg, setMpulseMsg] = useState<string | null>(null);
 
-  // Confluence
+  // Confluence: таймер 120с после открытия ссылки
+  const CONF_MIN_SECONDS = 120;
+  const [confOpenedAt, setConfOpenedAt] = useState<string | null>(null);
+  const [confRemain, setConfRemain] = useState<number>(0);
   const [confConfirming, setConfConfirming] = useState(false);
+  const [confMsg, setConfMsg] = useState<string | null>(null);
 
   const isDone = (k: DocKey) => done.includes(docToTask[k]);
   const isTaskDone = (taskId: string) => done.includes(taskId);
@@ -92,18 +97,43 @@ export function Stage1Documents({ stageId }: Props) {
   // at least the explicit confluence tasks count as step 4 (user must click "Я ознакомился")
   const step4ExplicitDone = isTaskDone('1-confluence-read');
 
+  // Confluence countdown
+  useEffect(() => {
+    if (!confOpenedAt) { setConfRemain(0); return; }
+    const tick = () => {
+      const elapsed = (Date.now() - new Date(confOpenedAt).getTime()) / 1000;
+      setConfRemain(Math.max(0, Math.ceil(CONF_MIN_SECONDS - elapsed)));
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [confOpenedAt]);
+
   const handleWifiSubmit = async () => {
     const v = mac.trim().toUpperCase();
-    // MAC: 6 групп hex по 2 символа через : или -
     const re = /^([0-9A-F]{2}[:-]){5}[0-9A-F]{2}$/;
     if (!re.test(v)) { setMacError('Введите MAC в формате AA:BB:CC:DD:EE:FF'); return; }
     setMacError(null);
-    setMacSent(true);
-    if (!isTaskDone('1-wifi')) {
-      try { await toggle(stageId, '1-wifi'); } catch { /* ignore */ }
+    try {
+      await api.post('/api/wifi-mac', { mac: v });
+      setMacSent(true);
+      await refreshMe();
+    } catch (e) {
+      setMacError(e instanceof Error ? e.message : 'Ошибка отправки MAC');
     }
-    // имитация отправки сетевикам
-    setTimeout(() => setMacSent(true), 300);
+  };
+
+  const handleWifiPassword = async () => {
+    const p = wifiPass.trim();
+    if (!p) { setWifiMsg('Введите пароль Wi-Fi от сетевиков'); return; }
+    setWifiMsg(null);
+    try {
+      await api.post('/api/wifi-verify', { password: p });
+      setWifiMsg('Пароль принят ✓ Wi-Fi подтверждён');
+      await refreshMe();
+    } catch (e) {
+      setWifiMsg(e instanceof Error ? e.message : 'Неверный пароль');
+    }
   };
 
   const handleMpulseVerify = async () => {
@@ -112,31 +142,29 @@ export function Stage1Documents({ stageId }: Props) {
     setMpulseVerifying(true);
     setMpulseMsg(null);
     try {
-      // предпочтительно — специализированный эндпоинт верификации кода
-      try { await api.post('/api/verify-mpulse-code', { code }); } catch { /* fallback to toggle */ }
-      // помечаем все MPulse-задачи шага как выполненные (если ещё не)
-      const mpulseTasks = ['1-mpulse','1-mpulse-schedule','1-mpulse-checkin','1-mpulse-code','1-mpulse-news'];
-      for (const tid of mpulseTasks) if (!done.includes(tid)) { try { await toggle(stageId, tid); } catch { /* */ } }
-      // дополнительно гарантируем, что 1-mpulse-code отмечен
-      if (!done.includes('1-mpulse-code')) { try { await toggle(stageId, '1-mpulse-code'); } catch { /* */ } }
+      await api.post('/api/verify-mpulse-code', { code });
       setMpulseMsg('Код принят ✓ Доступ к MPulse подтверждён');
       await refreshMe();
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Неверный код';
-      setMpulseMsg(msg);
+      setMpulseMsg(e instanceof Error ? e.message : 'Неверный код');
     } finally {
       setMpulseVerifying(false);
     }
   };
 
+  const handleConfluenceOpen = () => {
+    if (!confOpenedAt) setConfOpenedAt(new Date().toISOString());
+  };
+
   const handleConfluenceConfirm = async () => {
+    if (!confOpenedAt) { setConfMsg('Сначала откройте Confluence по ссылке выше'); return; }
     setConfConfirming(true);
+    setConfMsg(null);
     try {
-      try { await api.post('/api/confirm-confluence'); } catch { /* fallback */ }
-      const confTasks = ['1-confluence-vacation','1-confluence-grading','1-confluence-info','1-confluence-read'];
-      for (const tid of confTasks) if (!done.includes(tid)) { try { await toggle(stageId, tid); } catch { /* */ } }
-      if (!done.includes('1-confluence-read')) { try { await toggle(stageId, '1-confluence-read'); } catch { /* */ } }
+      await api.post('/api/confirm-confluence', { opened_at: confOpenedAt });
       await refreshMe();
+    } catch (e) {
+      setConfMsg(e instanceof Error ? e.message : 'Подтвердить пока нельзя');
     } finally { setConfConfirming(false); }
   };
 
@@ -166,17 +194,12 @@ export function Stage1Documents({ stageId }: Props) {
           <DocCard k="ip" doneFlag={isDone('ip')} icon="🏢" title="Свидетельство ИП" sub="Копия / реквизиты" onOpen={setOpen} />
           <DocCard k="sn" doneFlag={isDone('sn')} icon="✅" title="Справка о несудимости" sub="Актуальный документ" onOpen={setOpen} />
         </div>
-        {/* fallback legacy docs card */}
-        <div className="legacy-row">
-          <DocCard k="docs" doneFlag={isDone('docs')} icon="📑" title="Трудовой договор и NDA (общий)" sub="Открой и пролистай до конца · legacy" onOpen={setOpen} />
-          <DocCard k="lead" doneFlag={isDone('lead')} icon={<span className="font-orbitron" style={{ fontSize: 11, fontWeight: 800 }}>ЕП</span>} title="Елена Петрова — руководитель" sub="Профиль · пролистай до конца" onOpen={setOpen} />
-        </div>
         {step1Done && <div className="step-done-badge">Шаг 1 выполнен ✓ +5 баллов</div>}
       </section>
 
       {/* ── Шаг 2. Получение доступов ── */}
       <section className="s1-step">
-        <StepHeader n={2} title="Получение доступов" reward="5 баллов" desc="Техническая проверка или подтверждение ответственным лицом" />
+        <StepHeader n={2} title="Получение доступов" reward="0 баллов" desc="Подтверждение staff (HR/лид/сисадмин) — сотрудник отмечает, staff верифицирует" />
         <div className="step-grid">
           <DocCard k="mbusiness" doneFlag={isDone('mbusiness')} icon="💳" title="MBusiness — открытие" sub="Выплаты 1–10 числа · поможет HR" onOpen={setOpen} />
           <DocCard k="accountant" doneFlag={isDone('accountant')} icon="🧾" title="Доступ бухгалтеру" sub="Инструкция · как предоставить доступ" onOpen={setOpen} />
@@ -201,23 +224,25 @@ export function Stage1Documents({ stageId }: Props) {
                 </button>
               </div>
               {macError && <div className="wifi-err">{macError}</div>}
-              {isTaskDone('1-wifi') && !macError && <div className="wifi-ok">MAC принят — ожидайте пароль от закрытой сети</div>}
+              {isTaskDone('1-wifi') && !macError && <div className="wifi-ok">MAC принят — введите пароль от закрытой сети ниже</div>}
+              <div className="wifi-inline" onClick={e => e.stopPropagation()}>
+                <input
+                  className="wifi-input"
+                  placeholder="Пароль Wi-Fi"
+                  type="password"
+                  value={wifiPass}
+                  onChange={e => setWifiPass(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleWifiPassword(); }}
+                  aria-label="Пароль Wi-Fi"
+                />
+                <button type="button" className="wifi-btn" onClick={handleWifiPassword}>Проверить</button>
+              </div>
+              {wifiMsg && <div className={wifiMsg.includes('✓') ? 'wifi-ok' : 'wifi-err'}>{wifiMsg}</div>}
               <button type="button" className="wifi-help-link" onClick={() => setOpen('wifi')}>Подробнее →</button>
             </div>
           </div>
         </div>
-        <div className="legacy-row">
-          <DocCard k="jira" doneFlag={isDone('jira')} icon={<span className="font-orbitron" style={{ fontSize: 10, fontWeight: 800 }}>JR</span>} title="Jira · таск-трекер" sub="Доска задач · пролистай до конца" onOpen={setOpen} />
-          <div className={`doc-card ${isTaskDone('1-figma') ? 'done' : ''}`} onClick={() => { if (!isTaskDone('1-figma')) toggle(stageId, '1-figma'); }} role="button" tabIndex={0}>
-            <div className={`dc-icon ${isTaskDone('1-figma') ? 'dc-done' : ''}`}>{isTaskDone('1-figma') ? '✓' : '🎨'}</div>
-            <div className="dc-body">
-              <div className="dc-title">Figma · рабочие пространства {isTaskDone('1-figma') && <span className="dc-badge">готово</span>}</div>
-              <div className="dc-sub">Доступ к дизайн-системе команды</div>
-            </div>
-            <span className="dc-chevron"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M6 3l5 5-5 5" /></svg></span>
-          </div>
-        </div>
-        {step2Done && <div className="step-done-badge">Шаг 2 выполнен ✓ +5 баллов</div>}
+        {step2Done && <div className="step-done-badge">Шаг 2 выполнен ✓ (0 баллов)</div>}
       </section>
 
       {/* ── Шаг 3. Корпоративное приложение MPulse ── */}
@@ -279,8 +304,8 @@ export function Stage1Documents({ stageId }: Props) {
 
       {/* ── Шаг 4. База знаний Confluence ── */}
       <section className="s1-step">
-        <StepHeader n={4} title="База знаний Confluence" reward="10 баллов" desc="Отпуска · грейдинг · информация о компании" />
-        <a href="https://confluence.mdigital.kg" target="_blank" rel="noopener noreferrer" className="confluence-link">
+        <StepHeader n={4} title="База знаний Confluence" reward="10 баллов" desc="Отпуска · грейдинг · информация о компании · кнопка активна через 2 мин после открытия" />
+        <a href="https://confluence.mdigital.kg" target="_blank" rel="noopener noreferrer" className="confluence-link" onClick={handleConfluenceOpen}>
           <span className="cf-icon">CF</span>
           <span className="cf-body">
             <span className="cf-title">Confluence — пространства команды</span>
@@ -300,7 +325,7 @@ export function Stage1Documents({ stageId }: Props) {
             { id: '1-confluence-info', label: 'Общая информация о компании' },
             { id: '1-confluence-rules', label: 'Правила внутреннего трудового распорядка' },
             { id: '1-confluence-security', label: 'Безопасность информации' },
-            { id: '1-confluence-benefits', label: 'Социальные пакеты и beneficios' },
+            { id: '1-confluence-benefits', label: 'Соцпакет' },
             { id: '1-confluence-contact', label: 'Контакты отделов' },
             { id: '1-confluence-faq', label: 'Частые вопросы' },
           ].map(t => (
@@ -311,21 +336,17 @@ export function Stage1Documents({ stageId }: Props) {
             </label>
           ))}
         </div>
-        <button type="button" className={`cf-confirm ${step4ExplicitDone ? 'done' : ''}`} onClick={handleConfluenceConfirm} disabled={confConfirming || step4ExplicitDone}>
-          {confConfirming ? 'Фиксируем…' : step4ExplicitDone ? 'Ознакомление зафиксировано ✓' : 'Я ознакомился(-ась)'}
+        <button type="button" className={`cf-confirm ${step4ExplicitDone ? 'done' : ''}`} onClick={handleConfluenceConfirm} disabled={confConfirming || step4ExplicitDone || (confRemain > 0)}>
+          {confConfirming ? 'Фиксируем…' : step4ExplicitDone ? 'Ознакомление зафиксировано ✓' : confRemain > 0 ? `Читайте… ${Math.floor(confRemain / 60)}:${String(confRemain % 60).padStart(2, '0')}` : 'Я ознакомился(-ась)'}
         </button>
-        <div className="cf-hint">Нажмите кнопку выше, чтобы зафиксировать ознакомление в системе</div>
+        {confMsg && <div className="wifi-err">{confMsg}</div>}
+        <div className="cf-hint">{confOpenedAt ? (confRemain > 0 ? 'Кнопка активируется через 2 мин после открытия' : 'Можно фиксировать ознакомление') : 'Сначала откройте Confluence по ссылке выше — запустится таймер 2 мин'}</div>
         {step4ExplicitDone && <div className="step-done-badge">Шаг 4 выполнен ✓ +10 баллов</div>}
       </section>
 
       <div className="doc-hint font-orbitron">Открой каждый документ и пролистай до конца — иначе не подтвердится. HR верификация шага 1 обязательна.</div>
 
       {/* modals */}
-      <DocumentModal kind="docs" open={open === 'docs'} onClose={() => setOpen(null)} alreadyDone={isDone('docs')} onConfirm={() => handleConfirm('docs')} />
-      <DocumentModal kind="lead" open={open === 'lead'} onClose={() => setOpen(null)} alreadyDone={isDone('lead')} onConfirm={() => handleConfirm('lead')} />
-      <DocumentModal kind="mplus" open={open === 'mplus'} onClose={() => setOpen(null)} alreadyDone={isDone('mplus')} onConfirm={() => { handleConfirm('mplus'); window.open('https://play.google.com/store/search?q=MPulse&c=apps', '_blank', 'noopener'); }} />
-      <DocumentModal kind="jira" open={open === 'jira'} onClose={() => setOpen(null)} alreadyDone={isDone('jira')} onConfirm={() => handleConfirm('jira')} />
-      <DocumentModal kind="confluence" open={open === 'confluence'} onClose={() => setOpen(null)} alreadyDone={isDone('confluence')} onConfirm={() => handleConfirm('confluence')} />
       <DocumentModal kind="dogovor" open={open === 'dogovor'} onClose={() => setOpen(null)} alreadyDone={isDone('dogovor')} onConfirm={() => handleConfirm('dogovor')} />
       <DocumentModal kind="nda" open={open === 'nda'} onClose={() => setOpen(null)} alreadyDone={isDone('nda')} onConfirm={() => handleConfirm('nda')} />
       <DocumentModal kind="pdp" open={open === 'pdp'} onClose={() => setOpen(null)} alreadyDone={isDone('pdp')} onConfirm={() => handleConfirm('pdp')} />
