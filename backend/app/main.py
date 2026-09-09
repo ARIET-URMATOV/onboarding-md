@@ -26,7 +26,16 @@ async def lifespan(_: FastAPI):
         await warm_stages_cache()
     except Exception as e:
         print(f"stages warmup: {e}")
-    yield
+    # SLA-мониторинг Stage 1 (фон, 24ч; первая проверка через 30с)
+    import asyncio
+
+    from app.sla import sla_loop
+
+    sla_task = asyncio.create_task(sla_loop())
+    try:
+        yield
+    finally:
+        sla_task.cancel()
 
 
 app = FastAPI(
@@ -73,12 +82,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from app.routes import admin, auth, progress, stages  # noqa: E402 — после создания app
+from app.routes import admin, auth, integrations, progress, stages  # noqa: E402 — после создания app
 
 app.include_router(auth.router, prefix="/api", tags=["auth"])
 app.include_router(progress.router, prefix="/api", tags=["progress"])
 app.include_router(stages.router, prefix="/api", tags=["stages"])
 app.include_router(admin.router, prefix="/api", tags=["admin"])
+app.include_router(integrations.router, prefix="/api", tags=["integrations"])
 
 
 @app.get("/api/health")

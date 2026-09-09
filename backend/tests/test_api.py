@@ -235,3 +235,126 @@ def test_logout(client):
 
     client.post("/api/logout")
     assert client.get("/api/me").status_code == 401
+
+
+# ---------- Stage 1: verify flows ----------
+
+def _grant_staff(email: str) -> int:
+    import asyncio
+
+    from sqlalchemy import select
+
+    from app.database import SessionLocal
+    from app.models import User
+
+    async def _go() -> int:
+        async with SessionLocal() as db:
+            u = (await db.execute(select(User).where(User.email == email))).scalar_one()
+            u.is_staff = True
+            db.add(u)
+            await db.commit()
+            return u.id
+
+    return asyncio.run(_go())
+
+
+def test_wifi_flow(client):
+    email = _unique_email()
+    client.post("/api/register", json={"email": email, "password": "secret123"})
+    client.post("/api/role", json={"role": "frontend"})
+
+    bad = client.post("/api/wifi-mac", json={"mac": "not-a-mac"})
+    assert bad.status_code == 400
+
+    ok = client.post("/api/wifi-mac", json={"mac": "AA:BB:CC:DD:EE:FF"})
+    assert ok.status_code == 200
+    st = client.get("/api/wifi-status")
+    assert st.json()["mac_sent"] is True
+    assert st.json()["verified"] is False
+    # отправка MAC ≠ верификация: задача не отмечена
+    assert "1-wifi" not in client.get("/api/me").json()["progress"]["done_tasks"]["1"]
+
+    wrong = client.post("/api/wifi-verify", json={"password": "nope"})
+    assert wrong.status_code == 400
+
+    from app.config import settings
+
+    good = client.post("/api/wifi-verify", json={"password": settings.wifi_password})
+    assert good.status_code == 200
+    assert "1-wifi" in good.json()["done_tasks"]["1"]
+
+
+def test_mpulse_and_confluence_flow(client):
+    email = _unique_email()
+    client.post("/api/register", json={"email": email, "password": "secret123"})
+    client.post("/api/role", json={"role": "frontend"})
+
+    bad = client.post("/api/verify-mpulse-code", json={"code": "WRONG"})
+    assert bad.status_code == 400
+
+    from app.config import settings
+
+    good = client.post("/api/verify-mpulse-code", json={"code": settings.mpulse_verification_code})
+    assert good.status_code == 200
+    for tid in ["1-mpulse", "1-mpulse-schedule", "1-mpulse-checkin", "1-mpulse-code", "1-mpulse-news"]:
+        assert tid in good.json()["done_tasks"]["1"]
+
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime.now(timezone.utc).isoformat()
+    early = client.post("/api/confirm-confluence", json={"opened_at": now})
+    assert early.status_code == 400
+
+    past = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
+    done = client.post("/api/confirm-confluence", json={"opened_at": past})
+    assert done.status_code == 200
+    assert "1-confluence-read" in done.json()["done_tasks"]["1"]
+
+    # идемпотентность: повтор не дублирует
+    again = client.post("/api/confirm-confluence", json={"opened_at": past})
+    assert again.status_code == 200
+
+
+def test_staff_verify_and_admin(client):
+    email = _unique_email()
+    client.post("/api/register", json={"email": email, "password": "secret123"})
+    client.post("/api/role", json={"role": "frontend"})
+    uid = _grant_staff(email)
+
+    # staff подтверждает документ сотрудника
+    v = client.post("/api/verify-docs", json={"user_id": uid, "task_id": "1-dogovor"})
+    assert v.status_code == 200
+    assert "1-dogovor" in v.json()["done_tasks"]["1"]
+
+    # чужая роль задачи отклоняется
+    bad = client.post("/api/verify-docs", json={"user_id": uid, "task_id": "1-wifi"})
+    assert bad.status_code == 400
+
+    # admin read-side
+    pend = client.get("/api/admin/pending-verifications")
+    assert pend.status_code == 200
+    audit = client.get("/api/admin/audit", params={"user_id": uid})
+    assert audit.status_code == 200
+    assert any(r["task_id"] == "1-dogovor" for r in audit.json())
+
+    # ротация MPulse-кода: старый env-код всё ещё валиден (fallback), новый — тоже
+    rot = client.post("/api/admin/mpulse-code", json={"code": "BATCH-99", "batch_name": "test"})
+    assert rot.status_code == 200
+    assert rot.json()["is_active"] is True
+    new_ok = client.post("/api/verify-mpulse-code", json={"code": "BATCH-99"})
+    assert new_ok.status_code == 200
+
+    # ссылки интеграций
+    links = client.get("/api/integrations/links")
+    assert links.status_code == 200
+    assert "confluence_url" in links.json()
+
+
+def test_verify_docs_forbidden_for_employee(client):
+    email = _unique_email()
+    client.post("/api/register", json={"email": email, "password": "secret123"})
+    client.post("/api/role", json={"role": "frontend"})
+    r = client.post("/api/verify-docs", json={"user_id": 1, "task_id": "1-dogovor"})
+    assert r.status_code == 403
+    adm = client.get("/api/admin/users")
+    assert adm.status_code == 403

@@ -22,6 +22,22 @@ interface AuditRow {
   created_at: string | null;
 }
 
+interface MpulseCode {
+  id: number;
+  code: string;
+  batch_name: string;
+  is_active: boolean;
+  created_at: string | null;
+}
+
+interface Links {
+  telegram_invite_link: string;
+  figma_team_url: string;
+  confluence_url: string;
+  mpulse_android_url: string;
+  mpulse_ios_url: string;
+}
+
 const DOC_TASKS = ['1-dogovor', '1-nda', '1-pdp', '1-ip', '1-sn'];
 const ACCESS_TASKS = ['1-mbusiness', '1-accountant', '1-wifi', '1-proxy', '1-telegram'];
 
@@ -33,18 +49,26 @@ export function AdminPage() {
   const [audit, setAudit] = useState<AuditRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [tab, setTab] = useState<'pending' | 'users' | 'audit'>('pending');
+  const [tab, setTab] = useState<'pending' | 'users' | 'audit' | 'codes'>('pending');
+  const [codes, setCodes] = useState<MpulseCode[]>([]);
+  const [links, setLinks] = useState<Links | null>(null);
+  const [newCode, setNewCode] = useState('');
+  const [newBatch, setNewBatch] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
     setMsg(null);
     try {
-      const [p, a] = await Promise.all([
+      const [p, a, c, l] = await Promise.all([
         api.get<AdminUser[]>('/api/admin/pending-verifications'),
         api.get<AuditRow[]>('/api/admin/audit'),
+        api.get<MpulseCode[]>('/api/admin/mpulse-code'),
+        api.get<Links>('/api/integrations/links'),
       ]);
       setPending(p);
       setAudit(a);
+      setCodes(c);
+      setLinks(l);
     } catch (e) {
       setMsg(e instanceof Error ? e.message : 'Ошибка загрузки');
     } finally {
@@ -88,6 +112,19 @@ export function AdminPage() {
     }
   };
 
+  const rotateCode = async () => {
+    const code = newCode.trim();
+    if (!code) { setMsg('Введите новый код MPulse'); return; }
+    try {
+      const created = await api.post<MpulseCode>('/api/admin/mpulse-code', { code, batch_name: newBatch.trim() });
+      setCodes((prev) => [created, ...prev.map((c) => ({ ...c, is_active: false }))]);
+      setNewCode('');
+      setMsg(`✓ Новый код батча «${created.batch_name || '—'}» активен`);
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : 'Ошибка ротации');
+    }
+  };
+
   if (!user?.isStaff) return <Navigate to="/dashboard" replace />;
 
   const renderTasks = (u: AdminUser) => {
@@ -108,9 +145,9 @@ export function AdminPage() {
     <div className="admin-page">
       <h1 className="admin-title">HR-панель · Этап 1 «Документы и доступы»</h1>
       <div className="admin-tabs">
-        {(['pending', 'users', 'audit'] as const).map((t) => (
+        {(['pending', 'users', 'audit', 'codes'] as const).map((t) => (
           <button key={t} type="button" onClick={() => setTab(t)} className={`admin-tab ${tab === t ? 'active' : ''}`}>
-            {t === 'pending' ? `Ожидают (${pending.length})` : t === 'users' ? 'Сотрудники' : `Журнал (${audit.length})`}
+            {t === 'pending' ? `Ожидают (${pending.length})` : t === 'users' ? 'Сотрудники' : t === 'audit' ? `Журнал (${audit.length})` : 'Коды и ссылки'}
           </button>
         ))}
         <button type="button" onClick={load} className="admin-tab" disabled={loading}>↻</button>
@@ -166,6 +203,40 @@ export function AdminPage() {
             </div>
           ))}
           {!audit.length && !loading && <div className="admin-empty">Журнал пуст</div>}
+        </div>
+      )}
+
+      {tab === 'codes' && (
+        <div className="admin-list">
+          <div className="admin-card">
+            <div className="admin-card-head"><b>Ротация кода MPulse</b></div>
+            <div className="admin-card-sub">Новый код деактивирует предыдущие. Сообщите код сотрудникам.</div>
+            <div className="admin-search">
+              <input value={newCode} onChange={(e) => setNewCode(e.target.value)} placeholder="Новый код" className="admin-input" />
+              <input value={newBatch} onChange={(e) => setNewBatch(e.target.value)} placeholder="Батч (напр. 09-2026)" className="admin-input" />
+              <button type="button" onClick={rotateCode} className="admin-btn">Выпустить</button>
+            </div>
+          </div>
+          {codes.map((c) => (
+            <div key={c.id} className="admin-card audit">
+              <b style={{ fontFamily: 'monospace' }}>{c.code}</b> · {c.batch_name || '—'} · {c.is_active ? 'активен ✓' : 'неактивен'} ·{' '}
+              {c.created_at ? new Date(c.created_at).toLocaleString('ru-RU') : '—'}
+            </div>
+          ))}
+          {!codes.length && !loading && <div className="admin-empty">Кодов в БД нет — действует MPULSE_VERIFICATION_CODE из env</div>}
+          <div className="admin-card">
+            <div className="admin-card-head"><b>Ссылки внешних систем</b></div>
+            <div className="admin-card-sub">TZ: онбординг даёт ссылки, LDAP — настройки самих систем.</div>
+            {links && (
+              <div style={{ fontSize: 12, lineHeight: 1.8 }}>
+                <div>Telegram: {links.telegram_invite_link || '— (TELEGRAM_INVITE_LINK)'}</div>
+                <div>Figma: {links.figma_team_url || '— (FIGMA_TEAM_URL)'}</div>
+                <div>Confluence: {links.confluence_url}</div>
+                <div>MPulse Android: {links.mpulse_android_url}</div>
+                <div>MPulse iOS: {links.mpulse_ios_url}</div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

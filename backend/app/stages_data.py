@@ -26,6 +26,33 @@ _FALLBACK_STAGES: dict[int, dict] = {
 }
 STAGES: dict[int, dict] = _FALLBACK_STAGES
 
+# Мета верификации задач (SSOT для fallback; в БД — колонки stage_tasks).
+# verification_type: manual_hr | manual_staff | technical_code | technical_password | technical_timer
+# responsible_role: подпись ответственного для UI (бекенд делит только employee/staff).
+TASK_META: dict[str, tuple[str, str]] = {
+    "1-dogovor": ("manual_hr", "hr"), "1-nda": ("manual_hr", "hr"),
+    "1-pdp": ("manual_hr", "hr"), "1-ip": ("manual_hr", "hr"), "1-sn": ("manual_hr", "hr"),
+    "1-mbusiness": ("manual_staff", "hr"), "1-accountant": ("manual_staff", "accountant"),
+    "1-wifi": ("manual_staff", "sysadmin"), "1-proxy": ("manual_staff", "lead"),
+    "1-telegram": ("manual_staff", "teamlead"),
+    "1-mpulse": ("technical_code", "system"), "1-mpulse-schedule": ("technical_code", "system"),
+    "1-mpulse-checkin": ("technical_code", "system"), "1-mpulse-code": ("technical_code", "system"),
+    "1-mpulse-news": ("technical_code", "system"),
+    "1-confluence-vacation": ("technical_timer", "system"),
+    "1-confluence-grading": ("technical_timer", "system"),
+    "1-confluence-info": ("technical_timer", "system"),
+    "1-confluence-rules": ("technical_timer", "system"),
+    "1-confluence-security": ("technical_timer", "system"),
+    "1-confluence-benefits": ("technical_timer", "system"),
+    "1-confluence-contact": ("technical_timer", "system"),
+    "1-confluence-faq": ("technical_timer", "system"),
+    "1-confluence-read": ("technical_timer", "system"),
+}
+
+
+def task_meta(task_id: str) -> tuple[str, str]:
+    return TASK_META.get(task_id, ("manual", ""))
+
 
 _cached: dict[int, dict] | None = None
 _KNOWN_TASK_IDS: dict[str, set[str]] = {

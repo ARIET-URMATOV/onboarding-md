@@ -109,6 +109,13 @@ export function Stage1Documents({ stageId }: Props) {
     return () => clearInterval(id);
   }, [confOpenedAt]);
 
+  // MAC отправлен? (сервер; отправка ≠ верификация — 1-wifi отмечает staff)
+  useEffect(() => {
+    api.get<{ mac_sent: boolean }>('/api/wifi-status')
+      .then((s) => setMacSent(s.mac_sent))
+      .catch(() => { /* не критично */ });
+  }, []);
+
   const handleWifiSubmit = async () => {
     const v = mac.trim().toUpperCase();
     const re = /^([0-9A-F]{2}[:-]){5}[0-9A-F]{2}$/;
@@ -117,7 +124,6 @@ export function Stage1Documents({ stageId }: Props) {
     try {
       await api.post('/api/wifi-mac', { mac: v });
       setMacSent(true);
-      await refreshMe();
     } catch (e) {
       setMacError(e instanceof Error ? e.message : 'Ошибка отправки MAC');
     }
@@ -219,12 +225,13 @@ export function Stage1Documents({ stageId }: Props) {
                   onKeyDown={e => { if (e.key === 'Enter') handleWifiSubmit(); }}
                   aria-label="MAC-адрес"
                 />
-                <button type="button" className="wifi-btn" onClick={handleWifiSubmit} disabled={macSent && isTaskDone('1-wifi')}>
-                  {isTaskDone('1-wifi') ? 'Отправлено ✓' : 'Отправить'}
+                <button type="button" className="wifi-btn" onClick={handleWifiSubmit} disabled={macSent}>
+                  {macSent ? 'Отправлено ✓' : 'Отправить'}
                 </button>
               </div>
               {macError && <div className="wifi-err">{macError}</div>}
-              {isTaskDone('1-wifi') && !macError && <div className="wifi-ok">MAC принят — введите пароль от закрытой сети ниже</div>}
+              {macSent && !isTaskDone('1-wifi') && !macError && <div className="wifi-ok">MAC принят — ожидайте подтверждения staff, либо введите пароль ниже</div>}
+              {isTaskDone('1-wifi') && !macError && <div className="wifi-ok">Wi-Fi подтверждён ✓</div>}
               <div className="wifi-inline" onClick={e => e.stopPropagation()}>
                 <input
                   className="wifi-input"

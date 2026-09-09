@@ -104,6 +104,29 @@ class AuditOut(BaseModel):
     created_at: str | None = None
 
 
+class MpulseRotateIn(BaseModel):
+    code: str = Field(min_length=1, max_length=64)
+    batch_name: str = Field(default="", max_length=80)
+
+
+class MpulseCodeOut(BaseModel):
+    id: int
+    code: str  # только для staff (сотрудникам не светить)
+    batch_name: str
+    is_active: bool
+    valid_from: str | None = None
+    valid_until: str | None = None
+    created_at: str | None = None
+
+
+class LinksOut(BaseModel):
+    telegram_invite_link: str = ""
+    figma_team_url: str = ""
+    confluence_url: str = ""
+    mpulse_android_url: str = ""
+    mpulse_ios_url: str = ""
+
+
 class MeOut(BaseModel):
     user: UserOut
     progress: ProgressOut

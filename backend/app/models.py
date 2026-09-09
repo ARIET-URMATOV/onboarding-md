@@ -98,10 +98,26 @@ class Stage(Base):
 class StageTask(Base):
     __tablename__ = "stage_tasks"
 
-    id: Mapped[str] = mapped_column(Text, primary_key=True)  # e.g. "1-docs"
+    id: Mapped[str] = mapped_column(Text, primary_key=True)
     stage_id: Mapped[int] = mapped_column(ForeignKey("stages.id", ondelete="CASCADE"), nullable=False, index=True)
     title: Mapped[str] = mapped_column(Text, nullable=False)
     xp: Mapped[int] = mapped_column(Integer, nullable=False)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Кто/как верифицирует: manual_hr | manual_staff | technical_code | technical_password | technical_timer
+    verification_type: Mapped[str] = mapped_column(String, nullable=False, default="manual")
+    # Ответственная роль-подпись для UI: hr | accountant | sysadmin | lead | teamlead | system
+    responsible_role: Mapped[str] = mapped_column(String, nullable=False, default="")
 
     stage: Mapped[Stage] = relationship(back_populates="tasks")
+
+
+class MpulseCode(Base):
+    __tablename__ = "mpulse_codes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    code: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
+    batch_name: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    valid_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    valid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

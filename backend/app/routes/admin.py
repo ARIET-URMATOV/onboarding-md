@@ -4,10 +4,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.limiter import limiter
-from app.models import Progress, User, VerificationLog
+from app.models import MpulseCode, Progress, User, VerificationLog
 from app.routes.auth import require_staff
-from app.schemas import AdminUserOut, AuditOut, StaffSetIn
+from app.schemas import AdminUserOut, AuditOut, MpulseCodeOut, MpulseRotateIn, StaffSetIn
 from app.stages_data import normalize_tasks
+
+
+def _mpulse_out(r: MpulseCode) -> MpulseCodeOut:
+    return MpulseCodeOut(
+        id=r.id,
+        code=r.code,
+        batch_name=r.batch_name,
+        is_active=r.is_active,
+        valid_from=r.valid_from.isoformat() if r.valid_from else None,
+        valid_until=r.valid_until.isoformat() if r.valid_until else None,
+        created_at=r.created_at.isoformat() if r.created_at else None,
+    )
 
 router = APIRouter()
 
@@ -93,6 +105,40 @@ async def set_staff(
     await db.commit()
     await db.refresh(target)
     return _admin_user_out(target)
+
+
+@router.get("/admin/mpulse-code", response_model=list[MpulseCodeOut])
+@limiter.limit("30/minute")
+async def mpulse_codes(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    staff: User = Depends(require_staff),
+):
+    """Активные коды MPulse (только staff — код не светить сотрудникам)."""
+    rows = (
+        await db.execute(select(MpulseCode).order_by(desc(MpulseCode.created_at)).limit(20))
+    ).scalars().all()
+    return [_mpulse_out(r) for r in rows]
+
+
+@router.post("/admin/mpulse-code", response_model=MpulseCodeOut)
+@limiter.limit("10/minute")
+async def rotate_mpulse_code(
+    payload: MpulseRotateIn,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    staff: User = Depends(require_staff),
+):
+    """Ротация кода MPulse на батч: старые деактивируются, новый активен."""
+    old = (await db.execute(select(MpulseCode).where(MpulseCode.is_active))).scalars().all()
+    for r in old:
+        r.is_active = False
+        db.add(r)
+    new = MpulseCode(code=payload.code.strip(), batch_name=payload.batch_name.strip(), is_active=True)
+    db.add(new)
+    await db.commit()
+    await db.refresh(new)
+    return _mpulse_out(new)
 
 
 @router.get("/admin/audit", response_model=list[AuditOut])

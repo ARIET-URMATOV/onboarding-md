@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models import Stage, StageTask
-from app.stages_data import load_stages_from_db
+from app.stages_data import load_stages_from_db, task_meta
 
 router = APIRouter()
 
@@ -30,12 +30,20 @@ async def list_stages(db: AsyncSession = Depends(get_db)):
         out = []
         for sid, v in _FALLBACK_STAGES.items():
             t, sl, d, rn, rd, ik = fallback_titles[sid]
-            sub = [{"id": tid, "title": tid, "xp": xp} for tid, xp in v["tasks"].items()]
+            sub = [
+                {"id": tid, "title": tid, "xp": xp,
+                 "verification_type": task_meta(tid)[0], "responsible_role": task_meta(tid)[1]}
+                for tid, xp in v["tasks"].items()
+            ]
             out.append({"id": sid, "title": t, "shortLabel": sl, "description": d, "xpReward": v["xp_reward"], "rewardName": rn, "rewardDesc": rd, "iconKey": ik, "subTasks": sub})
         return out
     by_stage: dict[int, list] = {s.id: [] for s in stages}
     for t in tasks:
-        by_stage.setdefault(t.stage_id, []).append({"id": t.id, "title": t.title, "xp": t.xp})
+        vt, rr = t.verification_type or task_meta(t.id)[0], t.responsible_role or task_meta(t.id)[1]
+        by_stage.setdefault(t.stage_id, []).append(
+            {"id": t.id, "title": t.title, "xp": t.xp,
+             "verification_type": vt, "responsible_role": rr}
+        )
     out2 = []
     for s in stages:
         out2.append({

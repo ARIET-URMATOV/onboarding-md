@@ -1,10 +1,13 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy import select as _select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import get_db
 from app.limiter import limiter
-from app.models import Progress, User, VerificationLog, WifiMac
+from app.models import MpulseCode, Progress, User, VerificationLog, WifiMac
 from app.routes.auth import get_current_user, require_role, require_staff
 from app.schemas import (
     ConfluenceConfirmIn,
@@ -242,15 +245,27 @@ async def wifi_mac(
     )
     if existing.scalar_one_or_none() is None:
         db.add(WifiMac(user_id=user.id, mac=mac))
-    prog = await load_progress(db, user)
-    tasks = normalize_tasks(prog.done_tasks)
-    # MAC фиксируем фактом отметки wifi-задачи как «отправлено», staff подтвердит после allowlist
-    if "1-wifi" not in tasks["1"]:
-        tasks["1"] = [*tasks["1"], "1-wifi"]
-        # NB: отметка ≠ верификация; staff должен подтвердить через /verify-access.
-        # Чтобы не начислять раньше времени — wifi даёт 0 XP, так что безопасно.
-    await save_progress(db, prog, tasks)
+        await db.commit()
+    # NB: отправка MAC ≠ верификация: 1-wifi отмечает staff через /verify-access
+    # (или пароль через /wifi-verify). done_tasks не трогаем.
     return OkOut()
+
+
+@router.get("/wifi-status")
+@limiter.limit("30/minute")
+async def wifi_status(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """MAC отправлен? Wi-Fi верифицирован? (для разделения pending/verified на фронте)."""
+    from sqlalchemy import select as _select
+
+    res = await db.execute(_select(WifiMac).where(WifiMac.user_id == user.id).limit(1))
+    mac_sent = res.scalar_one_or_none() is not None
+    prog = await db.get(Progress, user.id)
+    verified = prog is not None and "1-wifi" in normalize_tasks(prog.done_tasks).get("1", [])
+    return {"mac_sent": mac_sent, "verified": verified}
 
 
 @router.post("/wifi-verify", response_model=ProgressOut)
@@ -282,10 +297,25 @@ async def verify_mpulse_code(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Сотрудник вводит код из MPulse (одинаковый для батча, MPULSE_VERIFICATION_CODE)."""
+    """Сотрудник вводит код из MPulse (активный код mpulse_codes, fallback MPULSE_VERIFICATION_CODE)."""
     import hmac
 
-    if not hmac.compare_digest(payload.code.strip(), settings.mpulse_verification_code):
+    code = payload.code.strip()
+    ok = hmac.compare_digest(code, settings.mpulse_verification_code)
+    if not ok:
+        now = datetime.now(timezone.utc)
+        rows = (
+            await db.execute(_select(MpulseCode).where(MpulseCode.is_active))
+        ).scalars().all()
+        for r in rows:
+            if r.valid_from and now < r.valid_from:
+                continue
+            if r.valid_until and now > r.valid_until:
+                continue
+            if hmac.compare_digest(code, r.code):
+                ok = True
+                break
+    if not ok:
         raise HTTPException(status_code=400, detail="Неверный код MPulse")
     prog = await load_progress(db, user)
     tasks = normalize_tasks(prog.done_tasks)

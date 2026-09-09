@@ -186,6 +186,53 @@ async def login(
     return me_out(user, prog)
 
 
+@router.get("/auth/auto-login")
+@limiter.limit("20/minute")
+async def auto_login(
+    request: Request, token: str, response: Response, db: AsyncSession = Depends(get_db)
+):
+    """SSO-вход по JWT из корпоративного портала (SHARED_SECRET_KEY, TTL 5 мин).
+
+    Корппортал подписывает {"email"|"login", "name"?, "exp"} общим секретом.
+    AD-проверки нет: портал — источник истины (см. ADR-007).
+    """
+    from fastapi.responses import RedirectResponse
+
+    if not settings.shared_secret_key:
+        raise HTTPException(status_code=503, detail="Auto-login не настроен (SHARED_SECRET_KEY)")
+    try:
+        claims = jwt.decode(token, settings.shared_secret_key, algorithms=[settings.jwt_algorithm])
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Ссылка истекла — запросите новую на корпоративном портале")
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Неверная ссылка — запросите новую на корпоративном портале")
+    email = str(claims.get("email") or "").lower().strip()
+    if not email and claims.get("login"):
+        login = str(claims["login"]).strip()
+        email = login if "@" in login else f"{login}@mdigital.kg"
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="В токене нет email/логина")
+    res = await db.execute(select(User).where(User.email == email))
+    user = res.scalar_one_or_none()
+    if user is None:
+        import secrets
+
+        user = User(
+            email=email,
+            password_hash=pwd.hash(secrets.token_urlsafe(24)),
+            name=str(claims.get("name") or email.split("@")[0]).strip(),
+        )
+        db.add(user)
+        await db.flush()
+        db.add(Progress(user_id=user.id))
+        await db.commit()
+        await db.refresh(user)
+    else:
+        await ensure_progress(db, user)
+    set_auth_cookie(response, create_token(user.id))
+    return RedirectResponse(url=f"{settings.frontend_url.rstrip('/')}/dashboard", status_code=302)
+
+
 @router.post("/logout", response_model=OkOut)
 async def logout(response: Response):
     cross = _is_cross_site()

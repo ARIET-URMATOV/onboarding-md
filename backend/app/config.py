@@ -78,12 +78,28 @@ class Settings(BaseSettings):
     demo_name: str = "Demo User"
 
     # Stage 1: MPulse / Wi-Fi (TZ v1.0)
-    # Статический код MPulse на батч (ротируется HR через env, позже — API MPulse)
+    # Статический код MPulse на батч (fallback; приоритет — активный код из mpulse_codes)
     mpulse_verification_code: str = Field(default="ONBOARD-2026", alias="MPULSE_VERIFICATION_CODE")
     # Wi-Fi пароль по умолчанию (sysadmin может задать через admin endpoint; хранится в env для MVP)
     wifi_password: str = Field(default="mdigital-wifi-2026", alias="WIFI_PASSWORD")
     # Confluence таймер: 120 сек (подтверждено)
     confluence_min_seconds: int = 120
+
+    # Corporate Portal SSO: общий секрет для JWT auto-login ссылок (5 мин TTL)
+    shared_secret_key: str = Field(default="", alias="SHARED_SECRET_KEY")
+    # Куда редиректить после auto-login
+    frontend_url: str = Field(default="http://localhost:5173", alias="FRONTEND_URL")
+
+    # Ссылки/инструкции внешних систем (TZ: онбординг даёт ссылки, LDAP — их own настройки)
+    telegram_invite_link: str = Field(default="", alias="TELEGRAM_INVITE_LINK")
+    figma_team_url: str = Field(default="", alias="FIGMA_TEAM_URL")
+    confluence_url: str = Field(default="https://confluence.mdigital.kg", alias="CONFLUENCE_URL")
+    mpulse_android_url: str = Field(
+        default="https://play.google.com/store/search?q=MPulse&c=apps", alias="MPULSE_ANDROID_URL"
+    )
+    mpulse_ios_url: str = Field(
+        default="https://apps.apple.com/search?term=MPulse", alias="MPULSE_IOS_URL"
+    )
 
     @property
     def database_url(self) -> str:
