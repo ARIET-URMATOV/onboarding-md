@@ -52,6 +52,7 @@ export interface MeResponse {
     voice_enabled: boolean;
     created_at?: string | null;
     is_staff?: boolean;
+    telegram_username?: string;
   };
   progress: {
     done_tasks: Record<string, string[]>;

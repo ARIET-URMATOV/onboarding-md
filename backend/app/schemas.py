@@ -19,6 +19,22 @@ class RoleIn(BaseModel):
 class ProfileIn(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=80)
     avatar: str | None = None
+    telegram_username: str | None = Field(default=None, min_length=2, max_length=33)
+
+
+class TelegramUsernameIn(BaseModel):
+    telegram_username: str = Field(min_length=2, max_length=33)
+
+
+class TelegramGroupIn(BaseModel):
+    title: str = Field(min_length=1, max_length=80)
+    chat_id: str = Field(min_length=2, max_length=64)
+
+
+class AutoAddOut(BaseModel):
+    added: list[str] = []
+    failed: list[dict] = []
+    username: str = ""
 
 
 class PasswordChangeIn(BaseModel):
@@ -56,6 +72,7 @@ class UserOut(BaseModel):
     voice_enabled: bool
     created_at: str | None = None
     is_staff: bool = False
+    telegram_username: str = ""
 
 
 class MpulseCodeIn(BaseModel):
@@ -114,6 +131,26 @@ class ConfluenceConfirmIn(BaseModel):
 
 class StaffSetIn(BaseModel):
     is_staff: bool
+
+
+# Контакты ответственных (админ-панель → Настройки; пусто = уведомления только HR)
+CONTACT_KEYS = (
+    "contacts.hr_email",
+    "contacts.sysadmin_email",
+    "contacts.lead_email",
+    "contacts.accountant_email",
+    "contacts.teamlead_email",
+)
+
+
+class SettingIn(BaseModel):
+    key: str = Field(min_length=1, max_length=80)
+    value: str = Field(default="", max_length=500)
+
+
+class SettingsOut(BaseModel):
+    contacts: dict[str, str] = {}
+    links: dict[str, str] = {}
 
 
 class AdminUserOut(BaseModel):

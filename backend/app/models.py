@@ -34,6 +34,8 @@ class User(Base):
     # Упрощённая ролевая модель: employee (False) + staff/HR (True).
     # User.role остаётся job-профилем (frontend/backend/design), не пермишеном.
     is_staff: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # Telegram @username (с @ или без) — обязателен для auto-add через Bot API
+    telegram_username: Mapped[str] = mapped_column(Text, nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     progress: Mapped["Progress"] = relationship(
@@ -88,6 +90,14 @@ class PendingRequest(Base):
     status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
     note: Mapped[str] = mapped_column(Text, nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AppSetting(Base):
+    __tablename__ = "app_settings"
+
+    key: Mapped[str] = mapped_column(Text, primary_key=True)
+    value: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class WifiPassword(Base):

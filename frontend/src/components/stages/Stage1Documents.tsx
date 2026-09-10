@@ -256,6 +256,92 @@ export function Stage1Documents({ stageId }: Props) {
       .catch(() => { /* не критично */ });
   }, []);
 
+  // Telegram: @username + auto-add + приветствие (Вариант Б + редактирование)
+  const userName = user?.name ?? '';
+  const [tgHandle, setTgHandle] = useState('');
+  const [tgSaving, setTgSaving] = useState(false);
+  const [tgSaved, setTgSaved] = useState(false);
+  const [tgError, setTgError] = useState<string | null>(null);
+  const [tgGroups, setTgGroups] = useState<{ title: string; chat_id: string }[]>([]);
+  const [tgAdded, setTgAdded] = useState<string[]>([]);
+  const [tgFailed, setTgFailed] = useState<Record<string, string>>({});
+  const [tgAdding, setTgAdding] = useState(false);
+  const [tgGreet, setTgGreet] = useState('');
+  const [tgMsg, setTgMsg] = useState<string | null>(null);
+  useEffect(() => {
+    api.get<{ telegram_username?: string }>('/api/me')
+      .then((me: unknown) => {
+        const u = (me as { user?: { telegram_username?: string; name?: string } }).user;
+        if (u?.telegram_username) { setTgHandle(u.telegram_username); setTgSaved(true); }
+      })
+      .catch(() => { /* не критично */ });
+    api.get<{ groups: { title: string; chat_id: string }[] }>('/api/integrations/telegram-groups')
+      .then((r) => setTgGroups(r.groups))
+      .catch(() => { /* группы настраиваются */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (!tgGreet) setTgGreet(`Привет! Я ${userName || 'новый сотрудник'}. Присоединился к команде. Рад познакомиться!`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userName]);
+
+  const handleTgSave = async () => {
+    const v = tgHandle.trim();
+    if (!/^@?[A-Za-z][A-Za-z0-9_]{4,31}$/.test(v)) { setTgError('Формат: @ivan_99 (латиница, 5–32 символа)'); return; }
+    setTgError(null);
+    setTgSaving(true);
+    try {
+      await api.patch('/api/profile', { telegram_username: v });
+      setTgSaved(true);
+      await refreshMe();
+    } catch (e) {
+      setTgError(e instanceof Error ? e.message : 'Не удалось сохранить');
+    } finally {
+      setTgSaving(false);
+    }
+  };
+
+  const handleTgAutoAdd = async () => {
+    setTgAdding(true);
+    setTgMsg(null);
+    try {
+      const r = await api.post<{ added: string[]; failed: { title: string; reason: string }[] }>('/api/integrations/telegram-auto-add');
+      setTgAdded(r.added);
+      const f: Record<string, string> = {};
+      for (const x of r.failed) f[x.title] = x.reason;
+      setTgFailed(f);
+      if (r.failed.length === 0) {
+        setTgMsg(`Добавлен во все группы ✓ (${r.added.length})`);
+        toast.success('Telegram: добавлен во все группы');
+      } else {
+        setTgMsg(`Добавлен: ${r.added.length}, не вышло: ${r.failed.length} — см. причины выше`);
+      }
+    } catch (e) {
+      setTgMsg(e instanceof Error ? e.message : 'Не удалось добавить');
+    } finally {
+      setTgAdding(false);
+    }
+  };
+
+  const handleTgCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(tgGreet);
+      setTgMsg('Шаблон скопирован — вставьте в группу ✓');
+    } catch {
+      setTgMsg('Не удалось скопировать — выделите текст вручную');
+    }
+  };
+
+  const handleTgIntroduced = async () => {
+    setTgMsg(null);
+    try {
+      await requestTask(docToTask.telegram);
+      setTgMsg('Отмечено — тимлид подтвердит, что вы представились ✓');
+    } catch (e) {
+      setTgMsg(e instanceof Error ? e.message : 'Не удалось отметить');
+    }
+  };
+
   const handleWifiSubmit = async () => {
     const v = mac.trim().toUpperCase();
     const re = /^([0-9A-F]{2}[:-]){5}[0-9A-F]{2}$/;
@@ -418,7 +504,63 @@ export function Stage1Documents({ stageId }: Props) {
           <DocCard k="mbusiness" doneFlag={isDone('mbusiness')} pendingFlag={isPending('mbusiness')} icon={<img src="/mbusiness-logo.png" alt="MBusiness" width={28} height={28} loading="lazy" decoding="async" style={{ objectFit: 'contain' }} />} title="MBusiness — открытие" sub="Выплаты 1–10 числа · поможет HR" onOpen={setOpen} />
           <DocCard k="accountant" doneFlag={isDone('accountant')} pendingFlag={isPending('accountant')} icon={<ClipboardCheck size={17} />} title="Доступ бухгалтеру" sub="Инструкция · как предоставить доступ" onOpen={setOpen} />
           <DocCard k="proxy" doneFlag={isDone('proxy')} pendingFlag={isPending('proxy')} icon={<KeyRound size={17} />} title="Прокси-карта и Face ID" sub="Пропуск на 1 этаж · коворкинг · Технопарк / MSpace · через лида/PM" onOpen={setOpen} />
-          <DocCard k="telegram" doneFlag={isDone('telegram')} pendingFlag={isPending('telegram')} icon={<Send size={17} />} title="Доступ в Telegram-группы" sub="Авто-добавление · представьтесь команде" onOpen={setOpen} />
+          <div className="doc-card tg-card">
+            <div className={`dc-icon ${isTaskDone('1-telegram') ? 'dc-done' : ''}`}>{isTaskDone('1-telegram') ? <CheckCircle2 size={16} /> : <Send size={16} />}</div>
+            <div className="dc-body" style={{ flex: 1 }}>
+              <div className="dc-title">Доступ в Telegram-группы {isTaskDone('1-telegram') && <span className="dc-badge">готово</span>}{!isTaskDone('1-telegram') && isPending('telegram') && <span className="dc-badge pending">ожидает HR</span>}</div>
+              <div className="dc-sub">Укажите @username — бот добавит вас во все группы. Затем представьтесь команде</div>
+              <div className="wifi-inline" onClick={e => e.stopPropagation()}>
+                <input
+                  className="wifi-input"
+                  placeholder="@ivan_99"
+                  value={tgHandle}
+                  onChange={e => setTgHandle(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleTgSave(); }}
+                  aria-label="Telegram username"
+                />
+                <button type="button" className="wifi-btn" onClick={handleTgSave} disabled={tgSaving}>
+                  {tgSaved ? 'Сохранено ✓' : 'Сохранить'}
+                </button>
+              </div>
+              {tgError && <div className="wifi-err">{tgError}</div>}
+              {tgGroups.length > 0 && (
+                <div className="tg-groups">
+                  {tgGroups.map((g) => (
+                    <div key={g.chat_id} className="tg-group-row">
+                      <span>{g.title}</span>
+                      {tgAdded.includes(g.title) || tgAdded.includes(g.chat_id)
+                        ? <span className="wifi-ok">добавлен ✓</span>
+                        : tgFailed[g.title] || tgFailed[g.chat_id]
+                          ? <span className="wifi-err">{tgFailed[g.title] || tgFailed[g.chat_id]}</span>
+                          : <span className="tg-pending">—</span>}
+                    </div>
+                  ))}
+                  <button type="button" className="wifi-btn" onClick={handleTgAutoAdd} disabled={tgAdding || !tgSaved}>
+                    {tgAdding ? 'Добавляем…' : 'Добавить меня во все группы'}
+                  </button>
+                </div>
+              )}
+              {tgGroups.length === 0 && <div className="wifi-ok">Группы пока настраиваются HR — представьтесь, когда появятся</div>}
+              <div className="tg-greet">
+                <div className="tg-greet-title">Шаблон приветствия (можно править):</div>
+                <textarea
+                  className="wifi-input tg-textarea"
+                  rows={3}
+                  value={tgGreet}
+                  onChange={e => setTgGreet(e.target.value)}
+                  onClick={e => e.stopPropagation()}
+                  aria-label="Текст приветствия"
+                />
+                <div className="wifi-inline" onClick={e => e.stopPropagation()}>
+                  <button type="button" className="wifi-btn" onClick={handleTgCopy}>Копировать</button>
+                  <button type="button" className="wifi-btn" onClick={handleTgIntroduced} disabled={isTaskDone('1-telegram')}>
+                    {isTaskDone('1-telegram') ? 'Подтверждено ✓' : 'Я представился команде'}
+                  </button>
+                </div>
+              </div>
+              {tgMsg && <div className={tgMsg.includes('✓') ? 'wifi-ok' : 'wifi-err'}>{tgMsg}</div>}
+            </div>
+          </div>
           <div className="doc-card wifi-card">
             <div className={`dc-icon ${isTaskDone('1-wifi') ? 'dc-done' : ''}`}>{isTaskDone('1-wifi') ? <CheckCircle2 size={16} /> : <Wifi size={16} />}</div>
             <div className="dc-body" style={{ flex: 1 }}>
@@ -556,7 +698,7 @@ export function Stage1Documents({ stageId }: Props) {
       <DocumentModal kind="accountant" open={open === 'accountant'} onClose={() => setOpen(null)} alreadyDone={isDone('accountant')} onConfirm={() => handleConfirm('accountant')} />
       <DocumentModal kind="wifi" open={open === 'wifi'} onClose={() => setOpen(null)} alreadyDone={isDone('wifi')} onConfirm={() => handleConfirm('wifi')} />
       <DocumentModal kind="proxy" open={open === 'proxy'} onClose={() => setOpen(null)} alreadyDone={isDone('proxy')} onConfirm={() => handleConfirm('proxy')} />
-      <DocumentModal kind="telegram" open={open === 'telegram'} onClose={() => setOpen(null)} alreadyDone={isDone('telegram')} onConfirm={() => handleConfirm('telegram')} />
+
 
       <style>{`
         .stage-content.s1-steps{ display:flex; flex-direction:column; gap:16px; margin-bottom:6px; font-family:'Open Sans',sans-serif }
@@ -664,6 +806,14 @@ export function Stage1Documents({ stageId }: Props) {
         .wifi-err{ margin-top:6px; font-size:11px; color:#FCA5A5 }
         .wifi-ok{ margin-top:6px; font-size:11px; color:#86EFAC }
         .wifi-help-link{ margin-top:6px; background:none; border:none; color:#60A5FA; font-size:11px; cursor:pointer; padding:0; text-decoration:underline; text-underline-offset:2px }
+        .tg-card{ cursor:default; align-items:flex-start; }
+        .tg-card:hover{ transform:none; }
+        .tg-groups{ display:flex; flex-direction:column; gap:6px; margin-top:8px; }
+        .tg-group-row{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding:7px 10px; border-radius:8px; background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.06); font-size:12px; }
+        .tg-pending{ color:var(--dim); }
+        .tg-greet{ display:flex; flex-direction:column; gap:6px; margin-top:8px; }
+        .tg-greet-title{ font-size:11px; color:var(--muted); }
+        .tg-textarea{ resize:vertical; min-height:56px; font-family:inherit; }
         .mpulse-step .mpulse-card{ display:flex; flex-direction:column; gap:12px; padding:14px; border-radius:12px; background:rgba(37,99,235,.06); border:1px solid rgba(59,130,246,.18) }
         .mpulse-head{ display:flex; gap:12px; align-items:flex-start }
         .mpulse-icon{ width:44px; height:44px; border-radius:11px; display:grid; place-items:center; flex-shrink:0; font-size:14px; font-weight:800; color:#fff; background:linear-gradient(135deg,#1E3A8A,#2563EB) }

@@ -130,6 +130,7 @@ def user_out(user: User) -> UserOut:
         voice_enabled=user.voice_enabled,
         created_at=user.created_at.isoformat() if user.created_at else None,
         is_staff=user.is_staff,
+        telegram_username=user.telegram_username or "",
     )
 
 
@@ -293,6 +294,18 @@ async def update_profile(
             if not AVATAR_RE.match(avatar):
                 raise HTTPException(status_code=400, detail="Неверный формат изображения")
             user.avatar = avatar
+
+    if payload.telegram_username is not None:
+        handle = payload.telegram_username.strip()
+        if handle == "":
+            user.telegram_username = ""
+        else:
+            if not re.fullmatch(r"@?[A-Za-z][A-Za-z0-9_]{4,31}", handle):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Неверный Telegram username (латиница, 5-32 символа, например @ivan_99)",
+                )
+            user.telegram_username = handle if handle.startswith("@") else f"@{handle}"
 
     db.add(user)
     await db.commit()

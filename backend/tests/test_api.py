@@ -585,14 +585,20 @@ def test_request_queue_flow(client):
     pend2 = client.get("/api/admin/pending-verifications")
     assert all(not (r["task_id"] == "1-dogovor" and r["user_id"] == uid) for r in pend2.json())
 
-    # отклонение
+    # отклонение (причина обязательна)
     client.post("/api/progress/request", json={"task_id": "1-nda"})
     pend3 = client.get("/api/admin/pending-verifications")
     row2 = next(r for r in pend3.json() if r["task_id"] == "1-nda" and r["user_id"] == uid)
-    rej = client.delete(f"/api/admin/pending/{row2['id']}")
+    rej_short = client.post(f"/api/admin/pending/{row2['id']}/reject", json={"reason": "нет"})
+    assert rej_short.status_code == 422
+    rej = client.post(
+        f"/api/admin/pending/{row2['id']}/reject",
+        json={"reason": "Донесите справку о несудимости в HR отдел"},
+    )
     assert rej.status_code == 200
     mine2 = client.get("/api/progress/pending")
     assert "1-nda" not in mine2.json()["pending"]
+    assert mine2.json()["rejected"][0]["task_id"] == "1-nda"
 
     # сброс Stage 1
     client.post("/api/progress/request", json={"task_id": "1-nda"})
@@ -601,3 +607,85 @@ def test_request_queue_flow(client):
     me = client.get("/api/me")
     assert me.json()["progress"]["done_tasks"]["1"] == []
     assert me.json()["progress"]["xp"] == 0
+
+
+def test_telegram_username_validation(client):
+    email = _unique_email()
+    client.post("/api/register", json={"email": email, "password": "secret123"})
+
+    bad = client.patch("/api/profile", json={"telegram_username": "ab"})
+    assert bad.status_code == 422
+    bad2 = client.patch("/api/profile", json={"telegram_username": "!!!xxx"})
+    assert bad2.status_code == 400
+
+    ok = client.patch("/api/profile", json={"telegram_username": "ivan_99"})
+    assert ok.status_code == 200
+    assert ok.json()["telegram_username"] == "@ivan_99"
+
+    me = client.get("/api/me")
+    assert me.json()["user"]["telegram_username"] == "@ivan_99"
+
+
+def test_telegram_auto_add_guards(client):
+    email = _unique_email()
+    client.post("/api/register", json={"email": email, "password": "secret123"})
+    client.post("/api/role", json={"role": "frontend"})
+
+    # без username -> 400
+    r1 = client.post("/api/integrations/telegram-auto-add")
+    assert r1.status_code == 400
+
+    client.patch("/api/profile", json={"telegram_username": "@ivan_99"})
+    # без токена бота -> 501
+    r2 = client.post("/api/integrations/telegram-auto-add")
+    assert r2.status_code == 501
+
+    # группы пустые по умолчанию
+    g = client.get("/api/integrations/telegram-groups")
+    assert g.status_code == 200
+    assert g.json()["groups"] == []
+
+
+def test_admin_settings_contacts(client):
+    email = _unique_email()
+    client.post("/api/register", json={"email": email, "password": "secret123"})
+    client.post("/api/role", json={"role": "frontend"})
+    _grant_staff(email)
+
+    s = client.get("/api/admin/settings")
+    assert s.status_code == 200
+    assert "contacts.hr_email" in s.json()["contacts"]
+
+    bad_key = client.patch("/api/admin/settings", json={"key": "nope", "value": "x"})
+    assert bad_key.status_code == 400
+
+    bad_email = client.patch(
+        "/api/admin/settings", json={"key": "contacts.hr_email", "value": "not-an-email"}
+    )
+    assert bad_email.status_code == 400
+
+    ok = client.patch(
+        "/api/admin/settings",
+        json={"key": "contacts.hr_email", "value": "hr@mdigital.kg"},
+    )
+    assert ok.status_code == 200
+    assert ok.json()["contacts"]["contacts.hr_email"] == "hr@mdigital.kg"
+
+    bad_groups = client.patch(
+        "/api/admin/settings", json={"key": "telegram.groups_json", "value": "not json"}
+    )
+    assert bad_groups.status_code == 400
+
+    ok_groups = client.patch(
+        "/api/admin/settings",
+        json={"key": "telegram.groups_json", "value": '[{"title":"Test","chat_id":"-1001"}]'},
+    )
+    assert ok_groups.status_code == 200
+    g = client.get("/api/integrations/telegram-groups")
+    assert g.json()["groups"] == [{"title": "Test", "chat_id": "-1001"}]
+
+    # не-staff не может
+    email2 = _unique_email()
+    client.post("/api/register", json={"email": email2, "password": "secret123"})
+    forbidden = client.get("/api/admin/settings")
+    assert forbidden.status_code == 403

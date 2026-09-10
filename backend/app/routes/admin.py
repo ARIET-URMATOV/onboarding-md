@@ -1,12 +1,15 @@
+import re
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.limiter import limiter
-from app.models import MpulseCode, Progress, User, VerificationLog
+from app.models import AppSetting, MpulseCode, Progress, User, VerificationLog
 from app.routes.auth import require_staff
 from app.schemas import (
+    CONTACT_KEYS,
     AdminUserOut,
     AuditOut,
     MpulseCodeOut,
@@ -14,6 +17,8 @@ from app.schemas import (
     OkOut,
     PendingRequestOut,
     RejectIn,
+    SettingIn,
+    SettingsOut,
     StaffSetIn,
     VerifyTargetIn,
 )
@@ -320,3 +325,74 @@ async def audit_log(
         )
         for r in rows
     ]
+
+
+@router.get("/admin/settings", response_model=SettingsOut)
+@limiter.limit("30/minute")
+async def get_settings(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    staff: User = Depends(require_staff),
+):
+    """Настройки из app_settings (контакты ответственных, группы TG)."""
+    from app.config import settings as _s
+
+    rows = (await db.execute(select(AppSetting))).scalars().all()
+    stored = {r.key: r.value for r in rows}
+    contacts = {k: stored.get(k, "") for k in CONTACT_KEYS}
+    return SettingsOut(
+        contacts=contacts,
+        links={
+            "telegram_invite_link": _s.telegram_invite_link,
+            "figma_team_url": _s.figma_team_url,
+            "confluence_url": _s.confluence_url,
+            "mpulse_android_url": _s.mpulse_android_url,
+            "mpulse_ios_url": _s.mpulse_ios_url,
+            "telegram_groups_json": stored.get("telegram.groups_json", "[]"),
+        },
+    )
+
+
+@router.patch("/admin/settings", response_model=SettingsOut)
+@limiter.limit("20/minute")
+async def update_setting(
+    payload: SettingIn,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    staff: User = Depends(require_staff),
+):
+    """Изменить настройку (контакты, telegram.groups_json). Валидация по ключу."""
+    import json
+
+    key = payload.key.strip()
+    value = payload.value.strip()
+    allowed = set(CONTACT_KEYS) | {"telegram.groups_json", "instruction.accountant"}
+    if key not in allowed:
+        raise HTTPException(status_code=400, detail=f"Неизвестный ключ (разрешены: {sorted(allowed)})")
+    if key == "telegram.groups_json":
+        try:
+            groups = json.loads(value or "[]")
+        except Exception:
+            raise HTTPException(status_code=400, detail="groups_json — невалидный JSON")
+        if not isinstance(groups, list):
+            raise HTTPException(status_code=400, detail="groups_json — должен быть список")
+        for g in groups:
+            if not isinstance(g, dict) or not g.get("title") or not g.get("chat_id"):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Каждая группа: {title, chat_id}, например {\"title\": \"Dev\", \"chat_id\": \"-100123\"}",
+                )
+        value = json.dumps(groups, ensure_ascii=False)
+    if key.endswith("_email") and value:
+        for email in value.split(","):
+            email = email.strip()
+            if email and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+                raise HTTPException(status_code=400, detail=f"Неверный email: {email}")
+    row = await db.get(AppSetting, key)
+    if row is None:
+        row = AppSetting(key=key, value=value)
+    else:
+        row.value = value
+    db.add(row)
+    await db.commit()
+    return await get_settings(request, db, staff)
