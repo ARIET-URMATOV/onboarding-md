@@ -508,12 +508,14 @@ async def confirm_confluence(
     if CONFLUENCE_READ in normalize_tasks((await load_progress(db, user)).done_tasks)["1"]:
         prog = await load_progress(db, user)
         return await save_progress(db, prog, prog.done_tasks)
-    # все 5 pageId (принимаем голые id или полные URL — выдираем pageId)
-    clicked: set[str] = set()
-    for raw in payload.links_clicked:
+    # все 5 pageId (list голых id/URL или dict {pageId: iso-клик})
+    raw_map: dict[str, str] = {}
+    items = payload.links_clicked.items() if isinstance(payload.links_clicked, dict) else [(str(x), "") for x in payload.links_clicked]
+    for raw, ts in items:
         m = re.search(r"pageId=(\d+)", str(raw))
-        clicked.add(m.group(1) if m else str(raw).strip())
-    missing = CONFLUENCE_PAGE_IDS - clicked
+        pid = m.group(1) if m else str(raw).strip()
+        raw_map[pid] = str(ts or "")
+    missing = CONFLUENCE_PAGE_IDS - set(raw_map)
     if missing:
         raise HTTPException(
             status_code=400,
@@ -529,6 +531,18 @@ async def confirm_confluence(
                     status_code=400,
                     detail=f"Читайте ещё {int(settings.confluence_min_seconds - elapsed_s)} сек",
                 )
+            # opened_at должен соответствовать первому клику (±5 мин) — ловим подделку timestamps
+            try:
+                first_click = min(
+                    datetime.fromisoformat(v.replace("Z", "+00:00"))
+                    for v in raw_map.values() if v
+                )
+                if abs((opened - first_click).total_seconds()) > 300:
+                    raise HTTPException(status_code=400, detail="Метка времени не совпадает с кликами")
+            except HTTPException:
+                raise
+            except Exception:
+                pass  # старых клиентов без per-link ts не трогаем
         except HTTPException:
             raise
         except Exception:
@@ -542,7 +556,7 @@ async def confirm_confluence(
     await log_verification(db, user.id, CONFLUENCE_READ, "technical_timer",
                            details={"opened_at": payload.opened_at,
                                     "elapsed_s": round(elapsed_s, 1),
-                                    "links": sorted(clicked)})
+                                    "links": raw_map})
     out = await save_progress(db, prog, tasks)
     from app.notify import notify_verified
 

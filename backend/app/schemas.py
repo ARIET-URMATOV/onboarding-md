@@ -93,9 +93,9 @@ class WifiVerifyIn(BaseModel):
 
 
 class ConfluenceConfirmIn(BaseModel):
-    """opened_at — ISO первого клика; links_clicked — pageId 5 обязательных страниц."""
+    """opened_at — ISO первого клика; links_clicked — pageId 5 страниц (list или {pageId: iso})."""
     opened_at: str | None = None
-    links_clicked: list[str] = Field(default_factory=list, max_length=16)
+    links_clicked: list[str] | dict[str, str] = Field(default_factory=list)
 
 
 class StaffSetIn(BaseModel):

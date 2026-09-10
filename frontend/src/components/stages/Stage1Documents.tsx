@@ -80,9 +80,26 @@ export function Stage1Documents({ stageId }: Props) {
     { pageId: '86868604', title: 'Команды и роли', url: 'https://confluence.mdigital.kg/pages/viewpage.action?pageId=86868604' },
     { pageId: '51478978', title: 'Общие принципы разработки', url: 'https://confluence.mdigital.kg/pages/viewpage.action?pageId=51478978' },
   ];
-  const [confOpenedAt, setConfOpenedAt] = useState<string | null>(null);
-  const [confClicked, setConfClicked] = useState<Record<string, string>>({});
-  const [confVisibleSec, setConfVisibleSec] = useState<number>(0);
+  // localStorage: прогресс чтения переживает перезагрузку (ключ на пользователя)
+  const cfKey = `cf-progress-${user?.email ?? 'anon'}`;
+  const loadCf = (): { openedAt: string | null; clicked: Record<string, string>; visibleSec: number } => {
+    try {
+      const raw = localStorage.getItem(cfKey);
+      if (raw) {
+        const d = JSON.parse(raw) as { openedAt?: string; clicked?: Record<string, string>; visibleSec?: number };
+        return { openedAt: d.openedAt ?? null, clicked: d.clicked ?? {}, visibleSec: d.visibleSec ?? 0 };
+      }
+    } catch { /* ignore */ }
+    return { openedAt: null, clicked: {}, visibleSec: 0 };
+  };
+  const [confOpenedAt, setConfOpenedAt] = useState<string | null>(() => loadCf().openedAt);
+  const [confClicked, setConfClicked] = useState<Record<string, string>>(() => loadCf().clicked);
+  const [confVisibleSec, setConfVisibleSec] = useState<number>(() => loadCf().visibleSec);
+  useEffect(() => {
+    try {
+      localStorage.setItem(cfKey, JSON.stringify({ openedAt: confOpenedAt, clicked: confClicked, visibleSec: confVisibleSec }));
+    } catch { /* ignore */ }
+  }, [cfKey, confOpenedAt, confClicked, confVisibleSec]);
   const [confConfirming, setConfConfirming] = useState(false);
   const [confMsg, setConfMsg] = useState<string | null>(null);
   const confClickedCount = Object.keys(confClicked).length;
@@ -132,14 +149,14 @@ export function Stage1Documents({ stageId }: Props) {
     return eff === n ? null : n;
   });
 
-  // Confluence: считаем только видимые секунды после первого клика
+  // Confluence: считаем только видимые секунды после первого клика; стоп после подтверждения
   useEffect(() => {
-    if (!confOpenedAt) return;
+    if (!confOpenedAt || step4ExplicitDone) return;
     const id = setInterval(() => {
       if (!document.hidden) setConfVisibleSec((v) => v + 1);
     }, 1000);
     return () => clearInterval(id);
-  }, [confOpenedAt]);
+  }, [confOpenedAt, step4ExplicitDone]);
 
   // MAC отправлен? (сервер; отправка ≠ верификация — 1-wifi отмечает staff)
   useEffect(() => {
@@ -202,7 +219,8 @@ export function Stage1Documents({ stageId }: Props) {
     setConfConfirming(true);
     setConfMsg(null);
     try {
-      await api.post('/api/confirm-confluence', { opened_at: confOpenedAt, links_clicked: Object.keys(confClicked) });
+      await api.post('/api/confirm-confluence', { opened_at: confOpenedAt, links_clicked: confClicked });
+      try { localStorage.removeItem(cfKey); } catch { /* ignore */ }
       await refreshMe();
     } catch (e) {
       setConfMsg(e instanceof Error ? e.message : 'Подтвердить пока нельзя');
