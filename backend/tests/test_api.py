@@ -824,3 +824,20 @@ def test_telegram_role_groups(client):
     # откат к пустому (не ломаем другие тесты)
     client.patch("/api/admin/settings", json={"key": "telegram.groups_json", "value": "[]"})
     assert fe_uid > 0
+
+
+def test_telegram_auto_add_fallback_invites(client, monkeypatch):
+    """Невалидный токен: getChat/getUpdates падают -> 200 с failed + попытка invites."""
+    from app import config as _config
+
+    monkeypatch.setattr(_config.settings, "telegram_bot_token", "invalid-token-for-test")
+    email = _unique_email()
+    client.post("/api/register", json={"email": email, "password": "secret123"})
+    client.post("/api/role", json={"role": "frontend"})
+    client.patch("/api/profile", json={"telegram_username": "@some_test_user_xyz"})
+    r = client.post("/api/integrations/telegram-auto-add")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["username"] == "@some_test_user_xyz"
+    assert len(body["failed"]) >= 1
+    assert "invite_links" in body

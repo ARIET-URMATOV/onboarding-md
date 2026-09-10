@@ -290,15 +290,17 @@ export function Stage1Documents({ stageId }: Props) {
     }
   };
 
+  const [tgInvites, setTgInvites] = useState<{ title: string; url: string }[]>([]);
   const handleTgAutoAdd = async () => {
     setTgAdding(true);
     setTgMsg(null);
     try {
-      const r = await api.post<{ added: string[]; failed: { title: string; reason: string }[] }>('/api/integrations/telegram-auto-add');
+      const r = await api.post<{ added: string[]; failed: { title: string; reason: string }[]; invite_links?: { title: string; url: string }[] }>('/api/integrations/telegram-auto-add');
       setTgAdded(r.added);
       const f: Record<string, string> = {};
       for (const x of r.failed) f[x.title] = x.reason;
       setTgFailed(f);
+      setTgInvites(r.invite_links ?? []);
       if (r.failed.length === 0) {
         setTgMsg(`Добавлен во все группы ✓ (${r.added.length})`);
         toast.success('Telegram: добавлен во все группы');
@@ -599,6 +601,7 @@ export function Stage1Documents({ stageId }: Props) {
             <div className="dc-body" style={{ flex: 1 }}>
               <div className="dc-title">Доступ в Telegram-группы {isTaskDone('1-telegram') && <span className="dc-badge">готово</span>}{!isTaskDone('1-telegram') && isPending('telegram') && <span className="dc-badge pending">ожидает HR</span>}{myRole && <span className="dc-badge">{myRole}</span>}</div>
               <div className="dc-sub">Укажите @username — бот добавит вас во все группы. Затем представьтесь команде</div>
+              <div className="dc-sub">Сначала напишите боту <a href="https://t.me/onboarding_admin_bot?start=onboarding" target="_blank" rel="noopener noreferrer" className="wifi-help-link">@onboarding_admin_bot → /start</a> — иначе Telegram не найдёт вас</div>
               <div className="wifi-inline" onClick={e => e.stopPropagation()}>
                 <input
                   className="wifi-input"
@@ -648,6 +651,17 @@ export function Stage1Documents({ stageId }: Props) {
                   </button>
                 </div>
               </div>
+              {tgInvites.length > 0 && (
+                <div className="tg-groups">
+                  <div className="tg-greet-title">Не вышло автоматически — вступите по ссылкам:</div>
+                  {tgInvites.map((l) => (
+                    <div key={l.title} className="tg-group-row">
+                      <span>{l.title}</span>
+                      <a href={l.url} target="_blank" rel="noopener noreferrer" className="wifi-btn" style={{ textDecoration: 'none' }}>Открыть приглашение</a>
+                    </div>
+                  ))}
+                </div>
+              )}
               {tgMsg && <div className={tgMsg.includes('✓') ? 'wifi-ok' : 'wifi-err'}>{tgMsg}</div>}
               {rejNote('1-telegram') && <div className="wifi-err">Тимлид: {rejNote('1-telegram')}</div>}
             </div>

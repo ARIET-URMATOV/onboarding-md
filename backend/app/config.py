@@ -107,6 +107,7 @@ class Settings(BaseSettings):
     mpulse_api_url: str = Field(default="", alias="MPULSE_API_URL")
     figma_api_token: str = Field(default="", alias="FIGMA_API_TOKEN")
     telegram_bot_token: str = Field(default="", alias="TELEGRAM_BOT_TOKEN")
+    telegram_webhook_secret: str = Field(default="", alias="TELEGRAM_WEBHOOK_SECRET")
     smtp_host: str = Field(default="", alias="SMTP_HOST")
     smtp_port: int = 587
     smtp_user: str = Field(default="", alias="SMTP_USER")

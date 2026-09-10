@@ -35,6 +35,7 @@ class AutoAddOut(BaseModel):
     added: list[str] = []
     failed: list[dict] = []
     username: str = ""
+    invite_links: list[dict] = []
 
 
 class PasswordChangeIn(BaseModel):
