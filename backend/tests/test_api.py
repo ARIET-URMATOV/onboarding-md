@@ -689,3 +689,94 @@ def test_admin_settings_contacts(client):
     client.post("/api/register", json={"email": email2, "password": "secret123"})
     forbidden = client.get("/api/admin/settings")
     assert forbidden.status_code == 403
+
+
+def test_step2_services_and_lead(client):
+    email = _unique_email()
+    client.post("/api/register", json={"email": email, "password": "secret123"})
+    client.post("/api/role", json={"role": "frontend"})
+    uid = _grant_staff(email)
+
+    # новые задачи доступны для запроса
+    for tid in ("1-jira", "1-figma", "1-gitlab"):
+        q = client.post("/api/progress/request", json={"task_id": tid})
+        assert q.status_code == 200, tid
+    mine = client.get("/api/progress/pending")
+    for tid in ("1-jira", "1-figma", "1-gitlab"):
+        assert tid in mine.json()["pending"]
+
+    # staff подтверждает доступ
+    v = client.post("/api/verify-access", json={"user_id": uid, "task_id": "1-jira"})
+    assert v.status_code == 200
+    assert "1-jira" in v.json()["done_tasks"]["1"]
+
+    # назначение лида
+    lead_email = _unique_email()
+    client.post("/api/register", json={"email": lead_email, "password": "secret123"})
+    # вернуться в staff-сессию
+    client.post("/api/login", json={"email": email, "password": "secret123"})
+    lead = client.patch(f"/api/admin/users/{uid}/lead", json={"lead_email": lead_email})
+    assert lead.status_code == 200
+    assert lead.json()["lead_email"] == lead_email
+    # снять лида
+    unlead = client.patch(f"/api/admin/users/{uid}/lead", json={"lead_email": ""})
+    assert unlead.status_code == 200
+    assert unlead.json()["lead_email"] == ""
+    # несуществующий лид
+    bad = client.patch(f"/api/admin/users/{uid}/lead", json={"lead_email": "ghost@x.kg"})
+    assert bad.status_code == 404
+
+
+def test_wifi_password_shown_and_received(client):
+    email = _unique_email()
+    client.post("/api/register", json={"email": email, "password": "secret123"})
+    client.post("/api/role", json={"role": "frontend"})
+    uid = _grant_staff(email)
+
+    # до отправки MAC пароля нет
+    s0 = client.get("/api/wifi-password")
+    assert s0.json() == {"password": None, "mac_sent": False}
+
+    client.post("/api/wifi-mac", json={"mac": "AA:BB:CC:DD:EE:FF"})
+    # сетевик задаёт пароль вручную
+    gen = client.post("/api/admin/wifi-password", json={"user_id": uid, "password": "CompanyWiFi_2026!"})
+    assert gen.json()["password"] == "CompanyWiFi_2026!"
+
+    # сотрудник видит пароль
+    s1 = client.get("/api/wifi-password")
+    assert s1.json()["password"] == "CompanyWiFi_2026!"
+    assert s1.json()["mac_sent"] is True
+
+    # «Пароль получен» закрывает задачу
+    done = client.post("/api/wifi-received")
+    assert done.status_code == 200
+    assert "1-wifi" in done.json()["done_tasks"]["1"]
+
+
+def test_admin_settings_and_contacts(client):
+    email = _unique_email()
+    client.post("/api/register", json={"email": email, "password": "secret123"})
+    client.post("/api/role", json={"role": "frontend"})
+    _grant_staff(email)
+
+    s = client.get("/api/admin/settings")
+    assert "contacts.hr_email" in s.json()["contacts"]
+
+    bad = client.patch("/api/admin/settings", json={"key": "nope", "value": "x"})
+    assert bad.status_code == 400
+
+    ok = client.patch(
+        "/api/admin/settings",
+        json={"key": "contacts.sysadmin_email", "value": "net1@mdigital.kg, net2@mdigital.kg"},
+    )
+    assert ok.status_code == 200
+    assert ok.json()["contacts"]["contacts.sysadmin_email"] == "net1@mdigital.kg, net2@mdigital.kg"
+
+    instr = client.patch(
+        "/api/admin/settings",
+        json={"key": "instruction.accountant", "value": "Передайте реквизиты в 1С, раздел Зарплата."},
+    )
+    assert instr.status_code == 200
+    links = client.get("/api/integrations/links")
+    assert links.json()["instruction_accountant"] == "Передайте реквизиты в 1С, раздел Зарплата."
+    assert "jira_url" in links.json() and "gitlab_url" in links.json()

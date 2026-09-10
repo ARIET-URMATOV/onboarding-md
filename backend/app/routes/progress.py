@@ -28,7 +28,8 @@ from app.stages_data import STAGES, compute_level, compute_xp, is_all_complete, 
 # Step 1: документы (HR-верификация, 5 баллов)
 DOC_TASKS = {"1-dogovor", "1-nda", "1-pdp", "1-ip", "1-sn"}
 # Step 2: доступы (0 баллов, staff-верификация; wifi — пароль)
-ACCESS_TASKS = {"1-mbusiness", "1-accountant", "1-wifi", "1-proxy", "1-telegram"}
+ACCESS_TASKS = {"1-mbusiness", "1-accountant", "1-wifi", "1-proxy", "1-telegram",
+                "1-jira", "1-figma", "1-gitlab"}
 # Step 3: MPulse (5 баллов, код)
 MPULSE_TASKS = ["1-mpulse", "1-mpulse-schedule", "1-mpulse-checkin", "1-mpulse-code", "1-mpulse-news"]
 # Step 4: Confluence (10 баллов, один тогглер; 5 обязательных ссылок + видимый таймер 120с)
@@ -218,7 +219,7 @@ async def request_verification(
 
         publish({"type": "pending_new", "email": user.email, "name": user.name,
                  "task_id": payload.task_id})
-        await notify_new_request(user.email, user.name, payload.task_id)
+        await notify_new_request(user.email, user.name, payload.task_id, db=db, user=user)
     return await save_progress(db, prog, tasks)
 
 
@@ -285,7 +286,7 @@ async def request_batch(
 
         publish({"type": "pending_new_batch", "email": user.email, "name": user.name,
                  "task_ids": wanted})
-        await notify_new_request(user.email, user.name, ", ".join(wanted), batch=True)
+        await notify_new_request(user.email, user.name, ", ".join(wanted), batch=True, db=db, user=user)
     return await save_progress(db, prog, tasks)
 
 
@@ -535,6 +536,56 @@ async def wifi_status(
     prog = await db.get(Progress, user.id)
     verified = prog is not None and "1-wifi" in normalize_tasks(prog.done_tasks).get("1", [])
     return {"mac_sent": mac_sent, "verified": verified}
+
+
+@router.get("/wifi-password")
+@limiter.limit("30/minute")
+async def wifi_password_shown(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Пароль для показа сотруднику (персональный из wifi_passwords, иначе env fallback).
+
+    Виден только после отправки MAC. Сетевик вводит пароль в /admin, система
+    показывает его здесь — пароль из Telegram не парсится (см. план Шаг 2.3).
+    """
+    from sqlalchemy import select as _select
+
+    from app.crypto import decrypt_secret
+    from app.models import WifiMac, WifiPassword
+
+    mac_row = await db.execute(_select(WifiMac).where(WifiMac.user_id == user.id).limit(1))
+    if mac_row.scalar_one_or_none() is None:
+        return {"password": None, "mac_sent": False}
+    row = await db.get(WifiPassword, user.id)
+    if row is not None:
+        try:
+            return {"password": decrypt_secret(row.password_encrypted), "mac_sent": True}
+        except ValueError as e:
+            raise HTTPException(status_code=500, detail=str(e))
+    return {"password": settings.wifi_password, "mac_sent": True}
+
+
+@router.post("/wifi-received", response_model=ProgressOut)
+@limiter.limit("10/minute")
+async def wifi_received(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """«Пароль получен»: сотрудник подключился, задача закрывается (0 баллов)."""
+    prog = await load_progress(db, user)
+    tasks = normalize_tasks(prog.done_tasks)
+    if "1-wifi" not in tasks["1"]:
+        tasks["1"].append("1-wifi")
+    await log_verification(db, user.id, "1-wifi", "technical_password",
+                           details={"via": "shown_password"})
+    out = await save_progress(db, prog, tasks)
+    from app.notify import notify_verified
+
+    await notify_verified(user.email, "1-wifi", out.xp)
+    return out
 
 
 @router.post("/wifi-verify", response_model=ProgressOut)

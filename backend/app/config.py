@@ -94,6 +94,8 @@ class Settings(BaseSettings):
     telegram_invite_link: str = Field(default="", alias="TELEGRAM_INVITE_LINK")
     figma_team_url: str = Field(default="", alias="FIGMA_TEAM_URL")
     confluence_url: str = Field(default="https://confluence.mdigital.kg", alias="CONFLUENCE_URL")
+    jira_url: str = Field(default="", alias="JIRA_URL")
+    gitlab_url: str = Field(default="", alias="GITLAB_URL")
     mpulse_android_url: str = Field(
         default="https://play.google.com/store/search?q=MPulse&c=apps", alias="MPULSE_ANDROID_URL"
     )

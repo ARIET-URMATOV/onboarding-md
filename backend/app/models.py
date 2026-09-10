@@ -36,6 +36,8 @@ class User(Base):
     is_staff: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # Telegram @username (с @ или без) — обязателен для auto-add через Bot API
     telegram_username: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    # Per-employee Lead/PM (для уведомлений о пропуске); fallback — contacts.lead_email
+    lead_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     progress: Mapped["Progress"] = relationship(

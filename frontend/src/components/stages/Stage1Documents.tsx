@@ -19,24 +19,7 @@ const docToTask: Record<DocKey, string> = {
   mbusiness: '1-mbusiness', accountant: '1-accountant', wifi: '1-wifi', proxy: '1-proxy', telegram: '1-telegram',
 };
 
-/* helpers */
-function DocCard({ k, doneFlag, pendingFlag, icon, title, sub, onOpen }: {
-  k: DocKey; doneFlag: boolean; pendingFlag?: boolean; icon: React.ReactNode; title: string; sub: string; onOpen: (k: DocKey) => void;
-}) {
-  return (
-    <button type="button" className={`doc-card ${doneFlag ? 'done' : ''} ${pendingFlag ? 'pending' : ''}`} onClick={() => onOpen(k)} aria-label={title}>
-      <div className={`dc-icon ${doneFlag ? 'dc-done' : ''}`}>{doneFlag ? '✓' : pendingFlag ? '…' : icon}</div>
-      <div className="dc-body">
-        <div className="dc-title">{title} {doneFlag && <span className="dc-badge">подтверждено</span>}{!doneFlag && pendingFlag && <span className="dc-badge pending">ожидает HR</span>}</div>
-        <div className="dc-sub">{sub}</div>
-      </div>
-      <span className={`dc-chevron ${doneFlag ? 'is-done' : ''}`} aria-hidden>
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M6 3l5 5-5 5" /></svg>
-      </span>
-    </button>
-  );
-}
-
+/* helpers (DocCard удалён вместе со старыми карточками Step 2 — остались svc/wifi/tg карты) */
 function StepHeader({ n, title, reward, desc, open, done, onToggle }: {
   n: number; title: string; reward: string; desc?: string; open?: boolean; done?: boolean; onToggle?: () => void;
 }) {
@@ -115,6 +98,7 @@ export function Stage1Documents({ stageId }: Props) {
   const isDone = (k: DocKey) => done.includes(docToTask[k]);
   const isTaskDone = (taskId: string) => done.includes(taskId);
   const isPending = (k: DocKey) => pending.includes(docToTask[k]);
+  const rejNote = (taskId: string) => rejected.find((r) => r.task_id === taskId)?.note ?? null;
   const [reqMsg, setReqMsg] = useState<string | null>(null);
 
   // Шаг 1: пакет документов целиком (физическая верификация HR, одна кнопка)
@@ -187,7 +171,8 @@ export function Stage1Documents({ stageId }: Props) {
   }, [resolvedCreatedAt]);
 
   const step1Done = ['1-dogovor','1-nda','1-pdp','1-ip','1-sn'].every(id => done.includes(id));
-  const step2Done = ['1-mbusiness','1-accountant','1-wifi','1-proxy','1-telegram'].every(id => done.includes(id));
+  const STEP2_IDS = ['1-mbusiness','1-accountant','1-wifi','1-proxy','1-telegram','1-jira','1-figma','1-gitlab'];
+  const step2Done = STEP2_IDS.every(id => done.includes(id));
   const step3Done = ['1-mpulse','1-mpulse-schedule','1-mpulse-checkin','1-mpulse-code','1-mpulse-news'].every(id => done.includes(id));
   // at least the explicit confluence tasks count as step 4 (user must click "Я ознакомился")
   const step4ExplicitDone = isTaskDone('1-confluence-read');
@@ -254,6 +239,9 @@ export function Stage1Documents({ stageId }: Props) {
     api.get<{ mac_sent: boolean }>('/api/wifi-status')
       .then((s) => setMacSent(s.mac_sent))
       .catch(() => { /* не критично */ });
+    api.get<{ password: string | null }>('/api/wifi-password')
+      .then((r) => { if (r.password) { setWifiShownPw(r.password); setMacSent(true); } })
+      .catch(() => { /* пароля пока нет */ });
   }, []);
 
   // Telegram: @username + auto-add + приветствие (Вариант Б + редактирование)
@@ -366,6 +354,68 @@ export function Stage1Documents({ stageId }: Props) {
       await refreshMe();
     } catch (e) {
       setWifiMsg(e instanceof Error ? e.message : 'Неверный пароль');
+    }
+  };
+
+  // Шаг 2: запросы доступов (0 баллов, staff подтверждает)
+  const [accMsg, setAccMsg] = useState<string | null>(null);
+  const [mbMsg, setMbMsg] = useState<string | null>(null);
+  const [proxyMsg, setProxyMsg] = useState<string | null>(null);
+  const [wifiShownPw, setWifiShownPw] = useState<string | null>(null);
+  const [svcMsg, setSvcMsg] = useState<Record<string, string>>({});
+  const [links, setLinks] = useState({ jira_url: '', gitlab_url: '', figma_team_url: '', instruction_accountant: '' });
+  const [figmaSent, setFigmaSent] = useState(false);
+  useEffect(() => {
+    api.get<Record<string, string>>('/api/integrations/links')
+      .then((l) => setLinks({
+        jira_url: l.jira_url ?? '', gitlab_url: l.gitlab_url ?? '',
+        figma_team_url: l.figma_team_url ?? '', instruction_accountant: l.instruction_accountant ?? '',
+      }))
+      .catch(() => { /* не критично */ });
+    api.get<{ password: string | null }>('/api/wifi-password')
+      .then((r) => { if (r.password) setWifiShownPw(r.password); })
+      .catch(() => { /* пароля пока нет */ });
+  }, []);
+
+  const requestAccess = async (taskId: string, setMsgFn: (m: string | null) => void, okText: string) => {
+    setMsgFn(null);
+    try {
+      await requestTask(taskId);
+      setMsgFn(okText);
+    } catch (e) {
+      setMsgFn(e instanceof Error ? e.message : 'Не удалось отправить запрос');
+    }
+  };
+
+  const handleWifiReceived = async () => {
+    setWifiMsg(null);
+    try {
+      await api.post('/api/wifi-received');
+      setWifiMsg('Приятной работы в сети ✓');
+      toast.success('Wi-Fi: пароль получен');
+      await refreshMe();
+    } catch (e) {
+      setWifiMsg(e instanceof Error ? e.message : 'Не удалось подтвердить');
+    }
+  };
+
+  const handleWifiCopy = async () => {
+    if (!wifiShownPw) return;
+    try {
+      await navigator.clipboard.writeText(wifiShownPw);
+      setWifiMsg('Пароль скопирован ✓');
+    } catch {
+      setWifiMsg('Выделите пароль вручную');
+    }
+  };
+
+  const handleFigmaInvite = async () => {
+    try {
+      await api.post('/api/integrations/figma-invite');
+      setFigmaSent(true);
+      setSvcMsg((p) => ({ ...p, '1-figma': 'Приглашение отправлено на вашу почту ✓ Проверьте inbox' }));
+    } catch (e) {
+      setSvcMsg((p) => ({ ...p, '1-figma': e instanceof Error ? e.message : 'Инвайт недоступен' }));
     }
   };
 
@@ -501,9 +551,48 @@ export function Stage1Documents({ stageId }: Props) {
         <StepHeader n={2} title="Получение доступов" reward="0 баллов" desc="Подтверждение staff (HR/лид/сисадмин) — сотрудник отмечает, staff верифицирует" open={effectiveOpen === 2} done={step2Done} onToggle={() => toggleStep(2)} />
         <div className="s1-step-body">
         <div className="step-grid">
-          <DocCard k="mbusiness" doneFlag={isDone('mbusiness')} pendingFlag={isPending('mbusiness')} icon={<img src="/mbusiness-logo.png" alt="MBusiness" width={28} height={28} loading="lazy" decoding="async" style={{ objectFit: 'contain' }} />} title="MBusiness — открытие" sub="Выплаты 1–10 числа · поможет HR" onOpen={setOpen} />
-          <DocCard k="accountant" doneFlag={isDone('accountant')} pendingFlag={isPending('accountant')} icon={<ClipboardCheck size={17} />} title="Доступ бухгалтеру" sub="Инструкция · как предоставить доступ" onOpen={setOpen} />
-          <DocCard k="proxy" doneFlag={isDone('proxy')} pendingFlag={isPending('proxy')} icon={<KeyRound size={17} />} title="Прокси-карта и Face ID" sub="Пропуск на 1 этаж · коворкинг · Технопарк / MSpace · через лида/PM" onOpen={setOpen} />
+          {/* MBusiness: инфо + запрос */}
+          <div className="doc-card svc-card">
+            <div className="dc-icon"><img src="/mbusiness-logo.png" alt="MBusiness" width={28} height={28} loading="lazy" decoding="async" style={{ objectFit: 'contain' }} /></div>
+            <div className="dc-body" style={{ flex: 1 }}>
+              <div className="dc-title">MBusiness — открытие {isTaskDone('1-mbusiness') && <span className="dc-badge">выполнено</span>}{!isTaskDone('1-mbusiness') && pending.includes('1-mbusiness') && <span className="dc-badge pending">ожидает HR</span>}</div>
+              <div className="dc-sub">MBusiness нужен для получения зарплаты (1–10 число). HR поможет с открытием.</div>
+              {!isTaskDone('1-mbusiness') && !pending.includes('1-mbusiness') && (
+                <button type="button" className="wifi-btn" style={{ marginTop: 8 }} onClick={() => requestAccess('1-mbusiness', setMbMsg, 'Запрос отправлен HR ✓')}>Запросить открытие MBusiness</button>
+              )}
+              {pending.includes('1-mbusiness') && !isTaskDone('1-mbusiness') && <div className="wifi-ok">Ожидает подтверждения HR…</div>}
+              {rejNote('1-mbusiness') && <div className="wifi-err">HR: {rejNote('1-mbusiness')}</div>}
+              {mbMsg && <div className="wifi-ok">{mbMsg}</div>}
+            </div>
+          </div>
+          {/* Бухгалтер: инструкция + выполнил */}
+          <div className="doc-card svc-card">
+            <div className="dc-icon"><ClipboardCheck size={16} /></div>
+            <div className="dc-body" style={{ flex: 1 }}>
+              <div className="dc-title">Доступ бухгалтеру {isTaskDone('1-accountant') && <span className="dc-badge">выполнено</span>}{!isTaskDone('1-accountant') && pending.includes('1-accountant') && <span className="dc-badge pending">ожидает бухгалтера</span>}</div>
+              <div className="dc-sub">{links.instruction_accountant || 'Инструкция будет добавлена позже. Пока передайте реквизиты бухгалтеру напрямую.'}</div>
+              {!isTaskDone('1-accountant') && !pending.includes('1-accountant') && (
+                <button type="button" className="wifi-btn" style={{ marginTop: 8 }} onClick={() => requestAccess('1-accountant', setAccMsg, 'Отмечено — бухгалтер проверит ✓')}>Я выполнил инструкцию</button>
+              )}
+              {pending.includes('1-accountant') && !isTaskDone('1-accountant') && <div className="wifi-ok">Ожидает подтверждения бухгалтера…</div>}
+              {rejNote('1-accountant') && <div className="wifi-err">Бухгалтер: {rejNote('1-accountant')}</div>}
+              {accMsg && <div className="wifi-ok">{accMsg}</div>}
+            </div>
+          </div>
+          {/* Прокси/Face ID: запрос лиду */}
+          <div className="doc-card svc-card">
+            <div className="dc-icon"><KeyRound size={16} /></div>
+            <div className="dc-body" style={{ flex: 1 }}>
+              <div className="dc-title">Прокси-карта и Face ID {isTaskDone('1-proxy') && <span className="dc-badge">выполнено</span>}{!isTaskDone('1-proxy') && pending.includes('1-proxy') && <span className="dc-badge pending">ожидает выдачи</span>}</div>
+              <div className="dc-sub">Пропуск на 1 этаж · коворкинг · Технопарк / MSpace. Запрос уходит вашему Лиду/PM.</div>
+              {!isTaskDone('1-proxy') && !pending.includes('1-proxy') && (
+                <button type="button" className="wifi-btn" style={{ marginTop: 8 }} onClick={() => requestAccess('1-proxy', setProxyMsg, 'Запрос отправлен Лиду/PM ✓')}>Запросить пропуск у Лида/PM</button>
+              )}
+              {pending.includes('1-proxy') && !isTaskDone('1-proxy') && <div className="wifi-ok">Ожидает выдачи…</div>}
+              {rejNote('1-proxy') && <div className="wifi-err">Лид: {rejNote('1-proxy')}</div>}
+              {proxyMsg && <div className="wifi-ok">{proxyMsg}</div>}
+            </div>
+          </div>
           <div className="doc-card tg-card">
             <div className={`dc-icon ${isTaskDone('1-telegram') ? 'dc-done' : ''}`}>{isTaskDone('1-telegram') ? <CheckCircle2 size={16} /> : <Send size={16} />}</div>
             <div className="dc-body" style={{ flex: 1 }}>
@@ -559,6 +648,45 @@ export function Stage1Documents({ stageId }: Props) {
                 </div>
               </div>
               {tgMsg && <div className={tgMsg.includes('✓') ? 'wifi-ok' : 'wifi-err'}>{tgMsg}</div>}
+              {rejNote('1-telegram') && <div className="wifi-err">Тимлид: {rejNote('1-telegram')}</div>}
+            </div>
+          </div>
+          {/* Сервисы команды: Jira / GitLab (LDAP-вход) */}
+          {[
+            { id: '1-jira', icon: <ClipboardCheck size={16} />, title: 'Jira', sub: 'Войдите со своим корпоративным логином и паролем', link: links.jira_url, linkLabel: 'Перейти в Jira', btn: 'Я вошёл в Jira' },
+            { id: '1-gitlab', icon: <KeyRound size={16} />, title: 'GitLab', sub: 'Войдите со своим корпоративным логином (или примите инвайт на почту)', link: links.gitlab_url, linkLabel: 'Перейти в GitLab', btn: 'Я вошёл в GitLab' },
+          ].map((s) => (
+            <div key={s.id} className="doc-card svc-card">
+              <div className="dc-icon">{s.icon}</div>
+              <div className="dc-body" style={{ flex: 1 }}>
+                <div className="dc-title">{s.title} {isTaskDone(s.id) && <span className="dc-badge">выполнено</span>}{!isTaskDone(s.id) && pending.includes(s.id) && <span className="dc-badge pending">ожидает</span>}</div>
+                <div className="dc-sub">{s.sub}</div>
+                {s.link && (
+                  <a href={s.link} target="_blank" rel="noopener noreferrer" className="wifi-help-link">{s.linkLabel} →</a>
+                )}
+                {!isTaskDone(s.id) && !pending.includes(s.id) && (
+                  <button type="button" className="wifi-btn" style={{ marginTop: 8 }} onClick={() => requestAccess(s.id, (m) => setSvcMsg((p) => ({ ...p, [s.id]: m ?? '' })), 'Запрос отправлен ✓')}>{s.btn}</button>
+                )}
+                {pending.includes(s.id) && !isTaskDone(s.id) && <div className="wifi-ok">Ожидает подтверждения тимлида…</div>}
+                {rejNote(s.id) && <div className="wifi-err">Тимлид: {rejNote(s.id)}</div>}
+                {svcMsg[s.id] && <div className="wifi-ok">{svcMsg[s.id]}</div>}
+              </div>
+            </div>
+          ))}
+          {/* Figma: инвайт по email */}
+          <div className="doc-card svc-card">
+            <div className="dc-icon"><Send size={16} /></div>
+            <div className="dc-body" style={{ flex: 1 }}>
+              <div className="dc-title">Figma {isTaskDone('1-figma') && <span className="dc-badge">выполнено</span>}{!isTaskDone('1-figma') && pending.includes('1-figma') && <span className="dc-badge pending">ожидает</span>}</div>
+              <div className="dc-sub">Не поддерживает LDAP. Приглашение отправляется на вашу почту ({user?.email}) — проверьте inbox и примите.</div>
+              <div className="wifi-inline" onClick={e => e.stopPropagation()}>
+                {!figmaSent
+                  ? <button type="button" className="wifi-btn" onClick={handleFigmaInvite}>Отправить приглашение</button>
+                  : <button type="button" className="wifi-btn" onClick={() => requestAccess('1-figma', (m) => setSvcMsg((p) => ({ ...p, '1-figma': m ?? '' })), 'Отмечено — тимлид подтвердит ✓')}>Я принял приглашение</button>}
+              </div>
+              {svcMsg['1-figma'] && <div className="wifi-ok">{svcMsg['1-figma']}</div>}
+              {pending.includes('1-figma') && !isTaskDone('1-figma') && <div className="wifi-ok">Ожидает подтверждения тимлида…</div>}
+              {rejNote('1-figma') && <div className="wifi-err">Тимлид: {rejNote('1-figma')}</div>}
             </div>
           </div>
           <div className="doc-card wifi-card">
@@ -580,12 +708,21 @@ export function Stage1Documents({ stageId }: Props) {
                 </button>
               </div>
               {macError && <div className="wifi-err">{macError}</div>}
-              {macSent && !isTaskDone('1-wifi') && !macError && <div className="wifi-ok">MAC принят — ожидайте подтверждения staff, либо введите пароль ниже</div>}
+              {macSent && !isTaskDone('1-wifi') && !macError && <div className="wifi-ok">⏳ Ожидаем подтверждения от сетевика…</div>}
               {isTaskDone('1-wifi') && !macError && <div className="wifi-ok">Wi-Fi подтверждён ✓</div>}
+              {wifiShownPw && !isTaskDone('1-wifi') && (
+                <div className="wifi-shown">
+                  <span>✅ Пароль от Wi-Fi: <code>{wifiShownPw}</code></span>
+                  <button type="button" className="wifi-btn" onClick={handleWifiCopy}>Скопировать</button>
+                </div>
+              )}
+              {!isTaskDone('1-wifi') && (
+                <button type="button" className="wifi-btn" style={{ marginTop: 8 }} onClick={handleWifiReceived}>Пароль получен</button>
+              )}
               <div className="wifi-inline" onClick={e => e.stopPropagation()}>
                 <input
                   className="wifi-input"
-                  placeholder="Пароль Wi-Fi"
+                  placeholder="Пароль Wi-Fi (если сетевик продиктовал)"
                   type="password"
                   value={wifiPass}
                   onChange={e => setWifiPass(e.target.value)}
@@ -694,10 +831,7 @@ export function Stage1Documents({ stageId }: Props) {
       <div className="doc-hint font-orbitron">Открой каждый документ и пролистай до конца — иначе не подтвердится. HR верификация шага 1 обязательна.</div>
 
       {/* modals (документы шага 1 убраны — пакет отправляется одной кнопкой, без модалок) */}
-      <DocumentModal kind="mbusiness" open={open === 'mbusiness'} onClose={() => setOpen(null)} alreadyDone={isDone('mbusiness')} onConfirm={() => handleConfirm('mbusiness')} />
-      <DocumentModal kind="accountant" open={open === 'accountant'} onClose={() => setOpen(null)} alreadyDone={isDone('accountant')} onConfirm={() => handleConfirm('accountant')} />
       <DocumentModal kind="wifi" open={open === 'wifi'} onClose={() => setOpen(null)} alreadyDone={isDone('wifi')} onConfirm={() => handleConfirm('wifi')} />
-      <DocumentModal kind="proxy" open={open === 'proxy'} onClose={() => setOpen(null)} alreadyDone={isDone('proxy')} onConfirm={() => handleConfirm('proxy')} />
 
 
       <style>{`
@@ -806,6 +940,10 @@ export function Stage1Documents({ stageId }: Props) {
         .wifi-err{ margin-top:6px; font-size:11px; color:#FCA5A5 }
         .wifi-ok{ margin-top:6px; font-size:11px; color:#86EFAC }
         .wifi-help-link{ margin-top:6px; background:none; border:none; color:#60A5FA; font-size:11px; cursor:pointer; padding:0; text-decoration:underline; text-underline-offset:2px }
+        .svc-card{ cursor:default; align-items:flex-start; }
+        .svc-card:hover{ transform:none; }
+        .wifi-shown{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:8px; padding:9px 11px; border-radius:9px; background:rgba(34,197,94,.08); border:1px solid rgba(34,197,94,.3); font-size:12px; }
+        .wifi-shown code{ font-family:monospace; font-size:13px; color:#fff; user-select:all; }
         .tg-card{ cursor:default; align-items:flex-start; }
         .tg-card:hover{ transform:none; }
         .tg-groups{ display:flex; flex-direction:column; gap:6px; margin-top:8px; }

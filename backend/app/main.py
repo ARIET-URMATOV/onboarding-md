@@ -140,8 +140,8 @@ async def ws_me(websocket: WebSocket):
                 evt = json.loads(msg)
             except Exception:
                 continue
-            # сотруднику — только его verified/verified_batch/rejected; pending_new видят staff в /ws/admin
-            if evt.get("type") in ("verified", "verified_batch", "rejected") and evt.get("email") == email:
+            # сотруднику — только его verified/verified_batch/rejected/wifi_password
+            if evt.get("type") in ("verified", "verified_batch", "rejected", "wifi_password") and evt.get("email") == email:
                 await websocket.send_text(msg)
     except Exception:
         pass

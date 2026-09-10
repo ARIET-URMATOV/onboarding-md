@@ -71,21 +71,86 @@ async def send_telegram_text(chat_id: str, text: str) -> bool:
         return False
 
 
-async def notify_new_request(user_email: str, user_name: str, task_id: str, batch: bool = False) -> None:
-    """Новый запрос сотрудника: HR email + WS всем staff-подписчикам."""
+ROLE_TO_CONTACT = {
+    "hr": "contacts.hr_email",
+    "accountant": "contacts.accountant_email",
+    "sysadmin": "contacts.sysadmin_email",
+    "lead": "contacts.lead_email",
+    "teamlead": "contacts.teamlead_email",
+    "system": "",
+}
+
+TASK_ACTION_TEXT = {
+    "1-mbusiness": "запросил открытие MBusiness",
+    "1-accountant": "выполнил инструкцию для бухгалтера",
+    "1-wifi": "отправил MAC-адрес (нужен пароль Wi-Fi)",
+    "1-proxy": "запросил пропуск / Face ID",
+    "1-telegram": "вступил в Telegram-группы и представился",
+    "1-jira": "вошёл в Jira",
+    "1-figma": "принял приглашение Figma",
+    "1-gitlab": "вошёл в GitLab",
+}
+
+
+async def _contact_emails(db, responsible_role: str, user=None) -> list[str]:
+    """Email ответственных: per-employee lead (для 1-proxy) -> contacts.* -> HR fallback."""
+    from app.models import AppSetting
+    from app.models import User as _User
+
+    # per-employee Lead для пропусков
+    if responsible_role == "lead" and user is not None and getattr(user, "lead_id", None):
+        lead = await db.get(_User, user.lead_id)
+        if lead is not None:
+            return [lead.email]
+    key = ROLE_TO_CONTACT.get(responsible_role, "")
+    addrs: list[str] = []
+    if key:
+        row = await db.get(AppSetting, key)
+        if row is not None and row.value.strip():
+            addrs = [e.strip() for e in row.value.split(",") if e.strip()]
+    if not addrs and settings.hr_notify_email:
+        addrs = [settings.hr_notify_email]
+    return addrs
+
+
+async def notify_new_request(
+    user_email: str,
+    user_name: str,
+    task_id: str,
+    batch: bool = False,
+    db=None,
+    user=None,
+    responsible_role: str = "hr",
+) -> None:
+    """Новый запрос: WS всем staff + email ответственному по роли (список/lead/HR-fallback)."""
+    from app.stages_data import task_meta
+
+    if not responsible_role or responsible_role == "hr":
+        _vt, _rr = task_meta(task_id.split(",")[0].strip())
+        if _rr:
+            responsible_role = _rr
     publish({"type": "pending_new_batch" if batch else "pending_new", "email": user_email,
-             "name": user_name, "task_id": task_id})
-    if settings.hr_notify_email:
+             "name": user_name, "task_id": task_id, "responsible_role": responsible_role})
+    action = TASK_ACTION_TEXT.get(task_id.split(",")[0].strip(), f"запросил: {task_id}")
+    addrs: list[str] = []
+    if db is not None:
+        try:
+            addrs = await _contact_emails(db, responsible_role, user)
+        except Exception as e:
+            print(f"notify: contacts lookup failed: {e}")
+    if not addrs and settings.hr_notify_email:
+        addrs = [settings.hr_notify_email]
+    if addrs:
         what = f"пакет задач ({task_id})" if batch else f"задачу {task_id}"
-        await send_email(
-            settings.hr_notify_email,
-            f"[Онбординг] {user_name} — запрос проверки: {task_id}",
-            f"Сотрудник {user_name} ({user_email}) подписал документы и передал их на проверку: {what}.\n"
-            f"Зайдите в админ-панель (/admin), проверьте пакет физически и нажмите "
-            f"«Подтвердить получение и проверку документов».",
-        )
+        for to in addrs:
+            await send_email(
+                to,
+                f"[Онбординг] {user_name} {action}",
+                f"Сотрудник {user_name} ({user_email}) {action}: {what}.\n"
+                f"Зайдите в админ-панель (/admin) и подтвердите.",
+            )
     else:
-        print(f"notify: pending_new {user_email} {task_id} (HR email not configured)")
+        print(f"notify: pending_new {user_email} {task_id} (no contacts configured)")
 
 
 async def notify_rejected(user_email: str, user_name: str, task_id: str, reason: str) -> None:

@@ -44,6 +44,9 @@ export const STAGES: StageDef[] = [
       { id: '1-wifi', title: 'Доступ к Wi-Fi (MAC адрес)', xp: 0 },
       { id: '1-proxy', title: 'Прокси-карта и Face ID', xp: 0 },
       { id: '1-telegram', title: 'Доступ в Telegram-группы', xp: 0 },
+      { id: '1-jira', title: 'Доступ к Jira (AD-логин)', xp: 0 },
+      { id: '1-figma', title: 'Доступ к Figma (инвайт)', xp: 0 },
+      { id: '1-gitlab', title: 'Доступ к GitLab', xp: 0 },
       // Step 3: Корпоративное приложение MPulse (5 баллов, код)
       { id: '1-mpulse', title: 'Установка и авторизация MPulse', xp: 1 },
       { id: '1-mpulse-schedule', title: 'Выбор рабочего графика', xp: 1 },

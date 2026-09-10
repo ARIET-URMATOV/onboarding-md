@@ -12,6 +12,7 @@ from app.schemas import (
     CONTACT_KEYS,
     AdminUserOut,
     AuditOut,
+    LeadSetIn,
     MpulseCodeOut,
     MpulseRotateIn,
     OkOut,
@@ -20,7 +21,7 @@ from app.schemas import (
     SettingIn,
     SettingsOut,
     StaffSetIn,
-    VerifyTargetIn,
+    WifiPasswordIn,
 )
 from app.stages_data import normalize_tasks
 
@@ -39,7 +40,9 @@ def _mpulse_out(r: MpulseCode) -> MpulseCodeOut:
 router = APIRouter()
 
 
-def _admin_user_out(user: User, done_stage1: list[str] | None = None) -> AdminUserOut:
+def _admin_user_out(
+    user: User, done_stage1: list[str] | None = None, lead_email: str = ""
+) -> AdminUserOut:
     return AdminUserOut(
         id=user.id,
         email=user.email,
@@ -48,7 +51,15 @@ def _admin_user_out(user: User, done_stage1: list[str] | None = None) -> AdminUs
         is_staff=user.is_staff,
         created_at=user.created_at.isoformat() if user.created_at else None,
         done_stage1=done_stage1 or [],
+        lead_email=lead_email,
     )
+
+
+async def _lead_email(db: AsyncSession, user: User) -> str:
+    if not getattr(user, "lead_id", None):
+        return ""
+    lead = await db.get(User, user.lead_id)
+    return lead.email if lead is not None else ""
 
 
 @router.get("/admin/users", response_model=list[AdminUserOut])
@@ -73,7 +84,7 @@ async def list_users(
         done1: list[str] = []
         if prog is not None:
             done1 = normalize_tasks(prog.done_tasks).get("1", [])
-        out.append(_admin_user_out(u, done1))
+        out.append(_admin_user_out(u, done1, await _lead_email(db, u)))
     return out
 
 
@@ -203,18 +214,51 @@ async def reset_stage1(
     return OkOut()
 
 
-@router.post("/admin/wifi-password")
-@limiter.limit("10/minute")
-async def set_wifi_password(
-    payload: VerifyTargetIn,
+@router.get("/admin/wifi-requests")
+@limiter.limit("30/minute")
+async def wifi_requests(
     request: Request,
     db: AsyncSession = Depends(get_db),
     staff: User = Depends(require_staff),
 ):
-    """Staff задаёт персональный Wi-Fi пароль сотруднику (Fernet; payload.task_id игнорируется).
+    """Wi-Fi запросы: сотрудник, MAC-адреса, есть ли пароль, верифицирован ли."""
+    from app.models import WifiMac, WifiPassword
 
-    Пароль генерируется сервером и возвращается staff ОДИН раз —
-    передайте сотруднику вне системы (показывается один раз, в БД только шифр).
+    macs = (await db.execute(select(WifiMac).order_by(desc(WifiMac.created_at)).limit(200))).scalars().all()
+    out = []
+    seen: set[int] = set()
+    for m in macs:
+        u = await db.get(User, m.user_id)
+        if u is None:
+            continue
+        has_pw = await db.get(WifiPassword, m.user_id) is not None
+        prog = await db.get(Progress, m.user_id)
+        verified = prog is not None and "1-wifi" in normalize_tasks(prog.done_tasks).get("1", [])
+        out.append({
+            "user_id": m.user_id,
+            "email": u.email,
+            "name": u.name,
+            "mac": m.mac,
+            "sent_at": m.created_at.isoformat() if m.created_at else None,
+            "has_password": has_pw,
+            "verified": verified,
+        })
+        seen.add(m.user_id)
+    return out
+
+
+@router.post("/admin/wifi-password")
+@limiter.limit("10/minute")
+async def set_wifi_password(
+    payload: WifiPasswordIn,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    staff: User = Depends(require_staff),
+):
+    """Сетевик вводит пароль вручную (пусто = сгенерировать сервером).
+
+    Возвращается staff ОДИН раз — система показывает его сотруднику
+    в интерфейсе под полем MAC. В БД только Fernet-шифр.
     """
     import secrets
 
@@ -224,7 +268,9 @@ async def set_wifi_password(
     target = await db.get(User, payload.user_id)
     if target is None:
         raise HTTPException(status_code=404, detail="Сотрудник не найден")
-    password = secrets.token_urlsafe(12)
+    password = payload.password.strip() or secrets.token_urlsafe(12)
+    if len(password) < 4:
+        raise HTTPException(status_code=400, detail="Пароль слишком короткий (мин 4)")
     row = await db.get(WifiPassword, target.id)
     if row is None:
         row = WifiPassword(user_id=target.id, password_encrypted="", set_by=staff.id)
@@ -232,6 +278,9 @@ async def set_wifi_password(
     row.set_by = staff.id
     db.add(row)
     await db.commit()
+    from app.notify import publish
+
+    publish({"type": "wifi_password", "email": target.email, "user_id": target.id})
     return {"ok": True, "password": password, "user_id": target.id}
 
 
@@ -261,7 +310,40 @@ async def set_staff(
     db.add(target)
     await db.commit()
     await db.refresh(target)
-    return _admin_user_out(target)
+    return _admin_user_out(target, None, await _lead_email(db, target))
+
+
+@router.patch("/admin/users/{user_id}/lead", response_model=AdminUserOut)
+@limiter.limit("20/minute")
+async def set_lead(
+    user_id: int,
+    payload: LeadSetIn,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    staff: User = Depends(require_staff),
+):
+    """Назначить per-employee Лида (для уведомлений о пропуске). Пусто = глобальный."""
+    target = await db.get(User, user_id)
+    if target is None:
+        raise HTTPException(status_code=404, detail="Сотрудник не найден")
+    email = payload.lead_email.strip().lower()
+    if not email:
+        target.lead_id = None
+    else:
+        lead = (await db.execute(select(User).where(User.email == email))).scalars().first()
+        if lead is None:
+            raise HTTPException(status_code=404, detail="Лид с таким email не найден")
+        if lead.id == target.id:
+            raise HTTPException(status_code=400, detail="Нельзя назначить самого себя лидом")
+        target.lead_id = lead.id
+    db.add(target)
+    await db.commit()
+    await db.refresh(target)
+    prog = await db.get(Progress, target.id)
+    done1: list[str] = []
+    if prog is not None:
+        done1 = normalize_tasks(prog.done_tasks).get("1", [])
+    return _admin_user_out(target, done1, lead.email)
 
 
 @router.get("/admin/mpulse-code", response_model=list[MpulseCodeOut])

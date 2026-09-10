@@ -12,6 +12,7 @@ _FALLBACK_STAGES: dict[int, dict] = {
         "1-dogovor": 1, "1-nda": 1, "1-pdp": 1, "1-ip": 1, "1-sn": 1,
         # Step 2: Получение доступов (0 баллов, ручная верификация staff)
         "1-mbusiness": 0, "1-accountant": 0, "1-wifi": 0, "1-proxy": 0, "1-telegram": 0,
+        "1-jira": 0, "1-figma": 0, "1-gitlab": 0,
         # Step 3: Корпоративное приложение MPulse (5 баллов, код)
         "1-mpulse": 1, "1-mpulse-schedule": 1, "1-mpulse-checkin": 1, "1-mpulse-code": 1, "1-mpulse-news": 1,
         # Step 4: База знаний Confluence (10 баллов, один тогглер; 5 ссылок + видимый таймер 120с)
@@ -33,6 +34,8 @@ TASK_META: dict[str, tuple[str, str]] = {
     "1-mbusiness": ("manual_staff", "hr"), "1-accountant": ("manual_staff", "accountant"),
     "1-wifi": ("manual_staff", "sysadmin"), "1-proxy": ("manual_staff", "lead"),
     "1-telegram": ("manual_staff", "teamlead"),
+    "1-jira": ("manual_staff", "teamlead"), "1-figma": ("manual_staff", "teamlead"),
+    "1-gitlab": ("manual_staff", "teamlead"),
     "1-mpulse": ("technical_code", "system"), "1-mpulse-schedule": ("technical_code", "system"),
     "1-mpulse-checkin": ("technical_code", "system"), "1-mpulse-code": ("technical_code", "system"),
     "1-mpulse-news": ("technical_code", "system"),

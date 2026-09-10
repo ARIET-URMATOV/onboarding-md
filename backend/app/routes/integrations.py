@@ -49,12 +49,22 @@ async def integration_links(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    instruction = ""
+    try:
+        row = await db.get(AppSetting, "instruction.accountant")
+        if row is not None:
+            instruction = row.value
+    except Exception:
+        instruction = ""
     return LinksOut(
         telegram_invite_link=settings.telegram_invite_link,
         figma_team_url=settings.figma_team_url,
         confluence_url=settings.confluence_url,
         mpulse_android_url=settings.mpulse_android_url,
         mpulse_ios_url=settings.mpulse_ios_url,
+        jira_url=settings.jira_url,
+        gitlab_url=settings.gitlab_url,
+        instruction_accountant=instruction,
     )
 
 

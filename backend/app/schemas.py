@@ -133,6 +133,16 @@ class StaffSetIn(BaseModel):
     is_staff: bool
 
 
+class LeadSetIn(BaseModel):
+    lead_email: str = Field(default="", max_length=120)
+
+
+class WifiPasswordIn(BaseModel):
+    """Сетевик вводит пароль вручную (пусто = сгенерировать сервером)."""
+    user_id: int
+    password: str = Field(default="", max_length=128)
+
+
 # Контакты ответственных (админ-панель → Настройки; пусто = уведомления только HR)
 CONTACT_KEYS = (
     "contacts.hr_email",
@@ -161,6 +171,7 @@ class AdminUserOut(BaseModel):
     is_staff: bool = False
     created_at: str | None = None
     done_stage1: list[str] = []
+    lead_email: str = ""
 
 
 class AuditOut(BaseModel):
@@ -194,6 +205,9 @@ class LinksOut(BaseModel):
     confluence_url: str = ""
     mpulse_android_url: str = ""
     mpulse_ios_url: str = ""
+    jira_url: str = ""
+    gitlab_url: str = ""
+    instruction_accountant: str = ""
 
 
 class MeOut(BaseModel):

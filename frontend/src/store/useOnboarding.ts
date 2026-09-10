@@ -187,7 +187,7 @@ export const useOnboarding = create<OnboardingState>()((set, get) => ({
       ws.onmessage = (ev) => {
         try {
           const data = JSON.parse(ev.data as string);
-          if (data && (data.type === 'verified' || data.type === 'verified_batch' || data.type === 'rejected')) {
+          if (data && (data.type === 'verified' || data.type === 'verified_batch' || data.type === 'rejected' || data.type === 'wifi_password')) {
             if (data.type === 'verified' && typeof data.task_id === 'string') {
               set({ lastVerifiedAt: Date.now(), lastVerifiedTask: data.task_id });
             } else if (data.type === 'verified_batch' && Array.isArray(data.task_ids) && data.task_ids.length) {

@@ -12,6 +12,7 @@ interface AdminUser {
   is_staff: boolean;
   created_at: string | null;
   done_stage1: string[];
+  lead_email: string;
 }
 
 interface AuditRow {
@@ -84,7 +85,11 @@ export function AdminPage() {
   const [audit, setAudit] = useState<AuditRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [tab, setTab] = useState<'pending' | 'users' | 'audit' | 'codes'>('pending');
+  const [tab, setTab] = useState<'pending' | 'users' | 'audit' | 'codes' | 'wifi' | 'settings'>('pending');
+  const [taskFilter, setTaskFilter] = useState<string>('all');
+  const [contacts, setContacts] = useState<Record<string, string>>({});
+  const [wifiReqs, setWifiReqs] = useState<{ user_id: number; email: string; name: string; mac: string; sent_at: string | null; has_password: boolean; verified: boolean }[]>([]);
+  const [wifiPwForm, setWifiPwForm] = useState<Record<number, string>>({});
   const [liveOn, setLiveOn] = useState(false);
   const prevPending = useRef(0);
   const [codes, setCodes] = useState<MpulseCode[]>([]);
@@ -92,6 +97,7 @@ export function AdminPage() {
   const [newCode, setNewCode] = useState('');
   const [newBatch, setNewBatch] = useState('');
   const [wifiPw, setWifiPw] = useState<Record<number, string>>({});
+  const [leadForm, setLeadForm] = useState<Record<number, string>>({});
   const [tgGroupsJson, setTgGroupsJson] = useState('[]');
   const [tgRights, setTgRights] = useState<{ bot: string; groups: { title: string; ok: boolean; detail: string }[] } | null>(null);
 
@@ -103,6 +109,44 @@ export function AdminPage() {
   }, []);
 
   useEffect(() => { void loadTgGroups(); }, [loadTgGroups]);
+
+  const loadExtras = useCallback(async () => {
+    try {
+      const [w, s] = await Promise.all([
+        api.get<{ user_id: number; email: string; name: string; mac: string; sent_at: string | null; has_password: boolean; verified: boolean }[]>('/api/admin/wifi-requests'),
+        api.get<{ contacts: Record<string, string> }>('/api/admin/settings'),
+      ]);
+      setWifiReqs(w);
+      setContacts(s.contacts);
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => { void loadExtras(); }, [loadExtras]);
+
+  const saveContact = async (key: string) => {
+    try {
+      const r = await api.patch<{ contacts: Record<string, string> }>('/api/admin/settings', { key, value: contacts[key] ?? '' });
+      setContacts(r.contacts);
+      setMsg(`✓ ${key} сохранён`);
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : 'Ошибка сохранения');
+    }
+  };
+
+  const setWifiPwAdmin = async (userId: number) => {
+    const password = (wifiPwForm[userId] ?? '').trim();
+    try {
+      const r = await api.post<{ ok: boolean; password: string; user_id: number }>(
+        '/api/admin/wifi-password', { user_id: userId, password },
+      );
+      setWifiPw((prev) => ({ ...prev, [userId]: r.password }));
+      setWifiPwForm((prev) => ({ ...prev, [userId]: '' }));
+      setMsg(password ? '✓ Пароль сохранён, сотрудник увидит его в интерфейсе' : '✓ Пароль сгенерирован (показан один раз)');
+      await loadExtras();
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : 'Ошибка');
+    }
+  };
 
   const saveTgGroups = async () => {
     try {
@@ -134,8 +178,9 @@ export function AdminPage() {
     '1-sn': 'Справка о несудимости (актуальна)',
   };
 
-  // группировка очереди по сотрудникам: один мини-документ на человека
-  const pendingByUser = pending.reduce<Record<number, { user_id: number; email: string; name: string; rows: PendingRow[] }>>((acc, r) => {
+  // группировка очереди по сотрудникам: один мини-документ на человека (+ фильтр по задаче)
+  const visiblePending = taskFilter === 'all' ? pending : pending.filter((r) => r.task_id === taskFilter);
+  const pendingByUser = visiblePending.reduce<Record<number, { user_id: number; email: string; name: string; rows: PendingRow[] }>>((acc, r) => {
     (acc[r.user_id] ??= { user_id: r.user_id, email: r.email, name: r.name, rows: [] }).rows.push(r);
     return acc;
   }, {});
@@ -342,9 +387,9 @@ export function AdminPage() {
         </span>
       </h1>
       <div className="admin-tabs">
-        {(['pending', 'users', 'audit', 'codes'] as const).map((t) => (
+        {(['pending', 'users', 'audit', 'codes', 'wifi', 'settings'] as const).map((t) => (
           <button key={t} type="button" onClick={() => setTab(t)} className={`admin-tab ${tab === t ? 'active' : ''}`}>
-            {t === 'pending' ? `Ожидают (${pending.length})` : t === 'users' ? 'Сотрудники' : t === 'audit' ? `Журнал (${audit.length})` : 'Коды и ссылки'}
+            {t === 'pending' ? `Ожидают (${pending.length})` : t === 'users' ? 'Сотрудники' : t === 'audit' ? `Журнал (${audit.length})` : t === 'codes' ? 'Коды и ссылки' : t === 'wifi' ? 'Wi-Fi запросы' : 'Настройки'}
           </button>
         ))}
         <button type="button" onClick={() => load()} className="admin-tab" disabled={loading}>↻</button>
@@ -353,6 +398,13 @@ export function AdminPage() {
 
       {tab === 'pending' && (
         <div className="admin-list">
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {['all', '1-mbusiness', '1-accountant', '1-wifi', '1-proxy', '1-telegram', '1-jira', '1-figma', '1-gitlab'].map((f) => (
+              <button key={f} type="button" onClick={() => setTaskFilter(f)} className={`admin-tab ${taskFilter === f ? 'active' : ''}`}>
+                {f === 'all' ? 'Все' : f.replace('1-', '')}
+              </button>
+            ))}
+          </div>
           {loading && !pending.length && [0, 1, 2].map((i) => (
             <div key={i} className="admin-card admin-skel"><div className="skel-line" /><div className="skel-line short" /></div>
           ))}
@@ -419,6 +471,86 @@ export function AdminPage() {
         </div>
       )}
 
+      {tab === 'wifi' && (
+        <div className="admin-list">
+          <div className="admin-card">
+            <div className="admin-card-head"><b>Wi-Fi запросы</b></div>
+            <div className="admin-card-sub">MAC от сотрудников · введите пароль → Сохранить → система покажет его сотруднику под полем MAC.</div>
+          </div>
+          {wifiReqs.map((w) => (
+            <div key={`${w.user_id}-${w.mac}`} className="admin-card">
+              <div className="admin-card-head">
+                <b>{w.name}</b> <span className="admin-email">{w.email}</span>
+                {w.verified && <span className="admin-staff-badge">подтверждён</span>}
+                {!w.verified && w.has_password && <span className="admin-staff-badge">пароль задан</span>}
+              </div>
+              <div className="admin-card-sub">
+                MAC: <code style={{ fontFamily: 'monospace' }}>{w.mac}</code> · отправлен {w.sent_at ? ago(w.sent_at) : '—'}
+              </div>
+              {!w.verified && (
+                <div className="admin-search">
+                  <input
+                    value={wifiPwForm[w.user_id] ?? ''}
+                    onChange={(e) => setWifiPwForm((p) => ({ ...p, [w.user_id]: e.target.value }))}
+                    placeholder="Пароль (пусто = сгенерировать)"
+                    className="admin-input"
+                  />
+                  <button type="button" onClick={() => setWifiPwAdmin(w.user_id)} className="admin-btn small">Сохранить</button>
+                </div>
+              )}
+              {wifiPw[w.user_id] && (
+                <div className="admin-once">
+                  <code>{wifiPw[w.user_id]}</code>
+                  <span>— показан один раз, сотрудник уже видит его в интерфейсе</span>
+                </div>
+              )}
+            </div>
+          ))}
+          {!wifiReqs.length && !loading && <div className="admin-empty">MAC-адресов пока нет</div>}
+        </div>
+      )}
+
+      {tab === 'settings' && (
+        <div className="admin-list">
+          <div className="admin-card">
+            <div className="admin-card-head"><b>Настройки → Контакты</b></div>
+            <div className="admin-card-sub">Email ответственных (можно несколько через запятую). Уведомления о запросах уходят сюда; если пусто — HR. Меняются в любой момент без редеплоя.</div>
+          </div>
+          {[
+            { key: 'contacts.hr_email', label: 'HR' },
+            { key: 'contacts.sysadmin_email', label: 'Сетевик(и) — можно несколько через запятую' },
+            { key: 'contacts.lead_email', label: 'Lead / PM (глобальный; per-employee задаётся в карточке сотрудника)' },
+            { key: 'contacts.accountant_email', label: 'Бухгалтер' },
+            { key: 'contacts.teamlead_email', label: 'Тимлид' },
+          ].map((c) => (
+            <div key={c.key} className="admin-card">
+              <div className="admin-card-head"><b>{c.label}</b></div>
+              <div className="admin-search">
+                <input
+                  value={contacts[c.key] ?? ''}
+                  onChange={(e) => setContacts((p) => ({ ...p, [c.key]: e.target.value }))}
+                  placeholder="email@example.com"
+                  className="admin-input"
+                />
+                <button type="button" onClick={() => saveContact(c.key)} className="admin-btn small">Сохранить</button>
+              </div>
+            </div>
+          ))}
+          <div className="admin-card">
+            <div className="admin-card-head"><b>Инструкция для бухгалтера</b></div>
+            <div className="admin-card-sub">Показывается сотруднику в задаче «Доступ бухгалтеру».</div>
+            <textarea
+              value={contacts['instruction.accountant'] ?? ''}
+              onChange={(e) => setContacts((p) => ({ ...p, ['instruction.accountant']: e.target.value }))}
+              rows={3}
+              className="admin-input"
+              placeholder="Текст инструкции (пока заглушка)…"
+            />
+            <div><button type="button" onClick={() => saveContact('instruction.accountant')} className="admin-btn small">Сохранить инструкцию</button></div>
+          </div>
+        </div>
+      )}
+
       {tab === 'users' && (
         <div>
           <div className="admin-search">
@@ -432,8 +564,25 @@ export function AdminPage() {
                   <b>{u.name}</b> <span className="admin-email">{u.email}</span>
                   {u.is_staff && <span className="admin-staff-badge">staff</span>}
                 </div>
-                <div className="admin-card-sub">Stage 1: {u.done_stage1.length} задач</div>
+                <div className="admin-card-sub">Stage 1: {u.done_stage1.length} задач · Лид: {u.lead_email || '— (глобальный)'}</div>
                 {renderTasks(u)}
+                <div className="admin-search">
+                  <input
+                    value={leadForm[u.id] ?? u.lead_email}
+                    onChange={(e) => setLeadForm((p) => ({ ...p, [u.id]: e.target.value }))}
+                    placeholder="Email лида (пусто = глобальный)"
+                    className="admin-input"
+                  />
+                  <button type="button" onClick={async () => {
+                    try {
+                      const updated = await api.patch<AdminUser>(`/api/admin/users/${u.id}/lead`, { lead_email: leadForm[u.id] ?? '' });
+                      setUsers((prev) => prev.map((x) => (x.id === u.id ? updated : x)));
+                      setMsg(`✓ Лид для ${u.email}: ${updated.lead_email || 'глобальный'}`);
+                    } catch (e) {
+                      setMsg(e instanceof Error ? e.message : 'Ошибка');
+                    }
+                  }} className="admin-btn small">Лид</button>
+                </div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   <button type="button" onClick={() => toggleStaff(u)} className="admin-btn small">
                     {u.is_staff ? 'Снять staff' : 'Дать staff'}
