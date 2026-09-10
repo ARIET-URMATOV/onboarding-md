@@ -107,3 +107,14 @@ async def notify_verified(user_email: str, task_id: str, xp: int) -> None:
         f"Подтверждено: {task_id} (+XP)",
         f"HR подтвердил задачу {task_id}. Начислено XP, прогресс обновлён в портале.",
     )
+
+
+async def notify_verified_batch(user_email: str, task_ids: list[str], xp: int) -> None:
+    """Одно событие + одно письмо на весь пакет (Stage = один XP = один тост)."""
+    publish({"type": "verified_batch", "email": user_email, "task_ids": task_ids, "xp": xp})
+    await send_email(
+        user_email,
+        "Пакет документов подтверждён (+5 баллов)",
+        f"HR подтвердил получение и проверку документов ({len(task_ids)} шт.). "
+        f"Начислено XP, этап закрыт — продолжайте онбординг.",
+    )

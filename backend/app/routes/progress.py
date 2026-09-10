@@ -409,7 +409,6 @@ async def verify_docs_batch(
     from sqlalchemy import select as _select
 
     from app.models import PendingRequest
-    from app.notify import notify_verified
 
     wanted: list[str] = []
     for raw in payload.task_ids:
@@ -442,9 +441,10 @@ async def verify_docs_batch(
             r.status = "verified"
             db.add(r)
     out = await save_progress(db, prog, tasks)
-    # per-task события (не joined-строка): фронт ловит DOC_IDS по одному
-    for tid in wanted:
-        await notify_verified(target.email, tid, out.xp)
+    # одно событие на пакет (не 5): один тост + одно письмо за весь Stage
+    from app.notify import notify_verified_batch
+
+    await notify_verified_batch(target.email, wanted, out.xp)
     return out
 
 
