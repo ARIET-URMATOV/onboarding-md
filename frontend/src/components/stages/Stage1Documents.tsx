@@ -197,13 +197,14 @@ export function Stage1Documents({ stageId }: Props) {
   // HR подтвердил пакет: тост +5 (2.5с) + конфетти.
   // Срабатывает только на свежее WS-событие (не для давно завершённого шага).
   const [doneToast, setDoneToast] = useState(false);
-  const handledVerify = useRef<number | null>(null);
+  const consumeVerified = useOnboarding((s) => s.consumeVerified);
   const lastBurst = useRef(0);
   useEffect(() => {
     if (lastVerifiedAt === null || lastVerifiedTask === null) return;
     if (!DOC_IDS.includes(lastVerifiedTask)) return;
-    if (handledVerify.current === lastVerifiedAt) return;
-    handledVerify.current = lastVerifiedAt;
+    // только свежее событие (<=10с): старый verify из стора не replay'им на mount
+    if (Date.now() - lastVerifiedAt > 10000) { consumeVerified(); return; }
+    consumeVerified();
     setDoneToast(true);
     // batch даёт 5 событий подряд — конфетти один раз в 3с окно
     if (Date.now() - lastBurst.current > 3000) {

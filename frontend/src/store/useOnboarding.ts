@@ -43,6 +43,7 @@ interface OnboardingState {
   markIntroSeen: () => Promise<void>;
   setVoiceEnabled: (enabled: boolean) => Promise<void>;
   connectLive: () => () => void;
+  consumeVerified: () => void;
 }
 
 let liveSocket: WebSocket | null = null;
@@ -169,6 +170,11 @@ export const useOnboarding = create<OnboardingState>()((set, get) => ({
       completedAt: res.completed_at,
     });
     await get().fetchPending();
+  },
+
+  consumeVerified: () => {
+    // Событие consumed один раз — повторный mount (навигация) не replay'ит тост.
+    set({ lastVerifiedAt: null, lastVerifiedTask: null });
   },
 
   connectLive: () => {
