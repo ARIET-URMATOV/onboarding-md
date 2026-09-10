@@ -1,6 +1,7 @@
 import { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthGate, GuestOnly, RequireRole } from './components/auth/AuthGate';
+import { ToastProvider } from './components/ui/ToastProvider';
 import './styles/global.css';
 
 // Eager: auth pages (small, needed before hydration)
@@ -23,6 +24,7 @@ function PageFallback() {
 export default function App() {
   return (
     <BrowserRouter>
+      <ToastProvider>
       <div className="app-shell">
         <div className="app-content">
           <Suspense fallback={<PageFallback />}>
@@ -42,6 +44,7 @@ export default function App() {
           </Suspense>
         </div>
       </div>
+      </ToastProvider>
     </BrowserRouter>
   );
 }

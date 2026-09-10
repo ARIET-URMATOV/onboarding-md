@@ -7,6 +7,7 @@ import confetti from 'canvas-confetti';
 import type { StageId } from '../../data/stages';
 import { useOnboarding } from '../../store/useOnboarding';
 import { DocumentModal, type DocKind } from './DocumentModal';
+import { useToast } from '../ui/ToastProvider';
 import { api } from '../../api/client';
 
 interface Props { stageId: StageId }
@@ -153,6 +154,17 @@ export function Stage1Documents({ stageId }: Props) {
   // live-лента: HR подтвердил → прогресс обновится сам
   useEffect(() => { connectLive(); }, [connectLive]);
 
+  // HR отклонил: глобальный тост с причиной (список rejected вырос)
+  const prevRejectedCount = useRef(rejected.length);
+  useEffect(() => {
+    if (rejected.length > prevRejectedCount.current) {
+      const fresh = rejected[rejected.length - 1];
+      if (fresh) toast.error(`HR отклонил: ${fresh.task_id}`, fresh.note || 'Доделайте и отправьте снова');
+    }
+    prevRejectedCount.current = rejected.length;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rejected]);
+
   const handleConfirm = (k: DocKey) => {
     // Модалка: "передал HR" = запрос на верификацию, НЕ свободная галочка (CON-04).
     if (isDone(k) || isPending(k)) return;
@@ -194,9 +206,9 @@ export function Stage1Documents({ stageId }: Props) {
   };
   useEffect(() => () => { if (autoTimer.current) window.clearTimeout(autoTimer.current); }, []);
 
-  // HR подтвердил пакет: тост +5 (2.5с) + конфетти.
+  // HR подтвердил пакет: глобальный тост +5 + конфетти (виден на любой странице).
   // Срабатывает только на свежее WS-событие (не для давно завершённого шага).
-  const [doneToast, setDoneToast] = useState(false);
+  const toast = useToast();
   const consumeVerified = useOnboarding((s) => s.consumeVerified);
   const lastBurst = useRef(0);
   useEffect(() => {
@@ -205,7 +217,7 @@ export function Stage1Documents({ stageId }: Props) {
     // только свежее событие (<=10с): старый verify из стора не replay'им на mount
     if (Date.now() - lastVerifiedAt > 10000) { consumeVerified(); return; }
     consumeVerified();
-    setDoneToast(true);
+    toast.success('HR подтвердил пакет документов', '+5 баллов начислено');
     // batch даёт 5 событий подряд — конфетти один раз в 3с окно
     if (Date.now() - lastBurst.current > 3000) {
       lastBurst.current = Date.now();
@@ -213,7 +225,6 @@ export function Stage1Documents({ stageId }: Props) {
         confetti({ particleCount: 45, spread: 70, origin: { y: 0.6 }, colors: ['#22C55E', '#3B82F6', '#FBBF24'], ticks: 120 });
       } catch { /* ignore */ }
     }
-    window.setTimeout(() => setDoneToast(false), 2500);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastVerifiedAt]);
   // Шаг 1 только что закрыт свежим HR-подтверждением — через 2с плавно уходим на шаг 2.
@@ -265,6 +276,7 @@ export function Stage1Documents({ stageId }: Props) {
     try {
       await api.post('/api/wifi-verify', { password: p });
       setWifiMsg('Пароль принят ✓ Wi-Fi подтверждён');
+      toast.success('Wi-Fi подтверждён');
       await refreshMe();
     } catch (e) {
       setWifiMsg(e instanceof Error ? e.message : 'Неверный пароль');
@@ -279,6 +291,7 @@ export function Stage1Documents({ stageId }: Props) {
     try {
       await api.post('/api/verify-mpulse-code', { code });
       setMpulseMsg('Код принят ✓ Доступ к MPulse подтверждён');
+      toast.success('MPulse подтверждён', '+5 баллов начислено');
       await refreshMe();
     } catch (e) {
       setMpulseMsg(e instanceof Error ? e.message : 'Неверный код');
@@ -301,6 +314,7 @@ export function Stage1Documents({ stageId }: Props) {
     try {
       await api.post('/api/confirm-confluence', { opened_at: confOpenedAt, links_clicked: confClicked });
       try { localStorage.removeItem(cfKey); } catch { /* ignore */ }
+      toast.success('Confluence: ознакомление зафиксировано', '+10 баллов начислено');
       await refreshMe();
     } catch (e) {
       setConfMsg(e instanceof Error ? e.message : 'Подтвердить пока нельзя');
@@ -323,15 +337,6 @@ export function Stage1Documents({ stageId }: Props) {
       {/* ── Шаг 1. Подписание документов — пакет целиком, физическая верификация HR ── */}
       <section className={`s1-step ${effectiveOpen === 1 ? 'open' : ''}`}>
         <StepHeader n={1} title="Подписание документов" reward="5 баллов" desc="HR выдала пакет офлайн · соберите всё и отправьте одной кнопкой" open={effectiveOpen === 1} done={step1Done} onToggle={() => toggleStep(1)} />
-        {doneToast && (
-          <div className="pkg-toast" role="status">
-            <CheckCircle2 size={18} />
-            <div>
-              <b>HR подтвердил пакет документов</b>
-              <span><Award size={12} style={{ verticalAlign: '-2px' }} /> +5 баллов начислено · переходим к шагу 2…</span>
-            </div>
-          </div>
-        )}
         <div className="s1-step-body">
         <div className="pkg-card">
           <div className="pkg-head">
@@ -611,14 +616,7 @@ export function Stage1Documents({ stageId }: Props) {
           .s1-step{ padding:12px 10px; }
         }
         @keyframes stepIn{ from{ opacity:0; transform:translateY(-8px); } to{ opacity:1; transform:none; } }
-        /* тост завершения шага */
-        .pkg-toast{
-          display:flex; gap:10px; align-items:flex-start; padding:11px 12px; border-radius:10px;
-          background:rgba(34,197,94,.12); border:1px solid rgba(34,197,94,.4); color:#86EFAC;
-          animation:stepIn .3s cubic-bezier(.16,1,.3,1);
-        }
-        .pkg-toast b{ display:block; font-size:12.5px; color:#fff; }
-        .pkg-toast span{ font-size:11.5px; opacity:.9; }
+
         @media (min-width:641px){
           .s1-step-body{ display:flex !important; }
         }

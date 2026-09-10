@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { api } from '../api/client';
+import { useToast } from '../components/ui/ToastProvider';
 import { useOnboarding } from '../store/useOnboarding';
 
 interface AdminUser {
@@ -91,6 +92,7 @@ export function AdminPage() {
   const [newCode, setNewCode] = useState('');
   const [newBatch, setNewBatch] = useState('');
   const [wifiPw, setWifiPw] = useState<Record<number, string>>({});
+  const toast = useToast();
   const [rejectFor, setRejectFor] = useState<number | null>(null);
   const [rejectReason, setRejectReason] = useState('');
 
@@ -148,8 +150,9 @@ export function AdminPage() {
       // тост о новых запросах (не при первой загрузке)
       if (prevPending.current && p.length > prevPending.current) {
         const fresh = p[0];
-        const text = fresh ? `🔔 Новый запрос: ${fresh.name} — ${fresh.task_id}` : '🔔 Новые запросы';
-        setMsg(text);
+        const text = fresh ? `Новый запрос: ${fresh.name} — ${fresh.task_id}` : 'Новые запросы';
+        setMsg(`🔔 ${text}`);
+        toast.info(text, 'Откройте вкладку «Ожидают»');
         try {
           if ('Notification' in window && Notification.permission === 'granted') {
             new Notification('Онбординг HR', { body: text });
