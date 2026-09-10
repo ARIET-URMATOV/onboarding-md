@@ -176,7 +176,7 @@ export const useOnboarding = create<OnboardingState>()((set, get) => ({
       ws.onmessage = (ev) => {
         try {
           const data = JSON.parse(ev.data as string);
-          if (data && data.type === 'verified') {
+          if (data && (data.type === 'verified' || data.type === 'rejected')) {
             void get().refreshMe();
           }
         } catch { /* ignore */ }

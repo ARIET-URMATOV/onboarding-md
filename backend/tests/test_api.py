@@ -502,10 +502,38 @@ def test_reject_requires_reason_and_resubmit(client):
     assert mine.json()["rejected"][0]["task_id"] == "1-dogovor"
     assert "справки" in mine.json()["rejected"][0]["note"]
 
-    # повторная отправка после доделки снова создаёт pending
+    # повторная отправка после доделки снова создаёт pending (без 500 на unique)
     again = client.post("/api/progress/request", json={"task_id": "1-dogovor"})
     assert again.status_code == 200
     assert "1-dogovor" in client.get("/api/progress/pending").json()["pending"]
+
+
+def test_reject_resubmit_batch_no_500(client):
+    """request-batch -> reject всего пакета -> request-batch снова: 200, один pending на задачу."""
+    docs = ["1-dogovor", "1-nda", "1-pdp", "1-ip", "1-sn"]
+    email = _unique_email()
+    client.post("/api/register", json={"email": email, "password": "secret123"})
+    client.post("/api/role", json={"role": "frontend"})
+    _grant_staff(email)
+
+    b1 = client.post("/api/progress/request-batch", json={"task_ids": docs})
+    assert b1.status_code == 200
+    pend = client.get("/api/admin/pending-verifications")
+    rows = [r for r in pend.json() if r["task_id"] in docs]
+    assert len(rows) == 5
+    for r in rows:
+        rej = client.post(f"/api/admin/pending/{r['id']}/reject", json={"reason": "Донесите справку о несудимости HR"})
+        assert rej.status_code == 200
+    mine = client.get("/api/progress/pending")
+    assert mine.json()["pending"] == []
+    assert len(mine.json()["rejected"]) == 5
+
+    # повторная отправка пакета — 200, ровно по одному pending (без дублей и 500)
+    b2 = client.post("/api/progress/request-batch", json={"task_ids": docs})
+    assert b2.status_code == 200
+    mine2 = client.get("/api/progress/pending")
+    assert sorted(mine2.json()["pending"]) == sorted(docs)
+    assert mine2.json()["rejected"] == []
 
 
 def test_verify_docs_forbidden_for_employee(client):

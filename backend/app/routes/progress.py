@@ -197,6 +197,18 @@ async def request_verification(
         )
     )
     if existing.scalar_one_or_none() is None:
+        # resubmit после reject: старые rejected-строки той же задачи — в историю не нужны
+        # как дубли; помечаем их superseded, создаём свежий pending
+        old_rej = await db.execute(
+            _select(PendingRequest).where(
+                PendingRequest.user_id == user.id,
+                PendingRequest.task_id == payload.task_id,
+                PendingRequest.status == "rejected",
+            )
+        )
+        for r in old_rej.scalars().all():
+            r.status = "superseded"
+            db.add(r)
         db.add(PendingRequest(
             user_id=user.id, task_id=payload.task_id,
             note=payload.note.strip()[:300], status="pending",
@@ -252,6 +264,16 @@ async def request_batch(
             )
         )
         if existing.scalar_one_or_none() is None:
+            old_rej = await db.execute(
+                _select(PendingRequest).where(
+                    PendingRequest.user_id == user.id,
+                    PendingRequest.task_id == tid,
+                    PendingRequest.status == "rejected",
+                )
+            )
+            for r in old_rej.scalars().all():
+                r.status = "superseded"
+                db.add(r)
             db.add(PendingRequest(
                 user_id=user.id, task_id=tid,
                 note=payload.note.strip()[:300], status="pending",

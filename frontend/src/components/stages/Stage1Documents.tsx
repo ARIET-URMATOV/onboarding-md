@@ -118,12 +118,18 @@ export function Stage1Documents({ stageId }: Props) {
   // Шаг 1: пакет документов целиком (физическая верификация HR, одна кнопка)
   const DOC_IDS = ['1-dogovor', '1-nda', '1-pdp', '1-ip', '1-sn'];
   const DOCS_PACKAGE = [
-    { id: '1-dogovor', title: 'Договор об оказании услуг', sub: '2 экземпляра · подписать оба, один остаётся у вас', Icon: FileText },
-    { id: '1-nda', title: 'NDA — о неразглашении', sub: '2 экземпляра · подписать оба', Icon: ShieldCheck },
-    { id: '1-pdp', title: 'Соглашение о персональных данных', sub: 'Обязательный документ', Icon: FileCheck },
-    { id: '1-ip', title: 'Свидетельство ИП', sub: 'Копия / реквизиты', Icon: IdCard },
-    { id: '1-sn', title: 'Справка о несудимости', sub: 'Актуальный документ', Icon: BadgeCheck },
+    { id: '1-dogovor', title: 'Договор об оказании услуг', sub: '2 экземпляра · подписать оба, один остаётся у вас',
+      detail: 'Распечатайте или получите бланк у HR. Проверьте паспортные данные и банковские реквизиты, подпишите оба экземпляра. Один остаётся у вас, второй передаётся компании.', Icon: FileText },
+    { id: '1-nda', title: 'NDA — о неразглашении', sub: '2 экземпляра · строгий режим, действует 3 года',
+      detail: 'Устанавливает строгий режим конфиденциальности в отношении разработок, клиентов и партнёров. Действует 3 года после завершения сотрудничества. Подпишите оба экземпляра.', Icon: ShieldCheck },
+    { id: '1-pdp', title: 'Соглашение о персональных данных', sub: 'Обязательный документ',
+      detail: 'Разрешение на обработку персональных данных для кадрового учёта и безопасности. Подписывается при старте онбординга, данные хранятся по закону.', Icon: FileCheck },
+    { id: '1-ip', title: 'Свидетельство ИП', sub: 'Копия / выписка + реквизиты',
+      detail: 'Предоставьте копию свидетельства или выписку из реестра плюс банковские реквизиты — файлом или бумажной копией бухгалтеру / HR для взаиморасчётов.', Icon: IdCard },
+    { id: '1-sn', title: 'Справка о несудимости', sub: 'Актуальный документ',
+      detail: 'Электронная справка с Госуслуг / ЦОН или бумажный оригинал. Подтверждает соответствие требованиям безопасности для доступа к проектам клиентов.', Icon: BadgeCheck },
   ];
+  const [openDoc, setOpenDoc] = useState<string | null>(null);
   const rejected = useOnboarding((s) => s.rejected);
   const pendingDocs = DOC_IDS.filter((id) => pending.includes(id));
   const rejectedDocs = rejected.filter((r) => DOC_IDS.includes(r.task_id));
@@ -285,16 +291,25 @@ export function Stage1Documents({ stageId }: Props) {
           <ul className="pkg-list">
             {DOCS_PACKAGE.map((d, i) => {
               const st = done.includes(d.id) ? 'done' : pending.includes(d.id) ? 'pending' : 'todo';
+              const expanded = openDoc === d.id;
               return (
-                <li key={d.id} className={`pkg-item ${st}`}>
-                  <span className="pkg-item-ico"><d.Icon size={15} /></span>
-                  <span className="pkg-item-body">
-                    <b>{i + 1}. {d.title}</b>
-                    <span>{d.sub}</span>
-                  </span>
-                  <span className="pkg-item-st">
-                    {st === 'done' ? <CheckCircle2 size={16} /> : st === 'pending' ? <Clock size={15} /> : <span className="pkg-dot" />}
-                  </span>
+                <li key={d.id} className={`pkg-item ${st} ${expanded ? 'open' : ''}`}>
+                  <button
+                    type="button" className="pkg-item-row"
+                    onClick={() => setOpenDoc(expanded ? null : d.id)}
+                    aria-expanded={expanded} aria-label={`${d.title} — подробнее`}
+                  >
+                    <span className="pkg-item-ico"><d.Icon size={15} /></span>
+                    <span className="pkg-item-body">
+                      <b>{i + 1}. {d.title}</b>
+                      <span>{d.sub}</span>
+                    </span>
+                    <span className="pkg-item-st">
+                      {st === 'done' ? <CheckCircle2 size={16} /> : st === 'pending' ? <Clock size={15} /> : <span className="pkg-dot" />}
+                    </span>
+                    <ChevronDown size={15} className={`pkg-chev ${expanded ? 'open' : ''}`} />
+                  </button>
+                  {expanded && <div className="pkg-detail">{d.detail}</div>}
                 </li>
               );
             })}
@@ -503,7 +518,11 @@ export function Stage1Documents({ stageId }: Props) {
         .pkg-title{ font-size:13.5px; font-weight:800; color:var(--text); }
         .pkg-sub{ font-size:11.5px; color:var(--muted); margin-top:4px; line-height:1.45; }
         .pkg-list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:7px; }
-        .pkg-item{ display:flex; align-items:center; gap:10px; padding:9px 11px; border-radius:9px; background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.06); }
+        .pkg-item{ display:flex; flex-direction:column; gap:0; padding:0; border-radius:9px; background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.06); overflow:hidden; }
+        .pkg-item-row{ display:flex; align-items:center; gap:10px; width:100%; padding:9px 11px; background:none; border:none; color:inherit; cursor:pointer; text-align:left; font:inherit; }
+        .pkg-detail{ font-size:11px; color:var(--muted); line-height:1.6; padding:2px 11px 10px 51px; border-top:1px dashed rgba(255,255,255,.07); margin-top:2px; padding-top:8px; }
+        .pkg-chev{ color:#60A5FA; transition:transform .2s ease; flex-shrink:0; }
+        .pkg-chev.open{ transform:rotate(180deg); }
         .pkg-item.done{ border-color:rgba(34,197,94,.3); }
         .pkg-item.pending{ border-style:dashed; border-color:rgba(251,191,36,.35); }
         .pkg-item-ico{ width:30px; height:30px; border-radius:8px; display:grid; place-items:center; flex-shrink:0; background:rgba(59,130,246,.1); border:1px solid rgba(59,130,246,.25); color:#93C5FD; }
