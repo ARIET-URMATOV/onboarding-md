@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Award, BadgeCheck, CheckCircle2, ChevronDown, ChevronRight, ClipboardCheck, Clock, FileCheck,
   FileText, FolderCheck, Hourglass, IdCard, KeyRound, RotateCcw, Send, ShieldCheck, Wifi, XCircle,
 } from 'lucide-react';
+import confetti from 'canvas-confetti';
 import type { StageId } from '../../data/stages';
 import { useOnboarding } from '../../store/useOnboarding';
 import { DocumentModal, type DocKind } from './DocumentModal';
@@ -131,6 +132,8 @@ export function Stage1Documents({ stageId }: Props) {
   ];
   const [openDoc, setOpenDoc] = useState<string | null>(null);
   const rejected = useOnboarding((s) => s.rejected);
+  const lastVerifiedAt = useOnboarding((s) => s.lastVerifiedAt);
+  const lastVerifiedTask = useOnboarding((s) => s.lastVerifiedTask);
   const pendingDocs = DOC_IDS.filter((id) => pending.includes(id));
   const rejectedDocs = rejected.filter((r) => DOC_IDS.includes(r.task_id));
   const [sendingDocs, setSendingDocs] = useState(false);
@@ -180,10 +183,45 @@ export function Stage1Documents({ stageId }: Props) {
   // mobile accordion: auto-open first incomplete step, manual override sticks
   const [openStep, setOpenStep] = useState<number | null>(null);
   const effectiveOpen = openStep ?? (step1Done ? (step2Done ? (step3Done ? (step4ExplicitDone ? null : 4) : 3) : 2) : 1);
-  const toggleStep = (n: number) => setOpenStep((cur) => {
-    const eff = cur ?? (step1Done ? (step2Done ? (step3Done ? (step4ExplicitDone ? null : 4) : 3) : 2) : 1);
-    return eff === n ? null : n;
-  });
+  const autoTimer = useRef<number | null>(null);
+  const toggleStep = (n: number) => {
+    // ручное переключение отменяет отложенный авто-переход
+    if (autoTimer.current) { window.clearTimeout(autoTimer.current); autoTimer.current = null; }
+    setOpenStep((cur) => {
+      const eff = cur ?? (step1Done ? (step2Done ? (step3Done ? (step4ExplicitDone ? null : 4) : 3) : 2) : 1);
+      return eff === n ? null : n;
+    });
+  };
+  useEffect(() => () => { if (autoTimer.current) window.clearTimeout(autoTimer.current); }, []);
+
+  // HR подтвердил пакет: тост +5 (2.5с) + конфетти.
+  // Срабатывает только на свежее WS-событие (не для давно завершённого шага).
+  const [doneToast, setDoneToast] = useState(false);
+  const handledVerify = useRef<number | null>(null);
+  useEffect(() => {
+    if (lastVerifiedAt === null || lastVerifiedTask === null) return;
+    if (!DOC_IDS.includes(lastVerifiedTask)) return;
+    if (handledVerify.current === lastVerifiedAt) return;
+    handledVerify.current = lastVerifiedAt;
+    setDoneToast(true);
+    try {
+      confetti({ particleCount: 45, spread: 70, origin: { y: 0.6 }, colors: ['#22C55E', '#3B82F6', '#FBBF24'], ticks: 120 });
+    } catch { /* ignore */ }
+    window.setTimeout(() => setDoneToast(false), 2500);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastVerifiedAt]);
+  // Шаг 1 только что закрыт свежим HR-подтверждением — через 2с плавно уходим на шаг 2.
+  // Ручной тап отменяет таймер (см. toggleStep).
+  const prevStep1Done = useRef(step1Done);
+  useEffect(() => {
+    if (!prevStep1Done.current && step1Done && lastVerifiedAt !== null
+        && Date.now() - lastVerifiedAt < 15000) {
+      if (autoTimer.current) window.clearTimeout(autoTimer.current);
+      autoTimer.current = window.setTimeout(() => { setOpenStep(2); autoTimer.current = null; }, 2000);
+    }
+    prevStep1Done.current = step1Done;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step1Done]);
 
   // Confluence: считаем только видимые секунды после первого клика; стоп после подтверждения
   useEffect(() => {
@@ -314,6 +352,15 @@ export function Stage1Documents({ stageId }: Props) {
               );
             })}
           </ul>
+          {doneToast && (
+            <div className="pkg-toast" role="status">
+              <CheckCircle2 size={18} />
+              <div>
+                <b>HR подтвердил пакет документов</b>
+                <span><Award size={12} style={{ verticalAlign: '-2px' }} /> +5 баллов начислено · переходим к шагу 2…</span>
+              </div>
+            </div>
+          )}
           {/* статус-сегмент */}
           {step1Done ? (
             <div className="pkg-status done">
@@ -549,14 +596,23 @@ export function Stage1Documents({ stageId }: Props) {
         .spin-slow{ animation:spinSlow 2.4s linear infinite; }
         @keyframes spinSlow{ to{ transform:rotate(360deg) } }
         .sh-chevron{ margin-left:auto; color:#60A5FA; font-size:16px; line-height:1; transition:transform .2s ease; flex-shrink:0; display:none; }
-        /* mobile accordion ≤640px: виден только открытый шаг */
+        /* mobile accordion ≤640px: плавное раскрытие вместо резкого open/close */
         @media (max-width:640px){
           .s1-step-body{ display:none; }
-          .s1-step.open .s1-step-body{ display:flex; }
-          .sh-chevron{ display:block; }
+          .s1-step.open .s1-step-body{ display:flex; animation:stepIn .32s cubic-bezier(.16,1,.3,1); }
+          .sh-chevron{ display:block; transition:transform .35s cubic-bezier(.16,1,.3,1); transform-origin:center; }
           .s1-step.open .sh-chevron{ transform:rotate(180deg); }
           .s1-step{ padding:12px 10px; }
         }
+        @keyframes stepIn{ from{ opacity:0; transform:translateY(-8px); } to{ opacity:1; transform:none; } }
+        /* тост завершения шага */
+        .pkg-toast{
+          display:flex; gap:10px; align-items:flex-start; padding:11px 12px; border-radius:10px;
+          background:rgba(34,197,94,.12); border:1px solid rgba(34,197,94,.4); color:#86EFAC;
+          animation:stepIn .3s cubic-bezier(.16,1,.3,1);
+        }
+        .pkg-toast b{ display:block; font-size:12.5px; color:#fff; }
+        .pkg-toast span{ font-size:11.5px; opacity:.9; }
         @media (min-width:641px){
           .s1-step-body{ display:flex !important; }
         }

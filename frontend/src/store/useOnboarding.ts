@@ -26,6 +26,8 @@ interface OnboardingState {
   hydrated: boolean;
   pending: string[];
   rejected: { task_id: string; note: string }[];
+  lastVerifiedAt: number | null;
+  lastVerifiedTask: string | null;
   // actions
   hydrate: (me: MeResponse) => void;
   refreshMe: () => Promise<void>;
@@ -80,6 +82,8 @@ export const useOnboarding = create<OnboardingState>()((set, get) => ({
   hydrated: false,
   pending: [],
   rejected: [],
+  lastVerifiedAt: null,
+  lastVerifiedTask: null,
 
   hydrate: (me) =>
     set({
@@ -177,6 +181,9 @@ export const useOnboarding = create<OnboardingState>()((set, get) => ({
         try {
           const data = JSON.parse(ev.data as string);
           if (data && (data.type === 'verified' || data.type === 'rejected')) {
+            if (data.type === 'verified' && typeof data.task_id === 'string') {
+              set({ lastVerifiedAt: Date.now(), lastVerifiedTask: data.task_id });
+            }
             void get().refreshMe();
           }
         } catch { /* ignore */ }

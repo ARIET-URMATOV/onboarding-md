@@ -508,7 +508,7 @@ export function IsometricRoadmap({ statuses, done }: Props) {
           background:rgba(255,255,255,.06); border:1px solid rgba(37,99,235,.42); color:#3B82F6;
         }
         .gc-ico svg{ width:14px; height:14px }
-        .gm-card.done .gc-ico{ background:rgba(37,99,235,.16); border-color:#3B82F6; color:#3B82F6 }
+        .gm-card.done .gc-ico{ background:rgba(34,197,94,.14); border-color:#22C55E; color:#22C55E; box-shadow:0 0 12px rgba(34,197,94,.35); }
         .gm-card.locked .gc-ico{ color:#64748b; border-color:rgba(100,116,139,.3) }
 
         .gc-spark{ font-size:14px; color:#fff; display:inline-block; animation:sparkTw 1.6s ease-in-out infinite; }
