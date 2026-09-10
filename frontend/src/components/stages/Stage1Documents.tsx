@@ -198,15 +198,20 @@ export function Stage1Documents({ stageId }: Props) {
   // Срабатывает только на свежее WS-событие (не для давно завершённого шага).
   const [doneToast, setDoneToast] = useState(false);
   const handledVerify = useRef<number | null>(null);
+  const lastBurst = useRef(0);
   useEffect(() => {
     if (lastVerifiedAt === null || lastVerifiedTask === null) return;
     if (!DOC_IDS.includes(lastVerifiedTask)) return;
     if (handledVerify.current === lastVerifiedAt) return;
     handledVerify.current = lastVerifiedAt;
     setDoneToast(true);
-    try {
-      confetti({ particleCount: 45, spread: 70, origin: { y: 0.6 }, colors: ['#22C55E', '#3B82F6', '#FBBF24'], ticks: 120 });
-    } catch { /* ignore */ }
+    // batch даёт 5 событий подряд — конфетти один раз в 3с окно
+    if (Date.now() - lastBurst.current > 3000) {
+      lastBurst.current = Date.now();
+      try {
+        confetti({ particleCount: 45, spread: 70, origin: { y: 0.6 }, colors: ['#22C55E', '#3B82F6', '#FBBF24'], ticks: 120 });
+      } catch { /* ignore */ }
+    }
     window.setTimeout(() => setDoneToast(false), 2500);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastVerifiedAt]);
@@ -317,6 +322,15 @@ export function Stage1Documents({ stageId }: Props) {
       {/* ── Шаг 1. Подписание документов — пакет целиком, физическая верификация HR ── */}
       <section className={`s1-step ${effectiveOpen === 1 ? 'open' : ''}`}>
         <StepHeader n={1} title="Подписание документов" reward="5 баллов" desc="HR выдала пакет офлайн · соберите всё и отправьте одной кнопкой" open={effectiveOpen === 1} done={step1Done} onToggle={() => toggleStep(1)} />
+        {doneToast && (
+          <div className="pkg-toast" role="status">
+            <CheckCircle2 size={18} />
+            <div>
+              <b>HR подтвердил пакет документов</b>
+              <span><Award size={12} style={{ verticalAlign: '-2px' }} /> +5 баллов начислено · переходим к шагу 2…</span>
+            </div>
+          </div>
+        )}
         <div className="s1-step-body">
         <div className="pkg-card">
           <div className="pkg-head">
@@ -352,15 +366,6 @@ export function Stage1Documents({ stageId }: Props) {
               );
             })}
           </ul>
-          {doneToast && (
-            <div className="pkg-toast" role="status">
-              <CheckCircle2 size={18} />
-              <div>
-                <b>HR подтвердил пакет документов</b>
-                <span><Award size={12} style={{ verticalAlign: '-2px' }} /> +5 баллов начислено · переходим к шагу 2…</span>
-              </div>
-            </div>
-          )}
           {/* статус-сегмент */}
           {step1Done ? (
             <div className="pkg-status done">

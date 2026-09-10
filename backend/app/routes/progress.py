@@ -442,7 +442,9 @@ async def verify_docs_batch(
             r.status = "verified"
             db.add(r)
     out = await save_progress(db, prog, tasks)
-    await notify_verified(target.email, ", ".join(wanted), out.xp)
+    # per-task события (не joined-строка): фронт ловит DOC_IDS по одному
+    for tid in wanted:
+        await notify_verified(target.email, tid, out.xp)
     return out
 
 
