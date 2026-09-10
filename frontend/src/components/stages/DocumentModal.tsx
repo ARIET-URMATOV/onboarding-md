@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { X } from 'lucide-react';
 
 export type DocKind =
   | 'docs'
@@ -28,7 +29,7 @@ interface Props {
 const DOC_META: Record<DocKind, { title: string; sub: string }> = {
   docs: { title: 'Трудовой договор и NDA', sub: 'Прочитай до конца, чтобы подтвердить' },
   lead: { title: 'Елена Петрова — Frontend Lead', sub: 'Твой руководитель · познакомься с профилем' },
-  mplus: { title: 'mPLuse — корпоративный мессенджер', sub: 'MPulse — мобильное приложение · скачай по ссылкам ниже' },
+  mplus: { title: 'MPulse — корпоративное приложение', sub: 'Мобильное приложение · скачай по ссылкам ниже' },
   jira: { title: 'Jira — таск-трекер', sub: 'CRM · https://crm.mdigital.kg · открой и пролистай' },
   confluence: { title: 'Confluence — база знаний', sub: 'https://confluence.mdigital.kg' },
   dogovor: { title: 'Договор об оказании услуг (2 экз.)', sub: 'Подписывается в двух экземплярах (один вам, второй компании)' },
@@ -93,7 +94,7 @@ export function DocumentModal({ kind, open, onClose, onConfirm, alreadyDone }: P
             <div className="doc-h1 font-orbitron">{meta.title}</div>
             <div className="doc-sub">{meta.sub}</div>
           </div>
-          <button className="doc-x" onClick={onClose} aria-label="Закрыть">×</button>
+          <button className="doc-x" onClick={onClose} aria-label="Закрыть"><X size={16} /></button>
         </div>
 
         <div className="doc-progress">
@@ -172,7 +173,7 @@ function LeadContent() {
 function MplusContent() {
   return (
     <div>
-      3. Корпоративный мессенджер mPLuse и экосистема MPulse.
+      3. Корпоративное приложение MPulse и его экосистема.
     </div>
   );
 }

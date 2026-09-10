@@ -46,7 +46,7 @@ const GROUPS: { id: TabId; title: string; short: string; items: Item[] }[] = [
     id: 'E', title: 'Взаимодействие', short: 'Команда',
     items: [
       { label: 'Познакомился с командой', hint: '#frontend · представься' },
-      { label: 'Понимает порядок постановки задач и коммуникации', taskId: '4-messenger', hint: 'mPLuse/MPulse' },
+      { label: 'Понимает порядок постановки задач и коммуникации', taskId: '4-messenger', hint: 'MPulse' },
       { label: 'Знает, к кому обращаться при технических или организационных вопросах', hint: 'Lead Елена Петрова · @elena.petrova' },
     ],
   },

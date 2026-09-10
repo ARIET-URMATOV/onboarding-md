@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Bell } from 'lucide-react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useOnboarding, getProgress } from '../../store/useOnboarding';
 import { api } from '../../api/client';
@@ -56,7 +57,7 @@ export function TopBar() {
       <div className="t-right">
         {isStaff && (
           <button type="button" className="t-bell" onClick={() => navigate('/admin')} title="HR-панель: ожидающие запросы" aria-label="Открыть HR-панель">
-            🔔{pendingCount > 0 && <span className="t-bell-count">{pendingCount > 99 ? '99+' : pendingCount}</span>}
+            <Bell size={17} />{pendingCount > 0 && <span className="t-bell-count">{pendingCount > 99 ? '99+' : pendingCount}</span>}
           </button>
         )}
         <div className="t-xp" title={`${xp} XP · ${progress.done}/5 этапов`}>

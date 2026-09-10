@@ -25,6 +25,7 @@ interface OnboardingState {
   createdAt: string | null;
   hydrated: boolean;
   pending: string[];
+  rejected: { task_id: string; note: string }[];
   // actions
   hydrate: (me: MeResponse) => void;
   refreshMe: () => Promise<void>;
@@ -78,6 +79,7 @@ export const useOnboarding = create<OnboardingState>()((set, get) => ({
   createdAt: null,
   hydrated: false,
   pending: [],
+  rejected: [],
 
   hydrate: (me) =>
     set({
@@ -101,8 +103,8 @@ export const useOnboarding = create<OnboardingState>()((set, get) => ({
 
   fetchPending: async () => {
     try {
-      const r = await api.get<{ pending: string[] }>('/api/progress/pending');
-      set({ pending: r.pending });
+      const r = await api.get<{ pending: string[]; rejected?: { task_id: string; note: string }[] }>('/api/progress/pending');
+      set({ pending: r.pending, rejected: r.rejected ?? [] });
     } catch { /* не критично */ }
   },
 
@@ -116,7 +118,7 @@ export const useOnboarding = create<OnboardingState>()((set, get) => ({
     if (liveSocket) { liveSocket.close(); liveSocket = null; }
     set({
       user: null, role: null, introSeen: false, voiceEnabled: true,
-      doneTasks: emptyTasks(), xp: 0, level: 1, completedAt: null, hydrated: true, pending: [],
+      doneTasks: emptyTasks(), xp: 0, level: 1, completedAt: null, hydrated: true, pending: [], rejected: [],
     });
   },
   setRole: async (r) => {

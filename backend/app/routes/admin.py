@@ -13,6 +13,7 @@ from app.schemas import (
     MpulseRotateIn,
     OkOut,
     PendingRequestOut,
+    RejectIn,
     StaffSetIn,
     VerifyTargetIn,
 )
@@ -119,23 +120,40 @@ async def pending_count(
     return {"pending": n}
 
 
-@router.delete("/admin/pending/{pending_id}", response_model=OkOut)
+@router.post("/admin/pending/{pending_id}/reject", response_model=OkOut)
 @limiter.limit("20/minute")
 async def reject_pending(
     pending_id: int,
+    payload: RejectIn,
     request: Request,
     db: AsyncSession = Depends(get_db),
     staff: User = Depends(require_staff),
 ):
-    """Отклонить запрос (сотрудник увидит, что нужно переделать)."""
-    from app.models import PendingRequest
+    """Отклонить запрос с обязательной причиной (мин 10 символов).
+
+    Причина пишется в pending.note + audit details, сотрудник уведомляется
+    письмом и WS; статус у него остаётся «Ожидает проверки» до повторной отправки.
+    """
+    import json
+
+    from app.models import PendingRequest, VerificationLog
+    from app.notify import notify_rejected
 
     row = await db.get(PendingRequest, pending_id)
     if row is None or row.status != "pending":
         raise HTTPException(status_code=404, detail="Запрос не найден")
+    reason = payload.reason.strip()
     row.status = "rejected"
+    row.note = reason[:500]
     db.add(row)
+    db.add(VerificationLog(
+        user_id=row.user_id, task_id=row.task_id, verified_by=staff.id,
+        method="rejected", details=json.dumps({"reason": reason}, ensure_ascii=False),
+    ))
     await db.commit()
+    target = await db.get(User, row.user_id)
+    if target is not None:
+        await notify_rejected(target.email, target.name, row.task_id, reason)
     return OkOut()
 
 

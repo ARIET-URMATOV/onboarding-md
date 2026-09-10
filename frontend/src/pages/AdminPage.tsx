@@ -91,6 +91,50 @@ export function AdminPage() {
   const [newCode, setNewCode] = useState('');
   const [newBatch, setNewBatch] = useState('');
   const [wifiPw, setWifiPw] = useState<Record<number, string>>({});
+  const [rejectFor, setRejectFor] = useState<number | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+
+  const DOC_TITLES: Record<string, string> = {
+    '1-dogovor': 'Договор об оказании услуг (2 экз., подписан)',
+    '1-nda': 'NDA (2 экз., подписано)',
+    '1-pdp': 'Соглашение о персональных данных (подписано)',
+    '1-ip': 'Реквизиты ИП (приложены)',
+    '1-sn': 'Справка о несудимости (актуальна)',
+  };
+
+  // группировка очереди по сотрудникам: один мини-документ на человека
+  const pendingByUser = pending.reduce<Record<number, { user_id: number; email: string; name: string; rows: PendingRow[] }>>((acc, r) => {
+    (acc[r.user_id] ??= { user_id: r.user_id, email: r.email, name: r.name, rows: [] }).rows.push(r);
+    return acc;
+  }, {});
+  const pendingGroups = Object.values(pendingByUser);
+
+  const verifyBatch = async (userId: number) => {
+    try {
+      await api.post('/api/verify-docs-batch', { task_ids: DOC_TASKS, user_id: userId });
+      setMsg('✓ Пакет документов подтверждён (+5 баллов сотруднику)');
+      await load(true);
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : 'Ошибка верификации');
+    }
+  };
+
+  const rejectBatch = async (userId: number) => {
+    const reason = rejectReason.trim();
+    if (reason.length < 10) { setMsg('Укажите причину отклонения (мин 10 символов)'); return; }
+    try {
+      const rows = pendingByUser[userId]?.rows ?? [];
+      for (const r of rows.filter((x) => DOC_TASKS.includes(x.task_id))) {
+        await api.post(`/api/admin/pending/${r.id}/reject`, { reason });
+      }
+      setRejectFor(null);
+      setRejectReason('');
+      setMsg('Пакет отклонён, сотрудник уведомлён');
+      await load(true);
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : 'Ошибка отклонения');
+    }
+  };
 
   const load = useCallback(async (quiet = false) => {
     if (!quiet) { setLoading(true); setMsg(null); }
@@ -182,7 +226,7 @@ export function AdminPage() {
 
   const rejectRow = async (r: PendingRow) => {
     try {
-      await api.del(`/api/admin/pending/${r.id}`);
+      await api.post(`/api/admin/pending/${r.id}/reject`, { reason: 'Отклонено HR — уточните детали у HR' });
       setMsg(`Запрос ${r.task_id} (${r.email}) отклонён`);
       await load(true);
     } catch (e) {
@@ -279,7 +323,49 @@ export function AdminPage() {
           {loading && !pending.length && [0, 1, 2].map((i) => (
             <div key={i} className="admin-card admin-skel"><div className="skel-line" /><div className="skel-line short" /></div>
           ))}
-          {pending.map((r) => (
+          {pendingGroups.filter((g) => g.rows.some((r) => DOC_TASKS.includes(r.task_id))).map((g) => {
+            const first = g.rows[0];
+            const docRows = g.rows.filter((r) => DOC_TASKS.includes(r.task_id));
+            return (
+              <div key={g.user_id} className="admin-card hr-doc">
+                <div className="admin-card-head">
+                  <span className="admin-avatar">{(g.name || g.email).slice(0, 1).toUpperCase()}</span>
+                  <div>
+                    <b>{g.name}</b>
+                    <div className="admin-email">{g.email} · отправлено {first.created_at ? ago(first.created_at) : '—'}</div>
+                  </div>
+                </div>
+                <div className="admin-card-sub">Пакет документов на физическую проверку — сверьте 5 пунктов, затем подтвердите:</div>
+                <ul className="hr-checklist">
+                  {DOC_TASKS.map((tid) => {
+                    const sent = docRows.some((r) => r.task_id === tid);
+                    return (
+                      <li key={tid} className={sent ? 'sent' : 'missing'}>
+                        <span className="hr-check">{sent ? '✓' : '○'}</span> {DOC_TITLES[tid]}
+                      </li>
+                    );
+                  })}
+                </ul>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button type="button" onClick={() => verifyBatch(g.user_id)} className="admin-btn small">
+                    Подтвердить получение и проверку документов
+                  </button>
+                  <button type="button" onClick={() => { setRejectFor(rejectFor === g.user_id ? null : g.user_id); setRejectReason(''); }} className="admin-reject-btn">
+                    Отклонить
+                  </button>
+                </div>
+                {rejectFor === g.user_id && (
+                  <div className="hr-reject">
+                    <textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} placeholder="Причина отклонения (мин 10 символов), например: не хватает справки о несудимости" rows={2} className="admin-input" />
+                    <button type="button" onClick={() => rejectBatch(g.user_id)} className="admin-reject-btn" disabled={rejectReason.trim().length < 10}>
+                      Отклонить пакет
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          {pending.filter((r) => !DOC_TASKS.includes(r.task_id)).map((r) => (
             <div key={r.id} className="admin-card">
               <div className="admin-card-head">
                 <b>{r.name}</b> <span className="admin-email">{r.email}</span>
@@ -413,6 +499,16 @@ export function AdminPage() {
         .admin-empty{ font-size:12.5px; color:var(--muted); text-align:center; padding:20px }
         .admin-once{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:8px 10px; border-radius:8px; background:rgba(251,191,36,.08); border:1px dashed rgba(251,191,36,.4); font-size:11.5px; color:#FDE68A }
         .admin-once code{ font-family:monospace; font-size:13px; color:#fff; user-select:all }
+        .admin-card.hr-doc{ border-color:rgba(59,130,246,.3); background:rgba(37,99,235,.05); }
+        .admin-avatar{ width:34px; height:34px; border-radius:50%; display:grid; place-items:center; flex-shrink:0; font-weight:800; font-size:14px; color:#fff; background:linear-gradient(135deg,#1E3A8A,#2563EB); }
+        .hr-checklist{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; font-size:12px; }
+        .hr-checklist li{ display:flex; gap:8px; align-items:center; padding:7px 10px; border-radius:8px; background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.06); }
+        .hr-checklist li.sent{ border-color:rgba(34,197,94,.25); }
+        .hr-checklist li.missing{ opacity:.55; }
+        .hr-check{ color:#86EFAC; font-weight:800; }
+        .hr-checklist li.missing .hr-check{ color:#64748b; }
+        .hr-reject{ display:flex; flex-direction:column; gap:8px; }
+        .hr-reject textarea{ min-height:56px; resize:vertical; }
         .admin-skel{ pointer-events:none; }
         .skel-line{ height:14px; border-radius:6px; background:linear-gradient(90deg, rgba(255,255,255,.04), rgba(255,255,255,.1), rgba(255,255,255,.04)); background-size:200% 100%; animation:skel 1.2s ease-in-out infinite; }
         .skel-line.short{ width:55%; }

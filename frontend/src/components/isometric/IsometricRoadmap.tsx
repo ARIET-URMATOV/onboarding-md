@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Check, LayoutDashboard, Lock, Map as MapIcon, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { STAGES as FALLBACK_STAGES } from '../../data/stages';
@@ -19,9 +20,9 @@ type Props = {
   done: number;
 };
 
-const TABS: { id: string; label: string; path?: string; d: string }[] = [
-  { id: 'dash', label: 'Dashboard', path: '/dashboard', d: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z' },
-  { id: 'map', label: 'Карта',path:'/map', d: 'M9 20l-5.5 2V6L9 4l6 2 5.5-2v16L15 22l-6-2zM9 4v16M15 6v16' },
+const TABS: { id: string; label: string; path?: string; Icon: typeof LayoutDashboard }[] = [
+  { id: 'dash', label: 'Dashboard', path: '/dashboard', Icon: LayoutDashboard },
+  { id: 'map', label: 'Карта', path: '/map', Icon: MapIcon },
 ];
 
 export function IsometricRoadmap({ statuses, done }: Props) {
@@ -153,9 +154,7 @@ export function IsometricRoadmap({ statuses, done }: Props) {
               whileTap={{ scale: 0.92 }}
               transition={{ type: 'spring', stiffness: 420, damping: 18 }}
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
-                <path d={t.d} />
-              </svg>
+              <t.Icon size={14} strokeWidth={1.7} />
               {i === 1 && <motion.span layoutId="activeTab" className="gm-tabActive" />}
             </motion.button>
           ))}
@@ -191,15 +190,13 @@ export function IsometricRoadmap({ statuses, done }: Props) {
                   >
                     <span className="gc-ico">
                       {st === 'locked' ? (
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
-                          <rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" />
-                        </svg>
+                        <Lock size={14} strokeWidth={1.8} />
                       ) : st === 'done' ? (
-                        <motion.svg initial={{ scale: 0 }} animate={{ scale: 1 }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="20 6 9 17 4 12" />
-                        </motion.svg>
+                        <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} style={{ display: 'grid', placeItems: 'center' }}>
+                          <Check size={14} strokeWidth={2.4} />
+                        </motion.span>
                       ) : (
-                        <span className="gc-spark">✦</span>
+                        <span className="gc-spark"><Sparkles size={14} /></span>
                       )}
                     </span>
                     <span className="gc-body">

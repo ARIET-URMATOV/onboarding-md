@@ -71,17 +71,32 @@ async def send_telegram_text(chat_id: str, text: str) -> bool:
         return False
 
 
-async def notify_new_request(user_email: str, user_name: str, task_id: str) -> None:
+async def notify_new_request(user_email: str, user_name: str, task_id: str, batch: bool = False) -> None:
     """Новый запрос сотрудника: HR email + WS всем staff-подписчикам."""
-    publish({"type": "pending_new", "email": user_email, "name": user_name, "task_id": task_id})
+    publish({"type": "pending_new_batch" if batch else "pending_new", "email": user_email,
+             "name": user_name, "task_id": task_id})
     if settings.hr_notify_email:
+        what = f"пакет задач ({task_id})" if batch else f"задачу {task_id}"
         await send_email(
             settings.hr_notify_email,
-            f"[Онбординг] Новый запрос: {task_id}",
-            f"Сотрудник {user_name} ({user_email}) запросил подтверждение задачи {task_id}.\nОткройте /admin.",
+            f"[Онбординг] {user_name} — запрос проверки: {task_id}",
+            f"Сотрудник {user_name} ({user_email}) подписал документы и передал их на проверку: {what}.\n"
+            f"Зайдите в админ-панель (/admin), проверьте пакет физически и нажмите "
+            f"«Подтвердить получение и проверку документов».",
         )
     else:
         print(f"notify: pending_new {user_email} {task_id} (HR email not configured)")
+
+
+async def notify_rejected(user_email: str, user_name: str, task_id: str, reason: str) -> None:
+    """HR отклонил: письмо сотруднику (что доделать) + WS."""
+    publish({"type": "rejected", "email": user_email, "task_id": task_id, "reason": reason})
+    await send_email(
+        user_email,
+        f"HR отклонил: {task_id} — нужно доделать",
+        f"Здравствуйте, {user_name}!\n\nHR проверил пакет и отклонил задачу {task_id}.\n"
+        f"Причина: {reason}\n\nДоделайте и отправьте на проверку снова.",
+    )
 
 
 async def notify_verified(user_email: str, task_id: str, xp: int) -> None:

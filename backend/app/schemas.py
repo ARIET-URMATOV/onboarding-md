@@ -74,6 +74,20 @@ class RequestIn(BaseModel):
     note: str = Field(default="", max_length=300)
 
 
+class BatchRequestIn(BaseModel):
+    """Одна кнопка «Отправить пакет»: все задачи шага разом (атомарно).
+
+    user_id — только для staff verify-batch (чей пакет подтверждаем).
+    """
+    task_ids: list[str] = Field(min_length=1, max_length=10)
+    note: str = Field(default="", max_length=300)
+    user_id: int | None = None
+
+
+class RejectIn(BaseModel):
+    reason: str = Field(min_length=10, max_length=500)
+
+
 class PendingRequestOut(BaseModel):
     id: int
     user_id: int

@@ -10,6 +10,7 @@ from app.limiter import limiter
 from app.models import MpulseCode, Progress, User, VerificationLog, WifiMac
 from app.routes.auth import get_current_user, require_role, require_staff
 from app.schemas import (
+    BatchRequestIn,
     ConfluenceConfirmIn,
     MpulseCodeIn,
     OkOut,
@@ -142,20 +143,23 @@ async def my_pending(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Мои ожидающие запросы (для pending-бейджей на фронте)."""
+    """Мои ожидающие + отклонённые запросы (для статусов на фронте)."""
     from sqlalchemy import select as _select
 
     from app.models import PendingRequest
 
     rows = (
         await db.execute(
-            _select(PendingRequest.task_id).where(
+            _select(PendingRequest).where(
                 PendingRequest.user_id == user.id,
-                PendingRequest.status == "pending",
+                PendingRequest.status.in_(["pending", "rejected"]),
             )
         )
     ).scalars().all()
-    return {"pending": list(rows)}
+    return {
+        "pending": [r.task_id for r in rows if r.status == "pending"],
+        "rejected": [{"task_id": r.task_id, "note": r.note} for r in rows if r.status == "rejected"],
+    }
 
 
 @router.post("/progress/request", response_model=ProgressOut)
@@ -203,6 +207,63 @@ async def request_verification(
         publish({"type": "pending_new", "email": user.email, "name": user.name,
                  "task_id": payload.task_id})
         await notify_new_request(user.email, user.name, payload.task_id)
+    return await save_progress(db, prog, tasks)
+
+
+@router.post("/progress/request-batch", response_model=ProgressOut)
+@limiter.limit("10/minute")
+async def request_batch(
+    request: Request,
+    payload: BatchRequestIn,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role),
+):
+    """Одна кнопка «Подписал документы, отправить на проверку HR»: весь пакет разом.
+
+    Создаёт pending-запросы только для manual_* задач, которых ещё нет ни в done,
+    ни в pending. XP не начисляется. Одно уведомление HR с именем сотрудника.
+    """
+    from sqlalchemy import select as _select
+
+    from app.models import PendingRequest
+
+    stage = STAGES.get(1)
+    wanted: list[str] = []
+    for raw in payload.task_ids:
+        tid = str(raw).strip()
+        if tid not in stage["tasks"]:
+            raise HTTPException(status_code=400, detail=f"Неизвестная задача: {tid}")
+        vt, _rr = task_meta(tid)
+        if vt not in ("manual_hr", "manual_staff"):
+            raise HTTPException(status_code=400, detail=f"Задача {tid} не требует запроса (код/таймер/пароль)")
+        wanted.append(tid)
+    prog = await load_progress(db, user)
+    tasks = normalize_tasks(prog.done_tasks)
+    done = set(tasks["1"])
+    created = 0
+    for tid in wanted:
+        if tid in done:
+            continue
+        existing = await db.execute(
+            _select(PendingRequest).where(
+                PendingRequest.user_id == user.id,
+                PendingRequest.task_id == tid,
+                PendingRequest.status == "pending",
+            )
+        )
+        if existing.scalar_one_or_none() is None:
+            db.add(PendingRequest(
+                user_id=user.id, task_id=tid,
+                note=payload.note.strip()[:300], status="pending",
+            ))
+            created += 1
+    if created:
+        await db.commit()
+        from app.notify import notify_new_request, publish
+
+        publish({"type": "pending_new_batch", "email": user.email, "name": user.name,
+                 "task_ids": wanted})
+        await notify_new_request(user.email, user.name, ", ".join(wanted), batch=True)
     return await save_progress(db, prog, tasks)
 
 
@@ -307,6 +368,59 @@ async def verify_docs(
         db.add(row)
         await db.commit()
     await notify_verified(target.email, payload.task_id, out.xp)
+    return out
+
+
+@router.post("/verify-docs-batch", response_model=ProgressOut)
+@limiter.limit("10/minute")
+async def verify_docs_batch(
+    request: Request,
+    payload: BatchRequestIn,
+    db: AsyncSession = Depends(get_db),
+    staff: User = Depends(require_staff),
+):
+    """HR одной кнопкой «Подтвердить получение и проверку документов»: весь пакет.
+
+    task_ids должны быть из DOC_TASKS. Отмечает done + audit + закрывает pending,
+    начисляет XP (5×1=5), уведомляет сотрудника.
+    """
+    from sqlalchemy import select as _select
+
+    from app.models import PendingRequest
+    from app.notify import notify_verified
+
+    wanted: list[str] = []
+    for raw in payload.task_ids:
+        tid = str(raw).strip()
+        if tid not in DOC_TASKS:
+            raise HTTPException(status_code=400, detail=f"Не задача Step 1: {tid}")
+        wanted.append(tid)
+    if not wanted:
+        raise HTTPException(status_code=400, detail="Пустой пакет")
+    if payload.user_id is None:
+        raise HTTPException(status_code=400, detail="Укажите user_id сотрудника")
+    target = await db.get(User, payload.user_id)
+    if target is None:
+        raise HTTPException(status_code=404, detail="Сотрудник не найден")
+    prog = await load_progress(db, target)
+    tasks = normalize_tasks(prog.done_tasks)
+    for tid in wanted:
+        if tid not in tasks["1"]:
+            tasks["1"].append(tid)
+        await log_verification(db, target.id, tid, "manual_hr", staff.id)
+        req = await db.execute(
+            _select(PendingRequest).where(
+                PendingRequest.user_id == target.id,
+                PendingRequest.task_id == tid,
+                PendingRequest.status == "pending",
+            )
+        )
+        r = req.scalar_one_or_none()
+        if r is not None:
+            r.status = "verified"
+            db.add(r)
+    out = await save_progress(db, prog, tasks)
+    await notify_verified(target.email, ", ".join(wanted), out.xp)
     return out
 
 

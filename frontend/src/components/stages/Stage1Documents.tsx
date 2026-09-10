@@ -1,4 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
+import {
+  Award, BadgeCheck, CheckCircle2, ChevronDown, ChevronRight, ClipboardCheck, Clock, FileCheck,
+  FileText, FolderCheck, Hourglass, IdCard, KeyRound, RotateCcw, Send, ShieldCheck, Wifi, XCircle,
+} from 'lucide-react';
 import type { StageId } from '../../data/stages';
 import { useOnboarding } from '../../store/useOnboarding';
 import { DocumentModal, type DocKind } from './DocumentModal';
@@ -37,12 +41,12 @@ function StepHeader({ n, title, reward, desc, open, done, onToggle }: {
   return (
     <div className={`step-head ${onToggle ? 'clickable' : ''}`} onClick={onToggle} role={onToggle ? 'button' : undefined} tabIndex={onToggle ? 0 : undefined}
       onKeyDown={onToggle ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(); } } : undefined}>
-      <div className="sh-num">{done ? '✓' : n}</div>
+      <div className="sh-num">{done ? <CheckCircle2 size={16} /> : n}</div>
       <div className="sh-body">
         <div className="sh-title">{title} <span className="sh-reward">{reward}</span></div>
         {desc && <div className="sh-desc">{desc}</div>}
       </div>
-      {onToggle && <span className={`sh-chevron ${open ? 'open' : ''}`} aria-hidden>⌄</span>}
+      {onToggle && <span className={`sh-chevron ${open ? 'open' : ''}`} aria-hidden><ChevronDown size={18} /></span>}
     </div>
   );
 }
@@ -110,6 +114,32 @@ export function Stage1Documents({ stageId }: Props) {
   const isTaskDone = (taskId: string) => done.includes(taskId);
   const isPending = (k: DocKey) => pending.includes(docToTask[k]);
   const [reqMsg, setReqMsg] = useState<string | null>(null);
+
+  // Шаг 1: пакет документов целиком (физическая верификация HR, одна кнопка)
+  const DOC_IDS = ['1-dogovor', '1-nda', '1-pdp', '1-ip', '1-sn'];
+  const DOCS_PACKAGE = [
+    { id: '1-dogovor', title: 'Договор об оказании услуг', sub: '2 экземпляра · подписать оба, один остаётся у вас', Icon: FileText },
+    { id: '1-nda', title: 'NDA — о неразглашении', sub: '2 экземпляра · подписать оба', Icon: ShieldCheck },
+    { id: '1-pdp', title: 'Соглашение о персональных данных', sub: 'Обязательный документ', Icon: FileCheck },
+    { id: '1-ip', title: 'Свидетельство ИП', sub: 'Копия / реквизиты', Icon: IdCard },
+    { id: '1-sn', title: 'Справка о несудимости', sub: 'Актуальный документ', Icon: BadgeCheck },
+  ];
+  const rejected = useOnboarding((s) => s.rejected);
+  const pendingDocs = DOC_IDS.filter((id) => pending.includes(id));
+  const rejectedDocs = rejected.filter((r) => DOC_IDS.includes(r.task_id));
+  const [sendingDocs, setSendingDocs] = useState(false);
+  const submitDocs = async () => {
+    setSendingDocs(true);
+    setReqMsg(null);
+    try {
+      await api.post('/api/progress/request-batch', { task_ids: DOC_IDS });
+      await refreshMe();
+    } catch (e) {
+      setReqMsg(e instanceof Error ? e.message : 'Не удалось отправить пакет');
+    } finally {
+      setSendingDocs(false);
+    }
+  };
 
   // live-лента: HR подтвердил → прогресс обновится сам
   useEffect(() => { connectLive(); }, [connectLive]);
@@ -231,7 +261,7 @@ export function Stage1Documents({ stageId }: Props) {
     <div className="stage-content s1-steps">
       {/* SLA banner */}
       <div className={`sla-banner ${sla.overdue && !step1Done && !step2Done ? 'overdue' : ''}`}>
-        <span className="sla-icon">{sla.overdue ? '⚠️' : '⏱️'}</span>
+        <span className="sla-icon">{sla.overdue ? <XCircle size={15} /> : <Clock size={15} />}</span>
         <span className="sla-text">
           {sla.overdue && (!step1Done || !step2Done || !step3Done || !step4ExplicitDone)
             ? 'SLA превышен: этап не выполнен в течение 1 недели с момента регистрации'
@@ -240,23 +270,71 @@ export function Stage1Documents({ stageId }: Props) {
         {resolvedCreatedAt && <span className="sla-date">Старт: {new Date(resolvedCreatedAt).toLocaleDateString('ru-RU')}</span>}
       </div>
 
-      {/* ── Шаг 1. Подписание документов ── */}
+      {/* ── Шаг 1. Подписание документов — пакет целиком, физическая верификация HR ── */}
       <section className={`s1-step ${effectiveOpen === 1 ? 'open' : ''}`}>
-        <StepHeader n={1} title="Подписание документов" reward="5 баллов" desc="Двух экземплярах NDA и договора · проверка HR обязательна" open={effectiveOpen === 1} done={step1Done} onToggle={() => toggleStep(1)} />
+        <StepHeader n={1} title="Подписание документов" reward="5 баллов" desc="HR выдала пакет офлайн · соберите всё и отправьте одной кнопкой" open={effectiveOpen === 1} done={step1Done} onToggle={() => toggleStep(1)} />
         <div className="s1-step-body">
-        <div className="hr-note">
-          <span className="hr-dot" /> Защита от случайных галочек: этап не может быть пройден автоматически. Требуется верификация HR / администратора, подтверждающего физическое получение и проверку документов.
+        <div className="pkg-card">
+          <div className="pkg-head">
+            <span className="pkg-ico"><FolderCheck size={20} /></span>
+            <div>
+              <div className="pkg-title">Пакет документов</div>
+              <div className="pkg-sub">Подпишите всё из списка и отправьте на проверку одной кнопкой</div>
+            </div>
+          </div>
+          <ul className="pkg-list">
+            {DOCS_PACKAGE.map((d, i) => {
+              const st = done.includes(d.id) ? 'done' : pending.includes(d.id) ? 'pending' : 'todo';
+              return (
+                <li key={d.id} className={`pkg-item ${st}`}>
+                  <span className="pkg-item-ico"><d.Icon size={15} /></span>
+                  <span className="pkg-item-body">
+                    <b>{i + 1}. {d.title}</b>
+                    <span>{d.sub}</span>
+                  </span>
+                  <span className="pkg-item-st">
+                    {st === 'done' ? <CheckCircle2 size={16} /> : st === 'pending' ? <Clock size={15} /> : <span className="pkg-dot" />}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+          {/* статус-сегмент */}
+          {step1Done ? (
+            <div className="pkg-status done">
+              <CheckCircle2 size={20} />
+              <div>
+                <b>Выполнено — шаг 1 пройден</b>
+                <span>Подтверждено HR · <Award size={12} style={{ verticalAlign: '-2px' }} /> +5 баллов начислено</span>
+              </div>
+            </div>
+          ) : rejectedDocs.length ? (
+            <div className="pkg-status rejected">
+              <XCircle size={20} />
+              <div>
+                <b>HR отклонил(а) — нужно доделать</b>
+                <span>Причина: {rejectedDocs[0].note}</span>
+              </div>
+              <button type="button" className="pkg-submit" onClick={submitDocs} disabled={sendingDocs}>
+                <RotateCcw size={14} /> {sendingDocs ? 'Отправляем…' : 'Исправить и отправить снова'}
+              </button>
+            </div>
+          ) : pendingDocs.length ? (
+            <div className="pkg-status pending">
+              <Hourglass size={20} className="spin-slow" />
+              <div>
+                <b>Ожидает проверки HR</b>
+                <span>Пакет ({pendingDocs.length}/5) у HR на проверке — физически передайте документы, если ещё не передали</span>
+              </div>
+            </div>
+          ) : (
+            <button type="button" className="pkg-submit" onClick={submitDocs} disabled={sendingDocs}>
+              <Send size={14} /> {sendingDocs ? 'Отправляем…' : 'Подписал документы, отправить на проверку HR'}
+            </button>
+          )}
+          {reqMsg && <div className="wifi-err">{reqMsg}</div>}
         </div>
-        {reqMsg && <div className="wifi-err">{reqMsg}</div>}
-        <div className="step-grid">
-          <DocCard k="dogovor" doneFlag={isDone('dogovor')} pendingFlag={isPending('dogovor')} icon="📄" title="Договор об оказании услуг" sub="2 экземпляра · один остаётся у вас, второй — у компании" onOpen={setOpen} />
-          <DocCard k="nda" doneFlag={isDone('nda')} pendingFlag={isPending('nda')} icon="🔒" title="NDA — Соглашение о неразглашении" sub="Строгий режим · партнёры и клиенты · защита репутации" onOpen={setOpen} />
-          <DocCard k="pdp" doneFlag={isDone('pdp')} pendingFlag={isPending('pdp')} icon="🛡️" title="Соглашение об обработке персональных данных" sub="Обязательный документ" onOpen={setOpen} />
-          <DocCard k="ip" doneFlag={isDone('ip')} pendingFlag={isPending('ip')} icon="🏢" title="Свидетельство ИП" sub="Копия / реквизиты" onOpen={setOpen} />
-          <DocCard k="sn" doneFlag={isDone('sn')} pendingFlag={isPending('sn')} icon="✅" title="Справка о несудимости" sub="Актуальный документ" onOpen={setOpen} />
         </div>
-        </div>
-        {step1Done && <div className="step-done-badge">Шаг 1 выполнен ✓ +5 баллов</div>}
       </section>
 
       {/* ── Шаг 2. Получение доступов ── */}
@@ -265,11 +343,11 @@ export function Stage1Documents({ stageId }: Props) {
         <div className="s1-step-body">
         <div className="step-grid">
           <DocCard k="mbusiness" doneFlag={isDone('mbusiness')} pendingFlag={isPending('mbusiness')} icon={<img src="/mbusiness-logo.png" alt="MBusiness" width={28} height={28} loading="lazy" decoding="async" style={{ objectFit: 'contain' }} />} title="MBusiness — открытие" sub="Выплаты 1–10 числа · поможет HR" onOpen={setOpen} />
-          <DocCard k="accountant" doneFlag={isDone('accountant')} pendingFlag={isPending('accountant')} icon="🧾" title="Доступ бухгалтеру" sub="Инструкция · как предоставить доступ" onOpen={setOpen} />
-          <DocCard k="proxy" doneFlag={isDone('proxy')} pendingFlag={isPending('proxy')} icon="🪪" title="Прокси-карта и Face ID" sub="Пропуск на 1 этаж · коворкинг · Технопарк / MSpace · через лида/PM" onOpen={setOpen} />
-          <DocCard k="telegram" doneFlag={isDone('telegram')} pendingFlag={isPending('telegram')} icon="✈️" title="Доступ в Telegram-группы" sub="Авто-добавление · представьтесь команде" onOpen={setOpen} />
+          <DocCard k="accountant" doneFlag={isDone('accountant')} pendingFlag={isPending('accountant')} icon={<ClipboardCheck size={17} />} title="Доступ бухгалтеру" sub="Инструкция · как предоставить доступ" onOpen={setOpen} />
+          <DocCard k="proxy" doneFlag={isDone('proxy')} pendingFlag={isPending('proxy')} icon={<KeyRound size={17} />} title="Прокси-карта и Face ID" sub="Пропуск на 1 этаж · коворкинг · Технопарк / MSpace · через лида/PM" onOpen={setOpen} />
+          <DocCard k="telegram" doneFlag={isDone('telegram')} pendingFlag={isPending('telegram')} icon={<Send size={17} />} title="Доступ в Telegram-группы" sub="Авто-добавление · представьтесь команде" onOpen={setOpen} />
           <div className="doc-card wifi-card">
-            <div className={`dc-icon ${isTaskDone('1-wifi') ? 'dc-done' : ''}`}>{isTaskDone('1-wifi') ? '✓' : '📶'}</div>
+            <div className={`dc-icon ${isTaskDone('1-wifi') ? 'dc-done' : ''}`}>{isTaskDone('1-wifi') ? <CheckCircle2 size={16} /> : <Wifi size={16} />}</div>
             <div className="dc-body" style={{ flex: 1 }}>
               <div className="dc-title">Доступ к Wi-Fi (Закрытая сеть) {isTaskDone('1-wifi') && <span className="dc-badge">готово</span>}</div>
               <div className="dc-sub">Введите MAC-адрес ноутбука — отправим сетевикам, выдадим пароль</div>
@@ -302,7 +380,7 @@ export function Stage1Documents({ stageId }: Props) {
                 <button type="button" className="wifi-btn" onClick={handleWifiPassword}>Проверить</button>
               </div>
               {wifiMsg && <div className={wifiMsg.includes('✓') ? 'wifi-ok' : 'wifi-err'}>{wifiMsg}</div>}
-              <button type="button" className="wifi-help-link" onClick={() => setOpen('wifi')}>Подробнее →</button>
+              <button type="button" className="wifi-help-link" onClick={() => setOpen('wifi')}>Подробнее <ChevronRight size={12} style={{ verticalAlign: '-2px' }} /></button>
             </div>
           </div>
         </div>
@@ -383,8 +461,8 @@ export function Stage1Documents({ stageId }: Props) {
                   <span className="cf-title">{l.title}</span>
                   <span className="cf-sub">confluence.mdigital.kg · {seen ? 'открыта ✓' : 'нажмите чтобы открыть'}</span>
                 </span>
-                <span className="cf-arrow">→</span>
-              </a>
+            <span className="cf-arrow"><ChevronRight size={18} /></span>
+          </a>
             );
           })}
         </div>
@@ -400,12 +478,7 @@ export function Stage1Documents({ stageId }: Props) {
 
       <div className="doc-hint font-orbitron">Открой каждый документ и пролистай до конца — иначе не подтвердится. HR верификация шага 1 обязательна.</div>
 
-      {/* modals */}
-      <DocumentModal kind="dogovor" open={open === 'dogovor'} onClose={() => setOpen(null)} alreadyDone={isDone('dogovor')} onConfirm={() => handleConfirm('dogovor')} />
-      <DocumentModal kind="nda" open={open === 'nda'} onClose={() => setOpen(null)} alreadyDone={isDone('nda')} onConfirm={() => handleConfirm('nda')} />
-      <DocumentModal kind="pdp" open={open === 'pdp'} onClose={() => setOpen(null)} alreadyDone={isDone('pdp')} onConfirm={() => handleConfirm('pdp')} />
-      <DocumentModal kind="ip" open={open === 'ip'} onClose={() => setOpen(null)} alreadyDone={isDone('ip')} onConfirm={() => handleConfirm('ip')} />
-      <DocumentModal kind="sn" open={open === 'sn'} onClose={() => setOpen(null)} alreadyDone={isDone('sn')} onConfirm={() => handleConfirm('sn')} />
+      {/* modals (документы шага 1 убраны — пакет отправляется одной кнопкой, без модалок) */}
       <DocumentModal kind="mbusiness" open={open === 'mbusiness'} onClose={() => setOpen(null)} alreadyDone={isDone('mbusiness')} onConfirm={() => handleConfirm('mbusiness')} />
       <DocumentModal kind="accountant" open={open === 'accountant'} onClose={() => setOpen(null)} alreadyDone={isDone('accountant')} onConfirm={() => handleConfirm('accountant')} />
       <DocumentModal kind="wifi" open={open === 'wifi'} onClose={() => setOpen(null)} alreadyDone={isDone('wifi')} onConfirm={() => handleConfirm('wifi')} />
@@ -423,6 +496,39 @@ export function Stage1Documents({ stageId }: Props) {
         .s1-step{ display:flex; flex-direction:column; gap:10px; padding:14px 12px; border-radius:14px; background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.06) }
         .s1-step-body{ display:flex; flex-direction:column; gap:10px; }
         .step-head.clickable{ cursor:pointer; }
+        /* пакет документов шага 1 */
+        .pkg-card{ display:flex; flex-direction:column; gap:12px; padding:14px; border-radius:12px; background:rgba(37,99,235,.05); border:1px solid rgba(59,130,246,.18); }
+        .pkg-head{ display:flex; gap:12px; align-items:flex-start; }
+        .pkg-ico{ width:44px; height:44px; border-radius:11px; display:grid; place-items:center; flex-shrink:0; color:#fff; background:linear-gradient(135deg,#1E3A8A,#2563EB); }
+        .pkg-title{ font-size:13.5px; font-weight:800; color:var(--text); }
+        .pkg-sub{ font-size:11.5px; color:var(--muted); margin-top:4px; line-height:1.45; }
+        .pkg-list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:7px; }
+        .pkg-item{ display:flex; align-items:center; gap:10px; padding:9px 11px; border-radius:9px; background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.06); }
+        .pkg-item.done{ border-color:rgba(34,197,94,.3); }
+        .pkg-item.pending{ border-style:dashed; border-color:rgba(251,191,36,.35); }
+        .pkg-item-ico{ width:30px; height:30px; border-radius:8px; display:grid; place-items:center; flex-shrink:0; background:rgba(59,130,246,.1); border:1px solid rgba(59,130,246,.25); color:#93C5FD; }
+        .pkg-item.done .pkg-item-ico{ background:rgba(34,197,94,.14); border-color:rgba(34,197,94,.35); color:#86EFAC; }
+        .pkg-item-body{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+        .pkg-item-body b{ font-size:12.5px; color:var(--text); }
+        .pkg-item-body span{ font-size:11px; color:var(--muted); }
+        .pkg-item-st{ color:#86EFAC; display:grid; place-items:center; flex-shrink:0; }
+        .pkg-item.pending .pkg-item-st{ color:#FBBF24; }
+        .pkg-dot{ width:9px; height:9px; border-radius:50%; border:1.5px solid rgba(147,197,253,.45); }
+        .pkg-status{ display:flex; gap:10px; align-items:flex-start; padding:11px 12px; border-radius:10px; font-size:12px; line-height:1.5; }
+        .pkg-status b{ display:block; font-size:12.5px; }
+        .pkg-status span{ color:var(--muted); font-size:11.5px; }
+        .pkg-status.done{ background:rgba(34,197,94,.1); border:1px solid rgba(34,197,94,.3); color:#86EFAC; }
+        .pkg-status.done span{ color:#86EFAC; opacity:.85; }
+        .pkg-status.pending{ background:rgba(251,191,36,.07); border:1px dashed rgba(251,191,36,.35); color:#FDE68A; }
+        .pkg-status.pending span{ color:#FDE68A; opacity:.85; }
+        .pkg-status.rejected{ background:rgba(239,68,68,.08); border:1px solid rgba(239,68,68,.35); color:#FCA5A5; flex-wrap:wrap; }
+        .pkg-status.rejected span{ color:#FCA5A5; opacity:.9; }
+        .pkg-submit{ display:inline-flex; align-items:center; justify-content:center; gap:8px; width:100%; padding:12px 16px; border-radius:10px; border:none; cursor:pointer; font-size:12px; font-weight:800; letter-spacing:.04em; font-family:'Open Sans',sans-serif; background:linear-gradient(90deg,#1E3A8A,#2563EB); color:#fff; }
+        .pkg-submit:hover:not(:disabled){ filter:brightness(1.08); }
+        .pkg-submit:disabled{ opacity:.6; cursor:wait; }
+        .pkg-status.rejected .pkg-submit{ margin-top:4px; }
+        .spin-slow{ animation:spinSlow 2.4s linear infinite; }
+        @keyframes spinSlow{ to{ transform:rotate(360deg) } }
         .sh-chevron{ margin-left:auto; color:#60A5FA; font-size:16px; line-height:1; transition:transform .2s ease; flex-shrink:0; display:none; }
         /* mobile accordion ≤640px: виден только открытый шаг */
         @media (max-width:640px){

@@ -446,6 +446,68 @@ def test_staff_verify_and_admin(client):
     assert "confluence_url" in links.json()
 
 
+def test_docs_batch_flow(client):
+    """Одна кнопка: request-batch (5) -> pending -> verify-batch -> XP 5."""
+    docs = ["1-dogovor", "1-nda", "1-pdp", "1-ip", "1-sn"]
+    email = _unique_email()
+    client.post("/api/register", json={"email": email, "password": "secret123"})
+    client.post("/api/role", json={"role": "frontend"})
+    uid = _grant_staff(email)
+
+    b = client.post("/api/progress/request-batch", json={"task_ids": docs})
+    assert b.status_code == 200
+    assert b.json()["xp"] == 0  # XP только после HR
+    mine = client.get("/api/progress/pending")
+    assert sorted(mine.json()["pending"]) == sorted(docs)
+
+    # техническая задача в батче отклоняется
+    bad = client.post("/api/progress/request-batch", json={"task_ids": ["1-mpulse-code"]})
+    assert bad.status_code == 400
+
+    # HR подтверждает пакет одной кнопкой
+    v = client.post("/api/verify-docs-batch", json={"task_ids": docs, "user_id": uid})
+    assert v.status_code == 200
+    assert v.json()["xp"] == 5
+    for tid in docs:
+        assert tid in v.json()["done_tasks"]["1"]
+    assert client.get("/api/progress/pending").json()["pending"] == []
+
+    # audit содержит 5 строк manual_hr
+    audit = client.get("/api/admin/audit", params={"user_id": uid})
+    assert audit.status_code == 200
+    assert sum(1 for r in audit.json() if r["method"] == "manual_hr") >= 5
+
+
+def test_reject_requires_reason_and_resubmit(client):
+    email = _unique_email()
+    client.post("/api/register", json={"email": email, "password": "secret123"})
+    client.post("/api/role", json={"role": "frontend"})
+    uid = _grant_staff(email)
+
+    client.post("/api/progress/request-batch", json={"task_ids": ["1-dogovor"]})
+    pend = client.get("/api/admin/pending-verifications")
+    row = next(r for r in pend.json() if r["task_id"] == "1-dogovor" and r["user_id"] == uid)
+
+    # короткая причина отклоняется (422)
+    short = client.post(f"/api/admin/pending/{row['id']}/reject", json={"reason": "нет"})
+    assert short.status_code == 422
+
+    ok = client.post(
+        f"/api/admin/pending/{row['id']}/reject",
+        json={"reason": "Не хватает справки о несудимости, донесите HR"},
+    )
+    assert ok.status_code == 200
+    mine = client.get("/api/progress/pending")
+    assert mine.json()["pending"] == []
+    assert mine.json()["rejected"][0]["task_id"] == "1-dogovor"
+    assert "справки" in mine.json()["rejected"][0]["note"]
+
+    # повторная отправка после доделки снова создаёт pending
+    again = client.post("/api/progress/request", json={"task_id": "1-dogovor"})
+    assert again.status_code == 200
+    assert "1-dogovor" in client.get("/api/progress/pending").json()["pending"]
+
+
 def test_verify_docs_forbidden_for_employee(client):
     email = _unique_email()
     client.post("/api/register", json={"email": email, "password": "secret123"})
