@@ -1,4 +1,6 @@
 """Ссылки/инструкции внешних систем (TZ: онбординг даёт ссылки, LDAP — их own настройки)."""
+import re
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,15 +19,18 @@ BOT_API = "https://api.telegram.org/bot{token}/{method}"
 async def _tg_call(token: str, method: str, payload: dict) -> dict:
     import httpx
 
-    async with httpx.AsyncClient(timeout=10) as client:
-        resp = await client.post(BOT_API.format(token=token, method=method), json=payload)
-        try:
-            data = resp.json()
-        except Exception:
-            data = {}
-        if not data.get("ok"):
-            raise RuntimeError(str(data.get("description") or f"HTTP {resp.status_code}"))
-        return data.get("result") or {}
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(BOT_API.format(token=token, method=method), json=payload)
+    except Exception as e:
+        raise RuntimeError(f"сеть недоступна: {e}")
+    try:
+        data = resp.json()
+    except Exception:
+        data = {}
+    if not data.get("ok"):
+        raise RuntimeError(str(data.get("description") or f"HTTP {resp.status_code}"))
+    return data.get("result") or {}
 
 
 VALID_ROLES = ("frontend", "backend", "design")
@@ -56,6 +61,53 @@ async def _tg_groups(db, user_role: str | None = None) -> list[dict]:
         out.append({"title": str(g.get("title") or g["chat_id"]),
                     "chat_id": str(g["chat_id"]),
                     "roles": [r for r in roles if r in VALID_ROLES]})
+    return out
+
+
+async def _resolve_via_updates(token: str, handle: str) -> object:
+    """user_id из входящих сообщений боту (getUpdates): матчим from.username.
+
+    Обход лимита getChat(@username)=not found для пользователей,
+    которых бот ещё не видел. Возвращает id или None.
+    """
+    want = handle.lstrip("@").lower()
+    try:
+        data = await _tg_call(token, "getUpdates", {"limit": 100, "timeout": 0})
+    except RuntimeError:
+        return None
+    updates = data if isinstance(data, list) else []
+    for u in updates:
+        if not isinstance(u, dict):
+            continue
+        msg = u.get("message") or u.get("edited_message") or {}
+        frm = msg.get("from") or {}
+        uname = str(frm.get("username") or "").lower()
+        if uname and uname == want and frm.get("id"):
+            return frm["id"]
+    return None
+
+
+async def _bot_username(token: str) -> str:
+    try:
+        me = await _tg_call(token, "getMe", {})
+        return str(me.get("username") or "")
+    except RuntimeError:
+        return ""
+
+
+async def _make_invite_links(token: str, groups: list[dict]) -> list[dict]:
+    """Одноразовые invite-ссылки per group (фолбэк ручного вступления)."""
+    out = []
+    for g in groups:
+        chat_id = str(g["chat_id"])
+        title = str(g.get("title") or chat_id)
+        try:
+            link = await _tg_call(token, "createChatInviteLink", {"chat_id": chat_id})
+            url = str(link.get("invite_link") or "")
+            if url:
+                out.append({"title": title, "url": url})
+        except RuntimeError:
+            continue
     return out
 
 
@@ -173,36 +225,92 @@ async def telegram_auto_add(
             detail="Группы для вашей роли не настроены: обратитесь к HR (/admin → Коды и ссылки).",
         )
     token = settings.telegram_bot_token
-    # username -> числовой user_id (нужен для addChatMember)
-    try:
-        resolved = await _tg_call(token, "getChat", {"chat_id": user.telegram_username})
-        tg_id = resolved.get("id")
-    except RuntimeError as e:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Не найден Telegram-пользователь {user.telegram_username}: {e}. "
-            "Проверьте @username (пользователь должен существовать).",
-        )
+    # 1) числовой ID — напрямую; 2) getChat(@username); 3) getUpdates (писал боту?)
+    handle = user.telegram_username.strip()
+    tg_id: object = None
+    if re.fullmatch(r"@?\d{5,20}", handle):
+        tg_id = int(handle.lstrip("@"))
+    else:
+        try:
+            resolved = await _tg_call(token, "getChat", {"chat_id": handle})
+            tg_id = resolved.get("id")
+        except RuntimeError:
+            tg_id = await _resolve_via_updates(token, handle)
+    invite_links: list[dict] = []
     if not tg_id:
-        raise HTTPException(status_code=400, detail="Не удалось разрешить @username в user_id.")
+        # фолбэк: invite-ссылки, чтобы сотрудник вступил вручную (200, не 400)
+        invite_links = await _make_invite_links(token, groups)
+        failed = [{
+            "title": str(g.get("title") or g["chat_id"]),
+            "reason": f"Не найден {handle}: напишите боту /start и повторите, или вступите по ссылке ниже.",
+        } for g in groups]
+        return AutoAddOut(added=[], failed=failed, username=user.telegram_username,
+                          invite_links=invite_links)
     added: list[str] = []
     failed: list[dict] = []
     for g in groups:
         chat_id = str(g["chat_id"])
         title = str(g.get("title") or chat_id)
         try:
-            await _tg_call(token, "addChatMember", {"chat_id": chat_id, "user_id": tg_id})
+            # unbanChatMember — рабочий способ добавить в супергруппу;
+            # addChatMember — фолбэк для обычных групп (в супергруппах даёт 404).
+            try:
+                await _tg_call(token, "unbanChatMember", {"chat_id": chat_id, "user_id": tg_id})
+            except RuntimeError as e:
+                if "chat owner" in str(e).lower() or "already" in str(e).lower():
+                    pass  # владелец / уже участник — считаем добавленным
+                else:
+                    await _tg_call(token, "addChatMember", {"chat_id": chat_id, "user_id": tg_id})
             added.append(title)
         except RuntimeError as e:
             reason = str(e)
             if "bot was blocked" in reason.lower() or "user not found" in reason.lower():
-                hint = "Пользователь не найден — проверьте @username."
+                hint = "Пользователь не найден — напишите боту /start и повторите."
             elif "not enough rights" in reason.lower() or "admin" in reason.lower():
                 hint = "Дайте боту админку в группе (can_invite_users)."
             else:
                 hint = reason
             failed.append({"title": title, "reason": hint})
-    return AutoAddOut(added=added, failed=failed, username=user.telegram_username)
+    if failed:
+        # частичный фолбэк: ссылки для групп, куда не добавилось
+        failed_ids = {f["title"] for f in failed}
+        invite_links = await _make_invite_links(
+            token, [g for g in groups if str(g.get("title") or g["chat_id"]) in failed_ids])
+    return AutoAddOut(added=added, failed=failed, username=user.telegram_username,
+                      invite_links=invite_links)
+
+
+@router.post("/integrations/telegram-webhook")
+@limiter.limit("60/minute")
+async def telegram_webhook(request: Request):
+    """Приём апдейтов бота (если повешен webhook). Без секрета — 501 (работает getUpdates)."""
+    import json
+
+    from fastapi import HTTPException
+    from fastapi.responses import JSONResponse
+
+    secret = (request.headers.get("X-Telegram-Bot-Api-Secret-Token") or "").strip()
+    expected = settings.telegram_webhook_secret.strip() if hasattr(settings, "telegram_webhook_secret") else ""
+    if not expected:
+        raise HTTPException(status_code=501, detail="Webhook не настроен (TELEGRAM_WEBHOOK_SECRET).")
+    if not secret or secret != expected:
+        raise HTTPException(status_code=403, detail="Bad webhook secret.")
+    try:
+        update = json.loads((await request.body()).decode() or "{}")
+    except Exception:
+        update = {}
+    msg = update.get("message") or {}
+    frm = msg.get("from") or {}
+    chat = msg.get("chat") or {}
+    if frm.get("id") and chat.get("type") == "private" and str(msg.get("text") or "").startswith("/start"):
+        try:
+            await _tg_call(settings.telegram_bot_token, "sendMessage", {
+                "chat_id": frm["id"],
+                "text": "Привет! Я бот онбординга MDigital. Теперь вернитесь в портал и нажмите «Добавить меня во все группы».",
+            })
+        except RuntimeError:
+            pass
+    return JSONResponse({"ok": True})
 
 
 @router.get("/integrations/telegram-check-rights")
