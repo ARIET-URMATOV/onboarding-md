@@ -1,5 +1,5 @@
 """Ссылки/инструкции внешних систем (TZ: онбординг даёт ссылки, LDAP — их own настройки)."""
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -28,8 +28,15 @@ async def _tg_call(token: str, method: str, payload: dict) -> dict:
         return data.get("result") or {}
 
 
-async def _tg_groups(db) -> list[dict]:
-    """Список групп из app_settings[telegram.groups_json]."""
+VALID_ROLES = ("frontend", "backend", "design")
+
+
+async def _tg_groups(db, user_role: str | None = None) -> list[dict]:
+    """Список групп из app_settings[telegram.groups_json], фильтр по роли.
+
+    Группа видна роли, если roles пуст (для всех) или содержит роль.
+    Старые записи без roles = для всех (обратная совместимость).
+    """
     import json
 
     row = await db.get(AppSetting, "telegram.groups_json")
@@ -39,7 +46,17 @@ async def _tg_groups(db) -> list[dict]:
         groups = json.loads(row.value)
     except Exception:
         return []
-    return [g for g in groups if isinstance(g, dict) and g.get("chat_id")]
+    out = []
+    for g in groups:
+        if not isinstance(g, dict) or not g.get("chat_id"):
+            continue
+        roles = g.get("roles") or []
+        if user_role and roles and user_role not in roles:
+            continue
+        out.append({"title": str(g.get("title") or g["chat_id"]),
+                    "chat_id": str(g["chat_id"]),
+                    "roles": [r for r in roles if r in VALID_ROLES]})
+    return out
 
 
 @router.get("/integrations/links", response_model=LinksOut)
@@ -122,8 +139,8 @@ async def telegram_groups(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Список групп для вступления (настраивается в /admin, без редеплоя)."""
-    return {"groups": await _tg_groups(db)}
+    """Список групп для вступления (только своей роли; настраивается в /admin)."""
+    return {"groups": await _tg_groups(db, user.role)}
 
 
 @router.post("/integrations/telegram-auto-add", response_model=AutoAddOut)
@@ -149,11 +166,11 @@ async def telegram_auto_add(
             status_code=400,
             detail="Сначала укажите ваш Telegram @username в задаче.",
         )
-    groups = await _tg_groups(db)
+    groups = await _tg_groups(db, user.role)
     if not groups:
         raise HTTPException(
             status_code=501,
-            detail="Группы не настроены: HR должен заполнить telegram.groups_json в /admin.",
+            detail="Группы для вашей роли не настроены: обратитесь к HR (/admin → Коды и ссылки).",
         )
     token = settings.telegram_bot_token
     # username -> числовой user_id (нужен для addChatMember)
@@ -194,8 +211,9 @@ async def telegram_check_rights(
     request: Request,
     db: AsyncSession = Depends(get_db),
     staff: User = Depends(require_staff),
+    role: str | None = Query(default=None, pattern="^(frontend|backend|design)$"),
 ):
-    """Проверка для HR: бот есть? админ ли в каждой группе? (кнопка «Проверить права»)."""
+    """Проверка для HR: бот есть? админ ли в каждой группе? (?role=frontend — фильтр)."""
     if not settings.telegram_bot_token:
         raise HTTPException(status_code=501, detail="TELEGRAM_BOT_TOKEN не задан.")
     token = settings.telegram_bot_token
@@ -203,7 +221,7 @@ async def telegram_check_rights(
         me = await _tg_call(token, "getMe", {})
     except RuntimeError as e:
         raise HTTPException(status_code=502, detail=f"Бот недоступен: {e}")
-    groups = await _tg_groups(db)
+    groups = await _tg_groups(db, role)
     checked = []
     for g in groups:
         chat_id = str(g["chat_id"])
@@ -214,7 +232,9 @@ async def telegram_check_rights(
             can_invite = bool(member.get("can_invite_users"))
             ok = status in ("administrator", "creator") and (status == "creator" or can_invite)
             checked.append({"title": title, "chat_id": chat_id, "ok": ok,
+                            "roles": g.get("roles") or [],
                             "detail": f"статус бота: {status}, invite: {can_invite}"})
         except RuntimeError as e:
-            checked.append({"title": title, "chat_id": chat_id, "ok": False, "detail": str(e)})
+            checked.append({"title": title, "chat_id": chat_id, "ok": False,
+                            "roles": g.get("roles") or [], "detail": str(e)})
     return {"bot": me.get("username"), "groups": checked}

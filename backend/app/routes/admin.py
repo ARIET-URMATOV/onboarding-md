@@ -462,8 +462,16 @@ async def update_setting(
             if not isinstance(g, dict) or not g.get("title") or not g.get("chat_id"):
                 raise HTTPException(
                     status_code=400,
-                    detail="Каждая группа: {title, chat_id}, например {\"title\": \"Dev\", \"chat_id\": \"-100123\"}",
+                    detail="Каждая группа: {title, chat_id, roles?}, например "
+                    "{\"title\": \"Frontend Team\", \"chat_id\": \"-1001\", \"roles\": [\"frontend\"]}",
                 )
+            roles = g.get("roles") or []
+            if not isinstance(roles, list) or any(r not in ("frontend", "backend", "design") for r in roles):
+                raise HTTPException(
+                    status_code=400,
+                    detail="roles — список из frontend/backend/design (пустой = для всех)",
+                )
+            g["roles"] = [str(r) for r in roles]
         value = json.dumps(groups, ensure_ascii=False)
     if key.endswith("_email") and value:
         for email in value.split(","):

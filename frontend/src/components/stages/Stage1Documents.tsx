@@ -44,6 +44,7 @@ export function Stage1Documents({ stageId }: Props) {
   const connectLive = useOnboarding((s) => s.connectLive);
   const createdAt = useOnboarding((s) => s.createdAt);
   const user = useOnboarding((s) => s.user);
+  const myRole = useOnboarding((s) => s.role);
   const resolvedCreatedAt = (user as unknown as { createdAt?: string | null })?.createdAt ?? createdAt ?? null;
 
   const [open, setOpen] = useState<DocKind | null>(null);
@@ -596,7 +597,7 @@ export function Stage1Documents({ stageId }: Props) {
           <div className="doc-card tg-card">
             <div className={`dc-icon ${isTaskDone('1-telegram') ? 'dc-done' : ''}`}>{isTaskDone('1-telegram') ? <CheckCircle2 size={16} /> : <Send size={16} />}</div>
             <div className="dc-body" style={{ flex: 1 }}>
-              <div className="dc-title">Доступ в Telegram-группы {isTaskDone('1-telegram') && <span className="dc-badge">готово</span>}{!isTaskDone('1-telegram') && isPending('telegram') && <span className="dc-badge pending">ожидает HR</span>}</div>
+              <div className="dc-title">Доступ в Telegram-группы {isTaskDone('1-telegram') && <span className="dc-badge">готово</span>}{!isTaskDone('1-telegram') && isPending('telegram') && <span className="dc-badge pending">ожидает HR</span>}{myRole && <span className="dc-badge">{myRole}</span>}</div>
               <div className="dc-sub">Укажите @username — бот добавит вас во все группы. Затем представьтесь команде</div>
               <div className="wifi-inline" onClick={e => e.stopPropagation()}>
                 <input
@@ -629,7 +630,7 @@ export function Stage1Documents({ stageId }: Props) {
                   </button>
                 </div>
               )}
-              {tgGroups.length === 0 && <div className="wifi-ok">Группы пока настраиваются HR — представьтесь, когда появятся</div>}
+              {tgGroups.length === 0 && <div className="wifi-err">Групп для вашей роли ({myRole || '—'}) пока нет — обратитесь к HR</div>}
               <div className="tg-greet">
                 <div className="tg-greet-title">Шаблон приветствия (можно править):</div>
                 <textarea

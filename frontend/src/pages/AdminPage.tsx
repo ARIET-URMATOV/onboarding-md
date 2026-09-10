@@ -99,7 +99,7 @@ export function AdminPage() {
   const [wifiPw, setWifiPw] = useState<Record<number, string>>({});
   const [leadForm, setLeadForm] = useState<Record<number, string>>({});
   const [tgGroupsJson, setTgGroupsJson] = useState('[]');
-  const [tgRights, setTgRights] = useState<{ bot: string; groups: { title: string; ok: boolean; detail: string }[] } | null>(null);
+  const [tgRights, setTgRights] = useState<{ bot: string; groups: { title: string; ok: boolean; detail: string; roles?: string[] }[] } | null>(null);
 
   const loadTgGroups = useCallback(async () => {
     try {
@@ -160,7 +160,7 @@ export function AdminPage() {
 
   const checkTgRights = async () => {
     try {
-      const r = await api.get<{ bot: string; groups: { title: string; ok: boolean; detail: string }[] }>('/api/integrations/telegram-check-rights');
+      const r = await api.get<{ bot: string; groups: { title: string; ok: boolean; detail: string; roles?: string[] }[] }>('/api/integrations/telegram-check-rights');
       setTgRights(r);
     } catch (e) {
       setMsg(e instanceof Error ? e.message : 'Бот недоступен');
@@ -639,7 +639,7 @@ export function AdminPage() {
           {!codes.length && !loading && <div className="admin-empty">Кодов в БД нет — действует MPULSE_VERIFICATION_CODE из env</div>}
           <div className="admin-card">
             <div className="admin-card-head"><b>Telegram-группы (auto-add)</b></div>
-            <div className="admin-card-sub">JSON: список объектов title + chat_id. chat_id группы: -100… (t.me/c/… → -100…). Бот должен быть админом (can_invite_users).</div>
+            <div className="admin-card-sub">JSON: title + chat_id + roles (frontend/backend/design; пустой = всем). Бот должен быть админом (can_invite_users).</div>
             <textarea value={tgGroupsJson} onChange={(e) => setTgGroupsJson(e.target.value)} rows={3} className="admin-input" style={{ fontFamily: 'monospace', fontSize: 11 }} placeholder='[{"title":"Dev","chat_id":"-100123"}]' />
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button type="button" onClick={saveTgGroups} className="admin-btn small">Сохранить группы</button>
@@ -648,8 +648,8 @@ export function AdminPage() {
             {tgRights && (
               <div style={{ fontSize: 11.5, lineHeight: 1.7 }}>
                 <div>Бот: @{tgRights.bot || '—'}</div>
-                {tgRights.groups.map((g: { title: string; ok: boolean; detail: string }) => (
-                  <div key={g.title}>{g.ok ? '✓' : '✗'} {g.title} — {g.detail}</div>
+                {tgRights.groups.map((g: { title: string; ok: boolean; detail: string; roles?: string[] }) => (
+                  <div key={g.title}>{g.ok ? '✓' : '✗'} {g.title} [{(g.roles && g.roles.length ? g.roles : ['все']).join(',')}] — {g.detail}</div>
                 ))}
               </div>
             )}

@@ -780,3 +780,47 @@ def test_admin_settings_and_contacts(client):
     links = client.get("/api/integrations/links")
     assert links.json()["instruction_accountant"] == "Передайте реквизиты в 1С, раздел Зарплата."
     assert "jira_url" in links.json() and "gitlab_url" in links.json()
+
+
+def test_telegram_role_groups(client):
+    # два пользователя разных ролей
+    fe = _unique_email()
+    client.post("/api/register", json={"email": fe, "password": "secret123"})
+    client.post("/api/role", json={"role": "frontend"})
+    fe_uid = _grant_staff(fe)
+    client.patch(
+        "/api/admin/settings",
+        json={"key": "telegram.groups_json", "value": (
+            '[{"title":"Frontend Team","chat_id":"-1001","roles":["frontend"]},'
+            '{"title":"Backend Team","chat_id":"-1002","roles":["backend"]},'
+            '{"title":"Common","chat_id":"-1003","roles":[]}]'
+        )},
+    )
+    g_fe = client.get("/api/integrations/telegram-groups")
+    assert sorted(x["chat_id"] for x in g_fe.json()["groups"]) == ["-1001", "-1003"]
+
+    be = _unique_email()
+    client.post("/api/register", json={"email": be, "password": "secret123"})
+    client.post("/api/role", json={"role": "backend"})
+    g_be = client.get("/api/integrations/telegram-groups")
+    assert sorted(x["chat_id"] for x in g_be.json()["groups"]) == ["-1002", "-1003"]
+
+    # старые записи без roles = для всех
+    client.post("/api/login", json={"email": fe, "password": "secret123"})
+    client.patch(
+        "/api/admin/settings",
+        json={"key": "telegram.groups_json", "value": '[{"title":"Legacy","chat_id":"-1009"}]'},
+    )
+    g_legacy = client.get("/api/integrations/telegram-groups")
+    assert [x["chat_id"] for x in g_legacy.json()["groups"]] == ["-1009"]
+
+    # невалидные roles отклоняются
+    bad = client.patch(
+        "/api/admin/settings",
+        json={"key": "telegram.groups_json", "value": '[{"title":"X","chat_id":"-1","roles":["qa"]}]'},
+    )
+    assert bad.status_code == 400
+
+    # откат к пустому (не ломаем другие тесты)
+    client.patch("/api/admin/settings", json={"key": "telegram.groups_json", "value": "[]"})
+    assert fe_uid > 0
