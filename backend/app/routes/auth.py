@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import get_db
 from app.limiter import limiter
-from app.models import Progress, User
+from app.models import PendingRequest, Progress, User, VerificationLog, WifiMac
 from app.schemas import (
     LoginIn,
     MeOut,
@@ -343,25 +343,55 @@ async def demo_login(request: Request, response: Response, db: AsyncSession = De
 
 
 @router.post("/demo/reset", response_model=OkOut)
-@limiter.limit("5/minute")
+@limiter.limit("10/minute")
 async def demo_reset(
     request: Request,
+    response: Response,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    """Сброс демо-аккаунта в состояние «как новый». Трогает только demo.
+
+    Требует активной демо-сессии (auth required — см. ADR). После сброса
+    кука перевыпускается, чтобы сессия не протухла. Чистит не только
+    Progress, но и связанные демо-данные: pending_requests, wifi_macs,
+    verification_log — иначе бейджи/флаги переживают «сброс».
+    """
     if user.email.lower() != settings.demo_email.lower():
         raise HTTPException(status_code=403, detail="Только демо-аккаунт может сбросить демо")
-    """Сброс демо-аккаунта в состояние «как новый». Трогает только demo."""
-    user = await get_demo_user(db)
-    if user is not None:
-        prog = await db.get(Progress, user.id)
+    demo = await get_demo_user(db)
+    if demo is None:
+        demo = User(
+            email=settings.demo_email,
+            password_hash=pwd.hash(settings.demo_password),
+            name=settings.demo_name,
+        )
+        db.add(demo)
+        await db.flush()
+        db.add(Progress(user_id=demo.id))
+        await db.commit()
+        await db.refresh(demo)
+    else:
+        # Связанные строки демо-пользователя — полный wipe.
+        for table in (PendingRequest, WifiMac, VerificationLog):
+            rows = (await db.execute(select(table).where(table.user_id == demo.id))).scalars().all()
+            for row in rows:
+                await db.delete(row)
+        prog = await db.get(Progress, demo.id)
         if prog is not None:
             await db.delete(prog)
-        user.name = settings.demo_name
-        user.role = None
-        user.intro_seen = False
-        user.voice_enabled = True
-        user.avatar = None
-        db.add(user)
+        demo.name = settings.demo_name
+        demo.role = None
+        demo.intro_seen = False
+        demo.voice_enabled = True
+        demo.avatar = None
+        db.add(demo)
+        await db.flush()
+        # Сразу создаём пустой прогресс, чтобы /me после reset отдавал xp=0
+        # без гонки с ensure_progress.
+        db.add(Progress(user_id=demo.id))
         await db.commit()
+        await db.refresh(demo)
+    # Перевыпуск куки: сброс не должен ронять текущую демо-сессию.
+    set_auth_cookie(response, create_token(demo.id))
     return OkOut()

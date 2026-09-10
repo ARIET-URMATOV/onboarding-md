@@ -208,6 +208,50 @@ def test_role_intro_voice(client):
 
 # ---------- API: demo ----------
 
+
+def _seed_demo_side_data() -> None:
+    import asyncio
+
+    from sqlalchemy import select
+
+    from app.config import settings
+    from app.database import SessionLocal
+    from app.models import PendingRequest, User, VerificationLog, WifiMac
+
+    async def _go() -> None:
+        async with SessionLocal() as db:
+            demo = (await db.execute(select(User).where(User.email == settings.demo_email))).scalar_one()
+            db.add(PendingRequest(user_id=demo.id, task_id="1-dogovor", note="x", status="pending"))
+            db.add(WifiMac(user_id=demo.id, mac="AA:BB:CC:DD:EE:FF"))
+            db.add(VerificationLog(user_id=demo.id, task_id="1-wifi", method="technical_password"))
+            await db.commit()
+
+    asyncio.run(_go())
+
+
+def _assert_demo_side_data_wiped() -> None:
+    import asyncio
+
+    from sqlalchemy import select
+
+    from app.config import settings
+    from app.database import SessionLocal
+    from app.models import PendingRequest, User, VerificationLog, WifiMac
+
+    async def _go() -> None:
+        async with SessionLocal() as db:
+            demo = (await db.execute(select(User).where(User.email == settings.demo_email))).scalar_one()
+            assert (
+                await db.execute(select(PendingRequest).where(PendingRequest.user_id == demo.id))
+            ).scalars().all() == []
+            assert (await db.execute(select(WifiMac).where(WifiMac.user_id == demo.id))).scalars().all() == []
+            assert (
+                await db.execute(select(VerificationLog).where(VerificationLog.user_id == demo.id))
+            ).scalars().all() == []
+
+    asyncio.run(_go())
+
+
 def test_demo_login_and_reset(client):
     d1 = client.post("/api/demo/login")
     assert d1.status_code == 200
@@ -224,7 +268,9 @@ def test_demo_login_and_reset(client):
     me = client.get("/api/me")
     assert me.json()["progress"]["xp"] == 200
 
-    # reset
+    # reset (full wipe: progress + pending + wifi_macs + verification_log)
+    _seed_demo_side_data()
+
     r = client.post("/api/demo/reset")
     assert r.status_code == 200
     me2 = client.get("/api/me")
@@ -233,6 +279,23 @@ def test_demo_login_and_reset(client):
     assert me2.json()["user"]["intro_seen"] is False
     assert me2.json()["user"]["avatar"] is None
     assert me2.json()["user"]["name"] == "Demo User"
+
+    _assert_demo_side_data_wiped()
+
+
+def test_demo_reset_requires_auth():
+    with TestClient(app) as anon:
+        r = anon.post("/api/demo/reset")
+        assert r.status_code == 401
+
+
+def test_demo_reset_forbidden_for_non_demo(client):
+    email = _unique_email()
+    client.post("/api/register", json={"email": email, "password": "secret123"})
+    r = client.post("/api/demo/reset")
+    assert r.status_code == 403
+    assert "Только демо" in r.json()["detail"]
+    client.post("/api/logout")
 
 
 def test_logout(client):

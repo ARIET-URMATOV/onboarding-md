@@ -34,23 +34,43 @@ export function LoginPage() {
     setDemoResetting(true);
     setError(null);
     try {
-      // demo/reset now requires demo session → auto-login first if not demo
+      // demo/reset требует активной демо-сессии → при 401/403 сначала
+      // логинимся в демо, затем повторяем сброс ровно один раз.
+      const needsDemoLogin = (e: unknown) => {
+        const status = (e as { status?: number })?.status;
+        const msg = e instanceof Error ? e.message : '';
+        return (
+          status === 401 ||
+          status === 403 ||
+          msg.includes('Только демо') ||
+          msg.includes('Не авторизован') ||
+          msg.includes('Сессия истекла')
+        );
+      };
       try {
         await api.post('/api/demo/reset');
       } catch (e) {
-        if (e instanceof Error && (e.message.includes('Только демо') || (e as unknown as { status?: number }).status === 403)) {
-          await api.post<MeResponse>('/api/demo/login');
-          await api.post('/api/demo/reset');
-        } else {
-          throw e;
-        }
+        if (!needsDemoLogin(e)) throw e;
+        const me = await api.post<MeResponse>('/api/demo/login');
+        login(me);
+        await api.post('/api/demo/reset');
+      }
+      // Подтягиваем свежее состояние, чтобы UI сразу показал xp=0.
+      try {
+        const me = await api.get<MeResponse>('/api/me');
+        login(me);
+      } catch {
+        /* offline после сброса — не критично */
       }
       setDemoResetDone(true);
       window.setTimeout(() => setDemoResetDone(false), 2500);
     } catch (err) {
+      const status = (err as { status?: number })?.status;
       const msg = err instanceof Error ? err.message : 'Ошибка сброса демо';
-      if (msg.includes('Сначала выберите роль') || msg.includes('Сессия истекла') || msg.includes('Не авторизован')) {
-        setError('Войдите в демо, затем сбрасывайте');
+      if (status === 429) {
+        setError('Слишком много попыток — подождите минуту и повторите');
+      } else if (msg.includes('CSRF')) {
+        setError('Демо-сброс заблокирован браузером (CSRF). Проверьте FRONTEND_URL на бэкенде.');
       } else {
         setError(msg);
       }
