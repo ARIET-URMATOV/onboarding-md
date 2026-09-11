@@ -177,6 +177,7 @@ class ExternalService(Base):
     is_visible: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     open_new_tab: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     extra: Mapped[dict] = mapped_column(FlexibleJSON, nullable=False, default=dict)
+    details: Mapped[str] = mapped_column(Text, nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow

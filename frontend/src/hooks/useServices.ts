@@ -7,13 +7,14 @@ export interface Service {
   subtitle: string;
   url: string;
   icon_key: string;
-  category: string; 
+  category: string;
   task_id: string | null;
   roles: string[];
   sort_order: number;
   is_visible: boolean;
   open_new_tab: boolean;
   extra: Record<string, string>;
+  details: string;
 }
 
 export function useServices() {

@@ -242,6 +242,7 @@ class ServiceOut(BaseModel):
     is_visible: bool = True
     open_new_tab: bool = True
     extra: dict = {}
+    details: str = ""
 
 
 class ServiceIn(BaseModel):
@@ -257,6 +258,7 @@ class ServiceIn(BaseModel):
     is_visible: bool = True
     open_new_tab: bool = True
     extra: dict = {}
+    details: str = Field(default="", max_length=5000)
 
 
 class ServicePatchIn(BaseModel):
@@ -271,6 +273,7 @@ class ServicePatchIn(BaseModel):
     is_visible: bool | None = None
     open_new_tab: bool | None = None
     extra: dict | None = None
+    details: str | None = Field(default=None, max_length=5000)
 
 
 class MeOut(BaseModel):

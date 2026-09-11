@@ -72,6 +72,7 @@ async def get_visible_services(db: AsyncSession, user_role: str | None = None) -
             "task_id": s.task_id, "roles": [r for r in roles if r in TG_VALID_ROLES],
             "sort_order": s.sort_order, "is_visible": s.is_visible,
             "open_new_tab": s.open_new_tab, "extra": s.extra or {},
+            "details": s.details or "",
         })
     return out
 
@@ -104,6 +105,7 @@ async def admin_list_services(
              "task_id": s.task_id, "roles": s.roles or [],
              "sort_order": s.sort_order, "is_visible": s.is_visible,
              "open_new_tab": s.open_new_tab, "extra": s.extra or {},
+             "details": s.details or "",
              "created_at": s.created_at.isoformat() if s.created_at else None,
              "updated_at": s.updated_at.isoformat() if s.updated_at else None}
             for s in rows]
@@ -126,7 +128,7 @@ async def create_service(
         url=payload.url, icon_key=payload.icon_key, category=payload.category,
         task_id=payload.task_id, roles=payload.roles, sort_order=payload.sort_order,
         is_visible=payload.is_visible, open_new_tab=payload.open_new_tab,
-        extra=payload.extra,
+        extra=payload.extra, details=payload.details,
     )
     db.add(svc)
     await db.commit()
@@ -136,6 +138,7 @@ async def create_service(
         url=svc.url, icon_key=svc.icon_key, category=svc.category,
         task_id=svc.task_id, roles=svc.roles or [], sort_order=svc.sort_order,
         is_visible=svc.is_visible, open_new_tab=svc.open_new_tab, extra=svc.extra or {},
+        details=svc.details or "",
     )
 
 
@@ -153,7 +156,7 @@ async def update_service(
     if svc is None:
         raise HTTPException(status_code=404, detail="Сервис не найден")
     for field in ("title", "subtitle", "url", "icon_key", "category",
-                  "sort_order", "is_visible", "open_new_tab", "extra", "roles"):
+                  "sort_order", "is_visible", "open_new_tab", "extra", "roles", "details"):
         val = getattr(payload, field)
         if val is not None:
             setattr(svc, field, val)
@@ -167,6 +170,7 @@ async def update_service(
         url=svc.url, icon_key=svc.icon_key, category=svc.category,
         task_id=svc.task_id, roles=svc.roles or [], sort_order=svc.sort_order,
         is_visible=svc.is_visible, open_new_tab=svc.open_new_tab, extra=svc.extra or {},
+        details=svc.details or "",
     )
 
 

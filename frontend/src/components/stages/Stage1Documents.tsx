@@ -11,6 +11,7 @@ import { DocumentModal, type DocKind } from './DocumentModal';
 import { useToast } from '../ui/ToastProvider';
 import { api } from '../../api/client';
 import { useServices } from '../../hooks/useServices';
+import { ServiceModal } from './ServiceModal';
 
 interface Props { stageId: StageId }
 
@@ -59,6 +60,7 @@ export function Stage1Documents({ stageId }: Props) {
   const toast = useToast();
 
   const [open, setOpen] = useState<DocKind | null>(null);
+  const [openInfo, setOpenInfo] = useState<{ title: string; sub?: string; body: string } | null>(null);
 
   // Services from DB
   const { services } = useServices();
@@ -401,6 +403,39 @@ export function Stage1Documents({ stageId }: Props) {
       .catch(() => { /* не критично */ });
   }, []);
 
+  const INFO_MODALS: Record<string, { title: string; sub?: string; body: string }> = {
+    mbusiness: {
+      title: 'MBusiness — открытие счёта',
+      sub: 'Необходим для получения зарплаты',
+      body: 'MBusiness нужен для того, чтобы вы своевременно получали выплаты за работу. Деньги поступают раз в месяц с 1 по 10 число.\n\nПомощь: При возникновении вопросов на этапе открытия счёта вам оперативно поможет ваш HR-менеджер.',
+    },
+    accountant: {
+      title: 'Доступ бухгалтеру',
+      sub: 'Предоставление реквизитов бухгалтерской службе',
+      body: acctInstruction || DEFAULT_ACCOUNTANT_TEXT,
+    },
+    proxy: {
+      title: 'Прокси-карта и Face ID (Транспортный доступ)',
+      sub: 'Доступ в коворкинг, Технопарк и MSpace',
+      body: 'Для получения физического пропуска/Face ID на первый этаж, в коворкинг, Технопарк или MSpace.\n\nЗапрос оформляется через вашего Team Lead или PM. Свяжитесь с руководителем для подачи заявки.',
+    },
+    wifi: {
+      title: 'Доступ к Wi-Fi (Закрытая сеть)',
+      sub: 'Подключение к корпоративной сети',
+      body: 'Для подключения ноутбука к закрытой корпоративной сети передайте ваш MAC-адрес сетевым администраторам.\n\nПосле обработки запроса вы получите персональный пароль от закрытой сети Wi-Fi.',
+    },
+    telegram: {
+      title: 'Доступ в Telegram-группы',
+      sub: 'Рабочие чаты команды',
+      body: 'Добавление в рабочие чаты команды происходит автоматически по пригласительным ссылкам.\n\nОбязательное условие: после вступления напишите краткое представление себя (кто вы, ваша роль, интересы) в главный чат команды!',
+    },
+    mpulse: {
+      title: 'MPulse — корпоративное приложение',
+      sub: 'AD · check-in/out · новости',
+      body: 'Авторизация через корпоративный Active Directory (AD).\n\nОбязательный выбор рабочего графика (согласованного с руководителем).\n\nЕжедневный check-in / check-out, формат работы, корпоративные новости и уведомления.',
+    },
+  };
+
   return (
     <div className="stage-content s1-steps">
       <div className={`sla-banner ${sla.overdue && !step1Done && !step2Done ? 'overdue' : ''}`}>
@@ -474,6 +509,7 @@ export function Stage1Documents({ stageId }: Props) {
               {pending.includes('1-mbusiness') && !isTaskDone('1-mbusiness') && <div className="wifi-ok">Ожидает подтверждения HR…</div>}
               {rejNote('1-mbusiness') && <div className="wifi-err">HR: {rejNote('1-mbusiness')}</div>}
               {mbMsg && <div className="wifi-ok">{mbMsg}</div>}
+              <button type="button" className="wifi-help-link" onClick={() => setOpenInfo(INFO_MODALS.mbusiness)}>Подробнее <ChevronRight size={12} style={{ verticalAlign: '-2px' }} /></button>
             </div>
           </div>
           <div className="doc-card svc-card">
@@ -487,6 +523,7 @@ export function Stage1Documents({ stageId }: Props) {
               {pending.includes('1-accountant') && !isTaskDone('1-accountant') && <div className="wifi-ok">Ожидает подтверждения бухгалтера…</div>}
               {rejNote('1-accountant') && <div className="wifi-err">Бухгалтер: {rejNote('1-accountant')}</div>}
               {accMsg && <div className="wifi-ok">{accMsg}</div>}
+              <button type="button" className="wifi-help-link" onClick={() => setOpenInfo(INFO_MODALS.accountant)}>Подробнее <ChevronRight size={12} style={{ verticalAlign: '-2px' }} /></button>
             </div>
           </div>
           <div className="doc-card svc-card">
@@ -500,6 +537,7 @@ export function Stage1Documents({ stageId }: Props) {
               {pending.includes('1-proxy') && !isTaskDone('1-proxy') && <div className="wifi-ok">Ожидает выдачи…</div>}
               {rejNote('1-proxy') && <div className="wifi-err">Лид: {rejNote('1-proxy')}</div>}
               {proxyMsg && <div className="wifi-ok">{proxyMsg}</div>}
+              <button type="button" className="wifi-help-link" onClick={() => setOpenInfo(INFO_MODALS.proxy)}>Подробнее <ChevronRight size={12} style={{ verticalAlign: '-2px' }} /></button>
             </div>
           </div>
           <div className="doc-card tg-card">
@@ -542,6 +580,7 @@ export function Stage1Documents({ stageId }: Props) {
               )}
               {tgMsg && <div className={tgMsg.includes('✓') ? 'wifi-ok' : 'wifi-err'}>{tgMsg}</div>}
               {rejNote('1-telegram') && <div className="wifi-err">Тимлид: {rejNote('1-telegram')}</div>}
+              <button type="button" className="wifi-help-link" onClick={() => setOpenInfo(INFO_MODALS.telegram)}>Подробнее <ChevronRight size={12} style={{ verticalAlign: '-2px' }} /></button>
             </div>
           </div>
           {/* Access services from DB */}
@@ -556,6 +595,7 @@ export function Stage1Documents({ stageId }: Props) {
                     ? <a href={s.url} target="_blank" rel="noopener noreferrer" className="wifi-help-link" onClick={() => handleSelfLink(s.task_id!)}>{s.title} →</a>
                     : <a href={s.url} target="_blank" rel="noopener noreferrer" className="wifi-help-link">{s.title} →</a>
                 ) : <span className="wifi-err">Ссылка не настроена</span>}
+                {s.details && <button type="button" className="wifi-help-link" onClick={() => setOpenInfo({ title: s.title, sub: s.subtitle, body: s.details })}>Подробнее <ChevronRight size={12} style={{ verticalAlign: '-2px' }} /></button>}
               </div>
             </div>
           ))}
@@ -581,6 +621,7 @@ export function Stage1Documents({ stageId }: Props) {
                 </div>
               )}
               {wifiMsg && <div className={wifiMsg.includes('✓') ? 'wifi-ok' : 'wifi-err'}>{wifiMsg}</div>}
+              <button type="button" className="wifi-help-link" onClick={() => setOpenInfo(INFO_MODALS.wifi)}>Подробнее <ChevronRight size={12} style={{ verticalAlign: '-2px' }} /></button>
             </div>
           </div>
         </div>
@@ -655,6 +696,7 @@ export function Stage1Documents({ stageId }: Props) {
       <div className="doc-hint font-orbitron">Открой каждый документ и пролистай до конца — иначе не подтвердится. HR верификация шага 1 обязательна.</div>
 
       <DocumentModal kind="wifi" open={open === 'wifi'} onClose={() => setOpen(null)} alreadyDone={isDone('wifi')} onConfirm={() => handleConfirm('wifi')} />
+      {openInfo && <ServiceModal title={openInfo.title} sub={openInfo.sub} body={openInfo.body} onClose={() => setOpenInfo(null)} />}
 
       <style>{`
         .stage-content.s1-steps{ display:flex; flex-direction:column; gap:16px; margin-bottom:6px; font-family:'Open Sans',sans-serif }

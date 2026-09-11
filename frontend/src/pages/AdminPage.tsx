@@ -100,8 +100,8 @@ export function AdminPage() {
   const [leadForm, setLeadForm] = useState<Record<number, string>>({});
   const [tgGroupsJson, setTgGroupsJson] = useState('[]');
   const [tgRights, setTgRights] = useState<{ bot: string; groups: { title: string; ok: boolean; detail: string; roles?: string[] }[] } | null>(null);
-  const [svcList, setSvcList] = useState<{ key: string; title: string; subtitle: string; url: string; icon_key: string; category: string; task_id: string | null; roles: string[]; sort_order: number; is_visible: boolean; open_new_tab: boolean; extra: Record<string, string> }[]>([]);
-  const [svcForm, setSvcForm] = useState<{ key: string; title: string; subtitle: string; url: string; icon_key: string; category: string; task_id: string | null; roles: string[]; sort_order: number; is_visible: boolean; open_new_tab: boolean; extra: Record<string, string> }>({ key: '', title: '', subtitle: '', url: '', icon_key: 'Link', category: 'access', task_id: null, roles: [], sort_order: 0, is_visible: true, open_new_tab: true, extra: {} });
+  const [svcList, setSvcList] = useState<{ key: string; title: string; subtitle: string; url: string; icon_key: string; category: string; task_id: string | null; roles: string[]; sort_order: number; is_visible: boolean; open_new_tab: boolean; extra: Record<string, string>; details: string }[]>([]);
+  const [svcForm, setSvcForm] = useState<{ key: string; title: string; subtitle: string; url: string; icon_key: string; category: string; task_id: string | null; roles: string[]; sort_order: number; is_visible: boolean; open_new_tab: boolean; extra: Record<string, string>; details: string }>({ key: '', title: '', subtitle: '', url: '', icon_key: 'Link', category: 'access', task_id: null, roles: [], sort_order: 0, is_visible: true, open_new_tab: true, extra: {}, details: '' });
   const [svcEditKey, setSvcEditKey] = useState<string | null>(null);
 
   const loadTgGroups = useCallback(async () => {
@@ -118,7 +118,7 @@ export function AdminPage() {
       const [w, s, svcs] = await Promise.all([
         api.get<{ user_id: number; email: string; name: string; mac: string; sent_at: string | null; has_password: boolean; verified: boolean }[]>('/api/admin/wifi-requests'),
         api.get<{ contacts: Record<string, string>; instructions: Record<string, string> }>('/api/admin/settings'),
-        api.get<{ key: string; title: string; subtitle: string; url: string; icon_key: string; category: string; task_id: string | null; roles: string[]; sort_order: number; is_visible: boolean; open_new_tab: boolean; extra: Record<string, string> }[]>('/api/admin/services'),
+        api.get<{ key: string; title: string; subtitle: string; url: string; icon_key: string; category: string; task_id: string | null; roles: string[]; sort_order: number; is_visible: boolean; open_new_tab: boolean; extra: Record<string, string>; details: string }[]>('/api/admin/services'),
       ]);
       setWifiReqs(w);
       setContacts(s.contacts);
@@ -589,6 +589,14 @@ export function AdminPage() {
                 Видимый
               </label>
             </div>
+            <textarea
+              value={svcForm.details}
+              onChange={(e) => setSvcForm((p) => ({ ...p, details: e.target.value }))}
+              placeholder="Подробная инструкция (показывается в модалке «Подробнее»)"
+              className="admin-input"
+              rows={4}
+              style={{ marginTop: 8 }}
+            />
             <button type="button" className="admin-btn small" onClick={async () => {
               if (!svcForm.key || !svcForm.title) { setMsg('key и title обязательны'); return; }
               try {
@@ -599,7 +607,7 @@ export function AdminPage() {
                   await api.post('/api/admin/services', svcForm);
                   setMsg(`✓ «${svcForm.title}» создан`);
                 }
-                setSvcForm({ key: '', title: '', subtitle: '', url: '', icon_key: 'Link', category: 'access', task_id: null, roles: [], sort_order: 0, is_visible: true, open_new_tab: true, extra: {} });
+                setSvcForm({ key: '', title: '', subtitle: '', url: '', icon_key: 'Link', category: 'access', task_id: null, roles: [], sort_order: 0, is_visible: true, open_new_tab: true, extra: {}, details: '' });
                 setSvcEditKey(null);
                 await loadExtras();
               } catch (e) { setMsg(e instanceof Error ? e.message : 'Ошибка'); }
