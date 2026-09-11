@@ -245,65 +245,56 @@ export function Stage1Documents({ stageId }: Props) {
       .catch(() => { /* пароля пока нет */ });
   }, []);
 
-  // Telegram: @username + auto-add + приветствие (Вариант Б + редактирование)
+  // Telegram — вариант A «Сначала Start»: /start боту → @username → «Добавить меня»
   const userName = user?.name ?? '';
   const [tgHandle, setTgHandle] = useState('');
-  const [tgSaving, setTgSaving] = useState(false);
-  const [tgSaved, setTgSaved] = useState(false);
-  const [tgError, setTgError] = useState<string | null>(null);
+  const [tgHandleError, setTgHandleError] = useState<string | null>(null);
   const [tgGroups, setTgGroups] = useState<{ title: string; chat_id: string }[]>([]);
   const [tgAdded, setTgAdded] = useState<string[]>([]);
   const [tgFailed, setTgFailed] = useState<Record<string, string>>({});
   const [tgAdding, setTgAdding] = useState(false);
   const [tgGreet, setTgGreet] = useState('');
   const [tgMsg, setTgMsg] = useState<string | null>(null);
+  const [tgInvites, setTgInvites] = useState<{ title: string; url: string }[]>([]);
+  const loadTgGroups = () => {
+    api.get<{ groups: { title: string; chat_id: string }[] }>('/api/integrations/telegram-groups')
+      .then((r) => setTgGroups(r.groups))
+      .catch(() => { /* группы настраиваются */ });
+  };
   useEffect(() => {
     api.get<{ telegram_username?: string }>('/api/me')
       .then((me: unknown) => {
         const u = (me as { user?: { telegram_username?: string; name?: string } }).user;
-        if (u?.telegram_username) { setTgHandle(u.telegram_username); setTgSaved(true); }
+        if (u?.telegram_username) setTgHandle(u.telegram_username);
       })
       .catch(() => { /* не критично */ });
-    api.get<{ groups: { title: string; chat_id: string }[] }>('/api/integrations/telegram-groups')
-      .then((r) => setTgGroups(r.groups))
-      .catch(() => { /* группы настраиваются */ });
+    loadTgGroups();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [myRole, user?.email]);
   useEffect(() => {
     if (!tgGreet) setTgGreet(`Привет! Я ${userName || 'новый сотрудник'}. Присоединился к команде. Рад познакомиться!`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userName]);
 
-  const handleTgSave = async () => {
-    const v = tgHandle.trim();
-    if (!/^@?[A-Za-z][A-Za-z0-9_]{4,31}$/.test(v)) { setTgError('Формат: @ivan_99 (латиница, 5–32 символа)'); return; }
-    setTgError(null);
-    setTgSaving(true);
-    try {
-      await api.patch('/api/profile', { telegram_username: v });
-      setTgSaved(true);
-      await refreshMe();
-    } catch (e) {
-      setTgError(e instanceof Error ? e.message : 'Не удалось сохранить');
-    } finally {
-      setTgSaving(false);
-    }
-  };
-
-  const [tgInvites, setTgInvites] = useState<{ title: string; url: string }[]>([]);
   const handleTgAutoAdd = async () => {
+    const v = tgHandle.trim();
+    if (!/^@?[A-Za-z][A-Za-z0-9_]{4,31}$/.test(v)) { setTgHandleError('Формат: @ivan_99 (латиница, 5–32 символа)'); return; }
+    setTgHandleError(null);
     setTgAdding(true);
     setTgMsg(null);
     try {
-      const r = await api.post<{ added: string[]; failed: { title: string; reason: string }[]; invite_links?: { title: string; url: string }[] }>('/api/integrations/telegram-auto-add');
+      await api.patch('/api/profile', { telegram_username: v });
+      const r = await api.post<{ added: string[]; failed: { title: string; reason: string }[]; invite_links?: { title: string; url: string }[]; verified?: boolean }>('/api/integrations/telegram-auto-add');
       setTgAdded(r.added);
       const f: Record<string, string> = {};
       for (const x of r.failed) f[x.title] = x.reason;
       setTgFailed(f);
       setTgInvites(r.invite_links ?? []);
+      await refreshMe();
+      loadTgGroups();
       if (r.failed.length === 0) {
-        setTgMsg(`Добавлен во все группы ✓ (${r.added.length})`);
-        toast.success('Telegram: добавлен во все группы');
+        setTgMsg(`Вы добавлены в группы ✓ (${r.added.length}) — не забудьте представиться команде`);
+        toast.success('Telegram: вы добавлены в группы', 'Этап зачтён автоматически');
       } else {
         setTgMsg(`Добавлен: ${r.added.length}, не вышло: ${r.failed.length} — см. причины выше`);
       }
@@ -320,16 +311,6 @@ export function Stage1Documents({ stageId }: Props) {
       setTgMsg('Шаблон скопирован — вставьте в группу ✓');
     } catch {
       setTgMsg('Не удалось скопировать — выделите текст вручную');
-    }
-  };
-
-  const handleTgIntroduced = async () => {
-    setTgMsg(null);
-    try {
-      await requestTask(docToTask.telegram);
-      setTgMsg('Отмечено — тимлид подтвердит, что вы представились ✓');
-    } catch (e) {
-      setTgMsg(e instanceof Error ? e.message : 'Не удалось отметить');
     }
   };
 
@@ -600,40 +581,56 @@ export function Stage1Documents({ stageId }: Props) {
             <div className={`dc-icon ${isTaskDone('1-telegram') ? 'dc-done' : ''}`}>{isTaskDone('1-telegram') ? <CheckCircle2 size={16} /> : <Send size={16} />}</div>
             <div className="dc-body" style={{ flex: 1 }}>
               <div className="dc-title">Доступ в Telegram-группы {isTaskDone('1-telegram') && <span className="dc-badge">готово</span>}{!isTaskDone('1-telegram') && isPending('telegram') && <span className="dc-badge pending">ожидает HR</span>}{user?.email === 'demo@mdigital.kg' ? <span className="dc-badge">демо: все группы</span> : myRole ? <span className="dc-badge">{myRole}</span> : null}</div>
-              <div className="dc-sub">Укажите @username — бот добавит вас во все группы. Затем представьтесь команде</div>
-              <div className="dc-sub">Сначала напишите боту <a href="https://t.me/onboarding_admin_bot?start=onboarding" target="_blank" rel="noopener noreferrer" className="wifi-help-link">@onboarding_admin_bot → /start</a> — иначе Telegram не найдёт вас</div>
-              <div className="wifi-inline" onClick={e => e.stopPropagation()}>
-                <input
-                  className="wifi-input"
-                  placeholder="@ivan_99"
-                  value={tgHandle}
-                  onChange={e => setTgHandle(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') handleTgSave(); }}
-                  aria-label="Telegram username"
-                />
-                <button type="button" className="wifi-btn" onClick={handleTgSave} disabled={tgSaving}>
-                  {tgSaved ? 'Сохранено ✓' : 'Сохранить'}
-                </button>
-              </div>
-              {tgError && <div className="wifi-err">{tgError}</div>}
-              {tgGroups.length > 0 && (
-                <div className="tg-groups">
-                  {tgGroups.map((g) => (
-                    <div key={g.chat_id} className="tg-group-row">
-                      <span>{g.title}</span>
-                      {tgAdded.includes(g.title) || tgAdded.includes(g.chat_id)
-                        ? <span className="wifi-ok">добавлен ✓</span>
-                        : tgFailed[g.title] || tgFailed[g.chat_id]
-                          ? <span className="wifi-err">{tgFailed[g.title] || tgFailed[g.chat_id]}</span>
-                          : <span className="tg-pending">—</span>}
+              {isTaskDone('1-telegram') ? (
+                <>
+                  <div className="dc-sub">✅ Вы добавлены в группы:</div>
+                  <div className="tg-groups">
+                    {(tgAdded.length ? tgAdded : tgGroups.map((g) => g.title)).map((t) => (
+                      <div key={t} className="tg-group-row"><span>• {t}</span></div>
+                    ))}
+                  </div>
+                  <div className="dc-sub">Не забудьте представиться команде! Шаблон приветствия:</div>
+                </>
+              ) : (
+                <>
+                  <div className="dc-sub">Чтобы мы могли добавить вас в рабочие чаты, выполните два простых действия:</div>
+                  <div className="dc-sub">1. Напишите нашему боту команду /start — иначе Telegram не найдёт вас:</div>
+                  <div className="wifi-inline" onClick={e => e.stopPropagation()}>
+                    <a href="https://t.me/onboarding_admin_bot?start=onboarding" target="_blank" rel="noopener noreferrer" className="wifi-btn" style={{ textDecoration: 'none' }}>Открыть бота →</a>
+                  </div>
+                  <div className="dc-sub">2. Укажите ваш @username в Telegram:</div>
+                  <div className="wifi-inline" onClick={e => e.stopPropagation()}>
+                    <input
+                      className="wifi-input"
+                      placeholder="@ivan_99"
+                      value={tgHandle}
+                      onChange={e => setTgHandle(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') handleTgAutoAdd(); }}
+                      aria-label="Telegram username"
+                    />
+                  </div>
+                  {tgHandleError && <div className="wifi-err">{tgHandleError}</div>}
+                  {tgGroups.length > 0 ? (
+                    <div className="tg-groups">
+                      {tgGroups.map((g) => (
+                        <div key={g.chat_id} className="tg-group-row">
+                          <span>{g.title}</span>
+                          {tgAdded.includes(g.title)
+                            ? <span className="wifi-ok">добавлен ✓</span>
+                            : tgFailed[g.title]
+                              ? <span className="wifi-err">{tgFailed[g.title]}</span>
+                              : <span className="tg-pending">—</span>}
+                        </div>
+                      ))}
+                      <button type="button" className="wifi-btn" onClick={handleTgAutoAdd} disabled={tgAdding}>
+                        {tgAdding ? 'Добавляем…' : 'Добавить меня в группы'}
+                      </button>
                     </div>
-                  ))}
-                  <button type="button" className="wifi-btn" onClick={handleTgAutoAdd} disabled={tgAdding || !tgSaved}>
-                    {tgAdding ? 'Добавляем…' : 'Добавить меня во все группы'}
-                  </button>
-                </div>
+                  ) : (
+                    <div className="wifi-err">Групп для вашей роли ({myRole || '—'}) пока нет — обратитесь к HR</div>
+                  )}
+                </>
               )}
-              {tgGroups.length === 0 && <div className="wifi-err">Групп для вашей роли ({myRole || '—'}) пока нет — обратитесь к HR</div>}
               <div className="tg-greet">
                 <div className="tg-greet-title">Шаблон приветствия (можно править):</div>
                 <textarea
@@ -645,10 +642,7 @@ export function Stage1Documents({ stageId }: Props) {
                   aria-label="Текст приветствия"
                 />
                 <div className="wifi-inline" onClick={e => e.stopPropagation()}>
-                  <button type="button" className="wifi-btn" onClick={handleTgCopy}>Копировать</button>
-                  <button type="button" className="wifi-btn" onClick={handleTgIntroduced} disabled={isTaskDone('1-telegram')}>
-                    {isTaskDone('1-telegram') ? 'Подтверждено ✓' : 'Я представился команде'}
-                  </button>
+                  <button type="button" className="wifi-btn" onClick={handleTgCopy}>Скопировать шаблон</button>
                 </div>
               </div>
               {tgInvites.length > 0 && (

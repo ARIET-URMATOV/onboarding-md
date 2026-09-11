@@ -96,7 +96,7 @@ async def _bot_username(token: str) -> str:
 
 
 async def _make_invite_links(token: str, groups: list[dict]) -> list[dict]:
-    """Одноразовые invite-ссылки per group (фолбэк ручного вступления)."""
+    """Одноразовые invite-ссылки per group (фолбэк, если force-add не вышел)."""
     out = []
     for g in groups:
         chat_id = str(g["chat_id"])
@@ -109,6 +109,75 @@ async def _make_invite_links(token: str, groups: list[dict]) -> list[dict]:
         except RuntimeError:
             continue
     return out
+
+
+async def _resolve_tg_id(db, token: str, handle: str) -> object:
+    """Вариант A: user_id по @username.
+
+    1) telegram_contacts (бот видел пользователя после /start);
+    2) getChat(@username) — работает, если пользователь контактировал с ботом;
+    3) getUpdates (писал боту?).
+    """
+    from sqlalchemy import select as _select
+
+    from app.models import TelegramContact
+
+    want = handle.lstrip("@").lower()
+    if re.fullmatch(r"\d{5,20}", want):
+        return int(want)
+    row = (await db.execute(
+        _select(TelegramContact).where(TelegramContact.username == want)
+    )).scalars().first()
+    if row is not None:
+        return row.tg_user_id
+    try:
+        resolved = await _tg_call(token, "getChat", {"chat_id": "@" + want})
+        if resolved.get("id"):
+            return resolved.get("id")
+    except RuntimeError:
+        pass
+    return await _resolve_via_updates(token, handle)
+
+
+async def _auto_verify_telegram(db, user_id: int) -> bool:
+    """Авто-зачёт 1-telegram (бот реально добавил во все группы).
+
+    method=telegram_add, verified_by=None (система). Идемпотентно.
+    Возвращает True если задача теперь done.
+    """
+    from sqlalchemy import select as _select
+
+    from app.models import PendingRequest, User
+    from app.routes.progress import load_progress, log_verification, save_progress
+
+    target = await db.get(User, user_id)
+    if target is None:
+        return False
+    prog = await load_progress(db, target)
+    from app.stages_data import normalize_tasks
+
+    tasks = normalize_tasks(prog.done_tasks)
+    if "1-telegram" not in tasks["1"]:
+        tasks["1"] = [*tasks["1"], "1-telegram"]
+    await log_verification(db, target.id, "1-telegram", "telegram_add", None,
+                           {"via": "bot_auto_add"})
+    out = await save_progress(db, prog, tasks)
+    req = await db.execute(
+        _select(PendingRequest).where(
+            PendingRequest.user_id == target.id,
+            PendingRequest.task_id == "1-telegram",
+            PendingRequest.status == "pending",
+        )
+    )
+    row = req.scalar_one_or_none()
+    if row is not None:
+        row.status = "verified"
+        db.add(row)
+        await db.commit()
+    from app.notify import notify_verified
+
+    await notify_verified(target.email, "1-telegram", out.xp)
+    return True
 
 
 @router.get("/integrations/links", response_model=LinksOut)
@@ -204,9 +273,12 @@ async def telegram_auto_add(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Бот автоматически добавляет сотрудника во все группы.
+    """Вариант A «Сначала Start»: бот добавляет сотрудника во все группы его роли.
 
-    Требует: TELEGRAM_BOT_TOKEN + username сотрудника + группы в настройках
+    Сотрудник: 1) пишет боту /start, 2) вводит @username, 3) жмёт кнопку.
+    Резолв: telegram_contacts → getChat(@username) → getUpdates.
+    Полный успех → авто-зачёт 1-telegram (verified=true).
+    Требует: TELEGRAM_BOT_TOKEN + username + группы в настройках
     + бота админом в каждой группе (can_invite_users).
     """
     if not settings.telegram_bot_token:
@@ -228,17 +300,8 @@ async def telegram_auto_add(
             detail="Группы для вашей роли не настроены: обратитесь к HR (/admin → Коды и ссылки).",
         )
     token = settings.telegram_bot_token
-    # 1) числовой ID — напрямую; 2) getChat(@username); 3) getUpdates (писал боту?)
     handle = user.telegram_username.strip()
-    tg_id: object = None
-    if re.fullmatch(r"@?\d{5,20}", handle):
-        tg_id = int(handle.lstrip("@"))
-    else:
-        try:
-            resolved = await _tg_call(token, "getChat", {"chat_id": handle})
-            tg_id = resolved.get("id")
-        except RuntimeError:
-            tg_id = await _resolve_via_updates(token, handle)
+    tg_id = await _resolve_tg_id(db, token, handle)
     invite_links: list[dict] = []
     if not tg_id:
         # фолбэк: invite-ссылки, чтобы сотрудник вступил вручную (200, не 400)
@@ -295,18 +358,32 @@ async def telegram_auto_add(
         failed_ids = {f["title"] for f in failed}
         invite_links = await _make_invite_links(
             token, [g for g in groups if str(g.get("title") or g["chat_id"]) in failed_ids])
+    verified = False
+    if not failed:
+        # вариант A, шаг 4: бот реально добавил во все группы → задача выполнена
+        verified = await _auto_verify_telegram(db, user.id)
     return AutoAddOut(added=added, failed=failed, username=user.telegram_username,
-                      invite_links=invite_links)
+                      invite_links=invite_links, verified=verified)
 
 
 @router.post("/integrations/telegram-webhook")
 @limiter.limit("60/minute")
-async def telegram_webhook(request: Request):
-    """Приём апдейтов бота (если повешен webhook). Без секрета — 501 (работает getUpdates)."""
+async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db)):
+    """Приём апдейтов бота (нужен webhook + TELEGRAM_WEBHOOK_SECRET).
+
+    Вариант A «Сначала Start»:
+    - message (личка, любое сообщение): upsert telegram_contacts
+      {tg_user_id, username, first_name} — после этого getChat(@username) резолвит.
+    - my_chat_member: бота добавили/убрали → автоподхват chat_id в groups_json
+      (HR потом проставляет roles в /admin; без ролей группа видна всем).
+    """
     import json
 
     from fastapi import HTTPException
     from fastapi.responses import JSONResponse
+    from sqlalchemy import select as _select
+
+    from app.models import TelegramContact
 
     secret = (request.headers.get("X-Telegram-Bot-Api-Secret-Token") or "").strip()
     expected = settings.telegram_webhook_secret.strip() if hasattr(settings, "telegram_webhook_secret") else ""
@@ -318,17 +395,72 @@ async def telegram_webhook(request: Request):
         update = json.loads((await request.body()).decode() or "{}")
     except Exception:
         update = {}
-    msg = update.get("message") or {}
+
+    # 1) любое сообщение боту в личке → запоминаем контакт (шаг 2 варианта A)
+    msg = update.get("message") or update.get("edited_message") or {}
     frm = msg.get("from") or {}
     chat = msg.get("chat") or {}
-    if frm.get("id") and chat.get("type") == "private" and str(msg.get("text") or "").startswith("/start"):
+    if frm.get("id") and chat.get("type") == "private":
+        tg_id = int(frm["id"])
+        uname = str(frm.get("username") or "").lower()
+        fname = str(frm.get("first_name") or "")[:80]
+        row = (await db.execute(
+            _select(TelegramContact).where(TelegramContact.tg_user_id == tg_id)
+        )).scalars().first()
+        if row is None:
+            row = TelegramContact(tg_user_id=tg_id, username=uname, first_name=fname)
+        else:
+            row.username = uname
+            row.first_name = fname
+        db.add(row)
         try:
-            await _tg_call(settings.telegram_bot_token, "sendMessage", {
-                "chat_id": frm["id"],
-                "text": "Привет! Я бот онбординга MDigital. Теперь вернитесь в портал и нажмите «Добавить меня во все группы».",
-            })
-        except RuntimeError:
-            pass
+            await db.commit()
+        except Exception:
+            await db.rollback()
+        if str(msg.get("text") or "").startswith("/start"):
+            try:
+                await _tg_call(settings.telegram_bot_token, "sendMessage", {
+                    "chat_id": tg_id,
+                    "text": "Привет! Я бот онбординга MDigital. Отлично — теперь вернитесь "
+                    "в портал, введите ваш @username и нажмите «Добавить меня в группы».",
+                })
+            except RuntimeError:
+                pass
+            return JSONResponse({"ok": True, "contact_saved": tg_id})
+        return JSONResponse({"ok": True, "contact_seen": tg_id})
+
+    # 2) бота добавили в группу → автоподхват chat_id
+    mcm = update.get("my_chat_member") or {}
+    if mcm:
+        mchat = mcm.get("chat") or {}
+        chat_id = str(mchat.get("id") or "")
+        ctype = str(mchat.get("type") or "")
+        new_status = str((mcm.get("new_chat_member") or {}).get("status") or "")
+        if chat_id and ctype in ("group", "supergroup", "channel") and new_status in (
+            "administrator", "member",
+        ):
+            title = str(mchat.get("title") or chat_id)
+            row = await db.get(AppSetting, "telegram.groups_json")
+            try:
+                existing = json.loads(row.value) if row and row.value.strip() else []
+            except Exception:
+                existing = []
+            if not isinstance(existing, list):
+                existing = []
+            by_id: dict[str, dict] = {}
+            for g in existing:
+                if isinstance(g, dict) and g.get("chat_id"):
+                    by_id[str(g["chat_id"])] = g
+            if chat_id not in by_id:
+                by_id[chat_id] = {"title": title, "chat_id": chat_id, "roles": []}
+                val = json.dumps(list(by_id.values()), ensure_ascii=False)
+                if row is None:
+                    db.add(AppSetting(key="telegram.groups_json", value=val))
+                else:
+                    row.value = val
+                await db.commit()
+                return JSONResponse({"ok": True, "auto_discovered": chat_id})
+            return JSONResponse({"ok": True, "already_known": chat_id})
     return JSONResponse({"ok": True})
 
 

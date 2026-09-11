@@ -111,6 +111,24 @@ class WifiPassword(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class TelegramContact(Base):
+    """Вариант A «Сначала Start»: бот видел пользователя → getChat(@username) работает.
+
+    Webhook сохраняет связку tg_user_id ↔ username при /start (и любом сообщении
+    боту). Резолв в auto-add: 1) эта таблица, 2) getChat, 3) getUpdates.
+    """
+
+    __tablename__ = "telegram_contacts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tg_user_id: Mapped[int] = mapped_column(Integer, unique=True, nullable=False, index=True)
+    username: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    first_name: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+
+
 class Stage(Base):
     __tablename__ = "stages"
 

@@ -805,11 +805,12 @@ def test_telegram_role_groups(client):
     g_be = client.get("/api/integrations/telegram-groups")
     assert sorted(x["chat_id"] for x in g_be.json()["groups"]) == ["-1002", "-1003"]
 
-    # старые записи без roles = для всех
+    # старые записи без roles = для всех (replace: полная замена списка)
     client.post("/api/login", json={"email": fe, "password": "secret123"})
     client.patch(
         "/api/admin/settings",
-        json={"key": "telegram.groups_json", "value": '[{"title":"Legacy","chat_id":"-1009"}]'},
+        json={"key": "telegram.groups_json", "value": '[{"title":"Legacy","chat_id":"-1009"}]',
+              "mode": "replace"},
     )
     g_legacy = client.get("/api/integrations/telegram-groups")
     assert [x["chat_id"] for x in g_legacy.json()["groups"]] == ["-1009"]
@@ -822,18 +823,165 @@ def test_telegram_role_groups(client):
     assert bad.status_code == 400
 
     # откат к пустому (не ломаем другие тесты)
-    client.patch("/api/admin/settings", json={"key": "telegram.groups_json", "value": "[]"})
+    client.patch("/api/admin/settings",
+                 json={"key": "telegram.groups_json", "value": "[]", "mode": "replace"})
     assert fe_uid > 0
+
+
+def _reset_limits():
+    """Сброс счётчиков slowapi (общий IP тест-клиента душит поздние тесты 429)."""
+    from app.limiter import limiter
+
+    try:
+        limiter._storage.reset()
+    except Exception:
+        pass
+
+
+def test_telegram_webhook_saves_contact_and_discovers_group(client, monkeypatch):
+    """Вариант A: /start в личке → telegram_contacts; бота добавили → chat_id в settings."""
+    _reset_limits()
+    from sqlalchemy import select
+
+    from app import config as _config
+    from app.database import SessionLocal
+    from app.models import TelegramContact
+
+    monkeypatch.setattr(_config.settings, "telegram_webhook_secret", "test-secret")
+    h = {"X-Telegram-Bot-Api-Secret-Token": "test-secret"}
+
+    # /start → контакт сохранён
+    w0 = client.post("/api/integrations/telegram-webhook", headers=h, json={
+        "message": {
+            "text": "/start",
+            "from": {"id": 555001, "username": "StartUser", "first_name": "Start"},
+            "chat": {"id": 555001, "type": "private"},
+        }
+    })
+    assert w0.status_code == 200
+    assert w0.json().get("contact_saved") == 555001
+
+    import asyncio
+
+    async def _q():
+        async with SessionLocal() as db:
+            return (await db.execute(
+                select(TelegramContact).where(TelegramContact.tg_user_id == 555001)
+            )).scalars().first()
+
+    row = asyncio.run(_q())
+    assert row is not None and row.username == "startuser"
+
+    # бота добавили в группу → chat_id подхватился
+    email = _unique_email()
+    client.post("/api/register", json={"email": email, "password": "secret123"})
+    _grant_staff(email)
+    w1 = client.post("/api/integrations/telegram-webhook", headers=h, json={
+        "my_chat_member": {
+            "chat": {"id": -100777, "type": "supergroup", "title": "Auto Gang"},
+            "new_chat_member": {"status": "administrator"},
+        }
+    })
+    assert w1.status_code == 200
+    assert w1.json().get("auto_discovered") == "-100777"
+
+    # чистка
+    client.patch("/api/admin/settings",
+                 json={"key": "telegram.groups_json", "value": "[]", "mode": "replace"})
+
+
+def test_telegram_auto_add_variant_a_success(client, monkeypatch):
+    """Вариант A full-cycle (мок Bot API): контакт → getChat не нужен → add → verified."""
+    _reset_limits()
+    import app.routes.integrations as _tg
+    from app import config as _config
+
+    spec_chat_id = "-100555"
+
+    async def _fake_call(token, method, payload):
+        if method == "unbanChatMember":
+            return {}
+        if method == "getChatMember":
+            return {"status": "member"}
+        raise AssertionError(method)
+
+    async def _fake_resolve(db, token, handle):
+        return 777001
+
+    monkeypatch.setattr(_tg, "_tg_call", _fake_call)
+    monkeypatch.setattr(_tg, "_resolve_tg_id", _fake_resolve)
+    monkeypatch.setattr(_config.settings, "telegram_bot_token", "test-token")
+
+    email = _unique_email()
+    client.post("/api/register", json={"email": email, "password": "secret123"})
+    client.post("/api/role", json={"role": "frontend"})
+    _grant_staff(email)
+    client.patch("/api/admin/settings", json={
+        "key": "telegram.groups_json",
+        "value": f'[{{"title":"FE Test","chat_id":"{spec_chat_id}","roles":["frontend"]}}]',
+        "mode": "replace",
+    })
+    client.patch("/api/profile", json={"telegram_username": "@variant_a1"})
+
+    r = client.post("/api/integrations/telegram-auto-add")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["added"] == ["FE Test"]
+    assert body["failed"] == []
+    assert body["verified"] is True
+    me = client.get("/api/me")
+    assert "1-telegram" in me.json()["progress"]["done_tasks"]["1"]
+
+    client.patch("/api/admin/settings",
+                 json={"key": "telegram.groups_json", "value": "[]", "mode": "replace"})
+
+
+def test_telegram_resolve_order_contacts_first(client, monkeypatch):
+    """_resolve_tg_id: сначала telegram_contacts, потом getChat."""
+    import asyncio
+
+    import app.routes.integrations as _tg
+
+    async def _go():
+        from app.database import SessionLocal
+        from app.models import TelegramContact
+
+        async with SessionLocal() as db:
+            db.add(TelegramContact(tg_user_id=888002, username="cached_user", first_name="C"))
+            await db.commit()
+            got = await _tg._resolve_tg_id(db, "tok", "@cached_user")
+            assert got == 888002
+            # нет в контактах → падает в getChat (мок) → затем getUpdates (мок None)
+            async def _boom(token, method, payload):
+                raise RuntimeError("nope")
+
+            async def _no_updates(token, handle):
+                return None
+
+            monkeypatch.setattr(_tg, "_tg_call", _boom)
+            monkeypatch.setattr(_tg, "_resolve_via_updates", _no_updates)
+            got2 = await _tg._resolve_tg_id(db, "tok", "@nobody_xyz")
+            assert got2 is None
+
+    asyncio.run(_go())
 
 
 def test_telegram_auto_add_fallback_invites(client, monkeypatch):
     """Невалидный токен: getChat/getUpdates падают -> 200 с failed + попытка invites."""
+    _reset_limits()
     from app import config as _config
 
     monkeypatch.setattr(_config.settings, "telegram_bot_token", "invalid-token-for-test")
     email = _unique_email()
     client.post("/api/register", json={"email": email, "password": "secret123"})
     client.post("/api/role", json={"role": "frontend"})
+    _grant_staff(email)
+    # своя группа (не зависим от состояния других тестов)
+    client.patch("/api/admin/settings", json={
+        "key": "telegram.groups_json",
+        "value": '[{"title":"FB Team","chat_id":"-100901","roles":["frontend"]}]',
+        "mode": "replace",
+    })
     client.patch("/api/profile", json={"telegram_username": "@some_test_user_xyz"})
     r = client.post("/api/integrations/telegram-auto-add")
     assert r.status_code == 200
@@ -841,3 +989,5 @@ def test_telegram_auto_add_fallback_invites(client, monkeypatch):
     assert body["username"] == "@some_test_user_xyz"
     assert len(body["failed"]) >= 1
     assert "invite_links" in body
+    client.patch("/api/admin/settings",
+                 json={"key": "telegram.groups_json", "value": "[]", "mode": "replace"})
