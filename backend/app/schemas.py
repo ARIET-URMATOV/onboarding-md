@@ -154,10 +154,12 @@ CONTACT_KEYS = (
     "contacts.teamlead_email",
 )
 
+INSTRUCTION_KEYS = ("instruction.accountant",)
+
 
 class SettingIn(BaseModel):
     key: str = Field(min_length=1, max_length=80)
-    value: str = Field(default="", max_length=500)
+    value: str = Field(default="", max_length=5000)
     # groups_json: "merge" (по chat_id, по умолчанию — не затирает чужие)
     # или "replace" (полная замена, для удаления групп)
     mode: str = Field(default="merge", max_length=16)
@@ -166,6 +168,7 @@ class SettingIn(BaseModel):
 class SettingsOut(BaseModel):
     contacts: dict[str, str] = {}
     links: dict[str, str] = {}
+    instructions: dict[str, str] = {}
 
 
 class AdminUserOut(BaseModel):

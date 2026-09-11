@@ -391,6 +391,15 @@ export function Stage1Documents({ stageId }: Props) {
   const [accMsg, setAccMsg] = useState<string | null>(null);
   const [mbMsg, setMbMsg] = useState<string | null>(null);
   const [proxyMsg, setProxyMsg] = useState<string | null>(null);
+  const [acctInstruction, setAcctInstruction] = useState('');
+
+  const DEFAULT_ACCOUNTANT_TEXT = 'Передайте бухгалтеру реквизиты для выплат: копию свидетельства ИП (или выписку из реестра), БИН/ИИН, банковские реквизиты (БИК, IBAN, наименование банка). Выплаты — с 1 по 10 число. По вопросам начислений пишите бухгалтеру (контакт — у HR).';
+
+  useEffect(() => {
+    api.get<{ instruction_accountant?: string }>('/api/integrations/links')
+      .then((l) => setAcctInstruction(l.instruction_accountant || ''))
+      .catch(() => { /* не критично */ });
+  }, []);
 
   return (
     <div className="stage-content s1-steps">
@@ -471,7 +480,7 @@ export function Stage1Documents({ stageId }: Props) {
             <div className="dc-icon"><ClipboardCheck size={16} /></div>
             <div className="dc-body" style={{ flex: 1 }}>
               <div className="dc-title">Доступ бухгалтеру {isTaskDone('1-accountant') && <span className="dc-badge">выполнено</span>}{!isTaskDone('1-accountant') && pending.includes('1-accountant') && <span className="dc-badge pending">ожидает бухгалтера</span>}</div>
-              <div className="dc-sub">{useMemo(() => '', []) || 'Инструкция будет добавлена позже.'}</div>
+              <div className="dc-sub">{acctInstruction || DEFAULT_ACCOUNTANT_TEXT}</div>
               {!isTaskDone('1-accountant') && !pending.includes('1-accountant') && (
                 <button type="button" className="wifi-btn" style={{ marginTop: 8 }} onClick={() => requestAccess('1-accountant', setAccMsg, 'Отмечено — бухгалтер проверит ✓')}>Я выполнил инструкцию</button>
               )}

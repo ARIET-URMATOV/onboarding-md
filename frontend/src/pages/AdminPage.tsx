@@ -117,12 +117,13 @@ export function AdminPage() {
     try {
       const [w, s, svcs] = await Promise.all([
         api.get<{ user_id: number; email: string; name: string; mac: string; sent_at: string | null; has_password: boolean; verified: boolean }[]>('/api/admin/wifi-requests'),
-        api.get<{ contacts: Record<string, string> }>('/api/admin/settings'),
+        api.get<{ contacts: Record<string, string>; instructions: Record<string, string> }>('/api/admin/settings'),
         api.get<{ key: string; title: string; subtitle: string; url: string; icon_key: string; category: string; task_id: string | null; roles: string[]; sort_order: number; is_visible: boolean; open_new_tab: boolean; extra: Record<string, string> }[]>('/api/admin/services'),
       ]);
       setWifiReqs(w);
       setContacts(s.contacts);
       setSvcList(svcs);
+      if (s.instructions) setContacts((prev) => ({ ...prev, ...s.instructions }));
     } catch { /* ignore */ }
   }, []);
 
@@ -130,8 +131,8 @@ export function AdminPage() {
 
   const saveContact = async (key: string) => {
     try {
-      const r = await api.patch<{ contacts: Record<string, string> }>('/api/admin/settings', { key, value: contacts[key] ?? '' });
-      setContacts(r.contacts);
+      const r = await api.patch<{ contacts: Record<string, string>; instructions: Record<string, string> }>('/api/admin/settings', { key, value: contacts[key] ?? '' });
+      setContacts({ ...r.contacts, ...r.instructions });
       setMsg(`✓ ${key} сохранён`);
     } catch (e) {
       setMsg(e instanceof Error ? e.message : 'Ошибка сохранения');

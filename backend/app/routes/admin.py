@@ -10,6 +10,7 @@ from app.models import AppSetting, MpulseCode, Progress, User, VerificationLog
 from app.routes.auth import require_staff
 from app.schemas import (
     CONTACT_KEYS,
+    INSTRUCTION_KEYS,
     AdminUserOut,
     AuditOut,
     LeadSetIn,
@@ -416,12 +417,13 @@ async def get_settings(
     db: AsyncSession = Depends(get_db),
     staff: User = Depends(require_staff),
 ):
-    """Настройки из app_settings (контакты ответственных, группы TG)."""
+    """Настройки из app_settings (контакты ответственных, группы TG, инструкции)."""
     from app.config import settings as _s
 
     rows = (await db.execute(select(AppSetting))).scalars().all()
     stored = {r.key: r.value for r in rows}
     contacts = {k: stored.get(k, "") for k in CONTACT_KEYS}
+    instructions = {k: stored.get(k, "") for k in INSTRUCTION_KEYS}
     return SettingsOut(
         contacts=contacts,
         links={
@@ -432,6 +434,7 @@ async def get_settings(
             "mpulse_ios_url": _s.mpulse_ios_url,
             "telegram_groups_json": stored.get("telegram.groups_json", "[]"),
         },
+        instructions=instructions,
     )
 
 
@@ -448,7 +451,7 @@ async def update_setting(
 
     key = payload.key.strip()
     value = payload.value.strip()
-    allowed = set(CONTACT_KEYS) | {"telegram.groups_json", "instruction.accountant"}
+    allowed = set(CONTACT_KEYS) | {"telegram.groups_json"} | set(INSTRUCTION_KEYS)
     if key not in allowed:
         raise HTTPException(status_code=400, detail=f"Неизвестный ключ (разрешены: {sorted(allowed)})")
     if key == "telegram.groups_json":
