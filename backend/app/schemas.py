@@ -157,6 +157,9 @@ CONTACT_KEYS = (
 class SettingIn(BaseModel):
     key: str = Field(min_length=1, max_length=80)
     value: str = Field(default="", max_length=500)
+    # groups_json: "merge" (по chat_id, по умолчанию — не затирает чужие)
+    # или "replace" (полная замена, для удаления групп)
+    mode: str = Field(default="merge", max_length=16)
 
 
 class SettingsOut(BaseModel):

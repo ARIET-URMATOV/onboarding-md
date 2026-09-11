@@ -191,7 +191,9 @@ async def telegram_groups(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Список групп для вступления (только своей роли; настраивается в /admin)."""
+    """Список групп: демо видит все, сотрудники — только своей роли."""
+    if user.email.lower() == settings.demo_email.lower():
+        return {"groups": await _tg_groups(db, None)}
     return {"groups": await _tg_groups(db, user.role)}
 
 
@@ -218,7 +220,8 @@ async def telegram_auto_add(
             status_code=400,
             detail="Сначала укажите ваш Telegram @username в задаче.",
         )
-    groups = await _tg_groups(db, user.role)
+    is_demo = user.email.lower() == settings.demo_email.lower()
+    groups = await _tg_groups(db, None if is_demo else user.role)
     if not groups:
         raise HTTPException(
             status_code=501,

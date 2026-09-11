@@ -599,7 +599,7 @@ export function Stage1Documents({ stageId }: Props) {
           <div className="doc-card tg-card">
             <div className={`dc-icon ${isTaskDone('1-telegram') ? 'dc-done' : ''}`}>{isTaskDone('1-telegram') ? <CheckCircle2 size={16} /> : <Send size={16} />}</div>
             <div className="dc-body" style={{ flex: 1 }}>
-              <div className="dc-title">Доступ в Telegram-группы {isTaskDone('1-telegram') && <span className="dc-badge">готово</span>}{!isTaskDone('1-telegram') && isPending('telegram') && <span className="dc-badge pending">ожидает HR</span>}{myRole && <span className="dc-badge">{myRole}</span>}</div>
+              <div className="dc-title">Доступ в Telegram-группы {isTaskDone('1-telegram') && <span className="dc-badge">готово</span>}{!isTaskDone('1-telegram') && isPending('telegram') && <span className="dc-badge pending">ожидает HR</span>}{user?.email === 'demo@mdigital.kg' ? <span className="dc-badge">демо: все группы</span> : myRole ? <span className="dc-badge">{myRole}</span> : null}</div>
               <div className="dc-sub">Укажите @username — бот добавит вас во все группы. Затем представьтесь команде</div>
               <div className="dc-sub">Сначала напишите боту <a href="https://t.me/onboarding_admin_bot?start=onboarding" target="_blank" rel="noopener noreferrer" className="wifi-help-link">@onboarding_admin_bot → /start</a> — иначе Telegram не найдёт вас</div>
               <div className="wifi-inline" onClick={e => e.stopPropagation()}>

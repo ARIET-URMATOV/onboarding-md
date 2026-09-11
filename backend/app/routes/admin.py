@@ -472,7 +472,29 @@ async def update_setting(
                     detail="roles — список из frontend/backend/design (пустой = для всех)",
                 )
             g["roles"] = [str(r) for r in roles]
-        value = json.dumps(groups, ensure_ascii=False)
+        # merge по chat_id: присланные обновляются/добавляются, остальные НЕ трогаем
+        # (иначе сохранение из устаревшей формы затирает группы).
+        # mode=replace — полная замена (для удаления групп, осознанно).
+        if payload.mode not in ("merge", "replace"):
+            raise HTTPException(status_code=400, detail="mode: merge или replace")
+        if payload.mode == "replace":
+            value = json.dumps(groups, ensure_ascii=False)
+            row0 = None
+        else:
+            row0 = await db.get(AppSetting, key)
+        try:
+            existing = json.loads(row0.value) if row0 and row0.value.strip() else []
+        except Exception:
+            existing = []
+        if not isinstance(existing, list):
+            existing = []
+        by_id: dict[str, dict] = {}
+        for g in existing:
+            if isinstance(g, dict) and g.get("chat_id"):
+                by_id[str(g["chat_id"])] = g
+        for g in groups:
+            by_id[str(g["chat_id"])] = g
+        value = json.dumps(list(by_id.values()), ensure_ascii=False)
     if key.endswith("_email") and value:
         for email in value.split(","):
             email = email.strip()

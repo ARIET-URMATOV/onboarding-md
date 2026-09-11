@@ -648,8 +648,29 @@ export function AdminPage() {
             {tgRights && (
               <div style={{ fontSize: 11.5, lineHeight: 1.7 }}>
                 <div>Бот: @{tgRights.bot || '—'}</div>
-                {tgRights.groups.map((g: { title: string; ok: boolean; detail: string; roles?: string[] }) => (
-                  <div key={g.title}>{g.ok ? '✓' : '✗'} {g.title} [{(g.roles && g.roles.length ? g.roles : ['все']).join(',')}] — {g.detail}</div>
+                {tgRights.groups.map((g: { title: string; chat_id?: string; ok: boolean; detail: string; roles?: string[] }) => (
+                  <div key={g.title} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span>{g.ok ? '✓' : '✗'} {g.title} [{(g.roles && g.roles.length ? g.roles : ['все']).join(',')}] — {g.detail}</span>
+                    {g.chat_id && (
+                      <button
+                        type="button"
+                        className="admin-reject-btn"
+                        onClick={async () => {
+                          try {
+                            const cur = JSON.parse(tgGroupsJson || '[]') as { title: string; chat_id: string; roles?: string[] }[];
+                            const rest = cur.filter((x) => String(x.chat_id) !== String(g.chat_id));
+                            await api.patch('/api/admin/settings', { key: 'telegram.groups_json', value: JSON.stringify(rest), mode: 'replace' });
+                            setMsg(`✓ Группа ${g.title} удалена`);
+                            await loadTgGroups();
+                          } catch (e) {
+                            setMsg(e instanceof Error ? e.message : 'Ошибка удаления');
+                          }
+                        }}
+                      >
+                        Удалить
+                      </button>
+                    )}
+                  </div>
                 ))}
               </div>
             )}
