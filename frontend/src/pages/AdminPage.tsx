@@ -85,7 +85,7 @@ export function AdminPage() {
   const [audit, setAudit] = useState<AuditRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [tab, setTab] = useState<'pending' | 'users' | 'audit' | 'codes' | 'wifi' | 'settings'>('pending');
+  const [tab, setTab] = useState<'pending' | 'users' | 'audit' | 'codes' | 'wifi' | 'settings' | 'services'>('pending');
   const [taskFilter, setTaskFilter] = useState<string>('all');
   const [contacts, setContacts] = useState<Record<string, string>>({});
   const [wifiReqs, setWifiReqs] = useState<{ user_id: number; email: string; name: string; mac: string; sent_at: string | null; has_password: boolean; verified: boolean }[]>([]);
@@ -100,6 +100,9 @@ export function AdminPage() {
   const [leadForm, setLeadForm] = useState<Record<number, string>>({});
   const [tgGroupsJson, setTgGroupsJson] = useState('[]');
   const [tgRights, setTgRights] = useState<{ bot: string; groups: { title: string; ok: boolean; detail: string; roles?: string[] }[] } | null>(null);
+  const [svcList, setSvcList] = useState<{ key: string; title: string; subtitle: string; url: string; icon_key: string; category: string; task_id: string | null; roles: string[]; sort_order: number; is_visible: boolean; open_new_tab: boolean; extra: Record<string, string> }[]>([]);
+  const [svcForm, setSvcForm] = useState<{ key: string; title: string; subtitle: string; url: string; icon_key: string; category: string; task_id: string | null; roles: string[]; sort_order: number; is_visible: boolean; open_new_tab: boolean; extra: Record<string, string> }>({ key: '', title: '', subtitle: '', url: '', icon_key: 'Link', category: 'access', task_id: null, roles: [], sort_order: 0, is_visible: true, open_new_tab: true, extra: {} });
+  const [svcEditKey, setSvcEditKey] = useState<string | null>(null);
 
   const loadTgGroups = useCallback(async () => {
     try {
@@ -112,12 +115,14 @@ export function AdminPage() {
 
   const loadExtras = useCallback(async () => {
     try {
-      const [w, s] = await Promise.all([
+      const [w, s, svcs] = await Promise.all([
         api.get<{ user_id: number; email: string; name: string; mac: string; sent_at: string | null; has_password: boolean; verified: boolean }[]>('/api/admin/wifi-requests'),
         api.get<{ contacts: Record<string, string> }>('/api/admin/settings'),
+        api.get<{ key: string; title: string; subtitle: string; url: string; icon_key: string; category: string; task_id: string | null; roles: string[]; sort_order: number; is_visible: boolean; open_new_tab: boolean; extra: Record<string, string> }[]>('/api/admin/services'),
       ]);
       setWifiReqs(w);
       setContacts(s.contacts);
+      setSvcList(svcs);
     } catch { /* ignore */ }
   }, []);
 
@@ -387,9 +392,9 @@ export function AdminPage() {
         </span>
       </h1>
       <div className="admin-tabs">
-        {(['pending', 'users', 'audit', 'codes', 'wifi', 'settings'] as const).map((t) => (
+        {(['pending', 'users', 'audit', 'codes', 'wifi', 'settings', 'services'] as const).map((t) => (
           <button key={t} type="button" onClick={() => setTab(t)} className={`admin-tab ${tab === t ? 'active' : ''}`}>
-            {t === 'pending' ? `Ожидают (${pending.length})` : t === 'users' ? 'Сотрудники' : t === 'audit' ? `Журнал (${audit.length})` : t === 'codes' ? 'Коды и ссылки' : t === 'wifi' ? 'Wi-Fi запросы' : 'Настройки'}
+            {t === 'pending' ? `Ожидают (${pending.length})` : t === 'users' ? 'Сотрудники' : t === 'audit' ? `Журнал (${audit.length})` : t === 'codes' ? 'Коды и ссылки' : t === 'wifi' ? 'Wi-Fi запросы' : t === 'services' ? `Сервисы (${svcList.length})` : 'Настройки'}
           </button>
         ))}
         <button type="button" onClick={() => load()} className="admin-tab" disabled={loading}>↻</button>
@@ -548,6 +553,79 @@ export function AdminPage() {
             />
             <div><button type="button" onClick={() => saveContact('instruction.accountant')} className="admin-btn small">Сохранить инструкцию</button></div>
           </div>
+        </div>
+      )}
+
+      {tab === 'services' && (
+        <div className="admin-list">
+          <div className="admin-card">
+            <div className="admin-card-head"><b>Добавить сервис</b></div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))', gap: 8 }}>
+              <input value={svcForm.key} onChange={(e) => setSvcForm((p) => ({ ...p, key: e.target.value }))} placeholder="key (slug)" className="admin-input" disabled={!!svcEditKey} />
+              <input value={svcForm.title} onChange={(e) => setSvcForm((p) => ({ ...p, title: e.target.value }))} placeholder="Название" className="admin-input" />
+              <input value={svcForm.url} onChange={(e) => setSvcForm((p) => ({ ...p, url: e.target.value }))} placeholder="URL" className="admin-input" />
+              <select value={svcForm.icon_key} onChange={(e) => setSvcForm((p) => ({ ...p, icon_key: e.target.value }))} className="admin-input">
+                {['Link','ClipboardCheck','KeyRound','Send','Smartphone','Apple','BookOpen','Globe','Lock','Wifi','FileText','MessageSquare','ExternalLink','Download'].map(i => <option key={i}>{i}</option>)}
+              </select>
+              <select value={svcForm.category} onChange={(e) => setSvcForm((p) => ({ ...p, category: e.target.value }))} className="admin-input">
+                {['access','mpulse','knowledge'].map(c => <option key={c}>{c}</option>)}
+              </select>
+              <select value={svcForm.task_id ?? ''} onChange={(e) => setSvcForm((p) => ({ ...p, task_id: e.target.value || null }))} className="admin-input">
+                <option value="">Нет задачи (info)</option>
+                {['1-jira','1-figma','1-gitlab'].map(t => <option key={t}>{t}</option>)}
+              </select>
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8, alignItems: 'center' }}>
+              <span style={{ fontSize: 11, color: 'var(--muted)' }}>Роли:</span>
+              {['frontend','backend','design'].map((r) => (
+                <label key={r} style={{ fontSize: 11, display: 'flex', gap: 4, alignItems: 'center' }}>
+                  <input type="checkbox" checked={svcForm.roles.includes(r)} onChange={(e) => setSvcForm((p) => ({ ...p, roles: e.target.checked ? [...p.roles, r] : p.roles.filter((x) => x !== r) }))} />
+                  {r}
+                </label>
+              ))}
+              <label style={{ fontSize: 11, display: 'flex', gap: 4, alignItems: 'center' }}>
+                <input type="checkbox" checked={svcForm.is_visible} onChange={(e) => setSvcForm((p) => ({ ...p, is_visible: e.target.checked }))} />
+                Видимый
+              </label>
+            </div>
+            <button type="button" className="admin-btn small" onClick={async () => {
+              if (!svcForm.key || !svcForm.title) { setMsg('key и title обязательны'); return; }
+              try {
+                if (svcEditKey) {
+                  await api.patch(`/api/admin/services/${svcEditKey}`, svcForm);
+                  setMsg(`✓ «${svcForm.title}» обновлён`);
+                } else {
+                  await api.post('/api/admin/services', svcForm);
+                  setMsg(`✓ «${svcForm.title}» создан`);
+                }
+                setSvcForm({ key: '', title: '', subtitle: '', url: '', icon_key: 'Link', category: 'access', task_id: null, roles: [], sort_order: 0, is_visible: true, open_new_tab: true, extra: {} });
+                setSvcEditKey(null);
+                await loadExtras();
+              } catch (e) { setMsg(e instanceof Error ? e.message : 'Ошибка'); }
+            }}>{svcEditKey ? 'Обновить' : 'Добавить'}</button>
+          </div>
+          {svcList.map((s) => (
+            <div key={s.key} className="admin-card" style={{ opacity: s.is_visible ? 1 : 0.6 }}>
+              <div className="admin-card-head">
+                <b>{s.title}</b>
+                <span className="admin-staff-badge">{s.category}</span>
+                {s.task_id && <span className="admin-staff-badge">{s.task_id}</span>}
+                {!s.is_visible && <span className="admin-staff-badge" style={{ background: 'rgba(239,68,68,.12)', borderColor: 'rgba(239,68,68,.3)', color: '#FCA5A5' }}>скрыт</span>}
+              </div>
+              <div className="admin-card-sub">{s.subtitle} · {s.url || '—'} · icon: {s.icon_key} · roles: {s.roles.length ? s.roles.join(',') : 'все'}</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button type="button" className="admin-verify-btn" onClick={() => { setSvcForm({ ...s }); setSvcEditKey(s.key); setTab('services'); }}>Редактировать</button>
+                <button type="button" className="admin-reject-btn" onClick={async () => {
+                  if (!confirm(`Удалить «${s.title}»?`)) return;
+                  try { await api.del(`/api/admin/services/${s.key}`); setMsg(`✓ «${s.title}» удалён`); await loadExtras(); } catch (e) { setMsg(e instanceof Error ? e.message : 'Ошибка'); }
+                }}>Удалить</button>
+                <button type="button" className="admin-btn small" onClick={async () => {
+                  try { await api.patch(`/api/admin/services/${s.key}`, { is_visible: !s.is_visible }); setMsg(`✓ «${s.title}» ${s.is_visible ? 'скрыт' : 'показан'}`); await loadExtras(); } catch (e) { setMsg(e instanceof Error ? e.message : 'Ошибка'); }
+                }}>{s.is_visible ? 'Скрыть' : 'Показать'}</button>
+              </div>
+            </div>
+          ))}
+          {!svcList.length && !loading && <div className="admin-empty">Сервисов пока нет</div>}
         </div>
       )}
 

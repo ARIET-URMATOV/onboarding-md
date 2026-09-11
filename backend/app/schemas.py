@@ -215,6 +215,61 @@ class LinksOut(BaseModel):
     instruction_accountant: str = ""
 
 
+LUCIDE_ICONS = (
+    "Link", "ClipboardCheck", "KeyRound", "Send", "Smartphone", "Apple",
+    "BookOpen", "Globe", "Lock", "Wifi", "FileText", "Users",
+    "Hash", "MessageSquare", "ExternalLink", "Download",
+)
+
+VALID_CATEGORIES = ("access", "mpulse", "knowledge")
+VALID_SERVICE_TASK_IDS = ("1-jira", "1-figma", "1-gitlab")
+VALID_ROLES_LIST = ("frontend", "backend", "design")
+
+
+class ServiceOut(BaseModel):
+    key: str
+    title: str
+    subtitle: str = ""
+    url: str = ""
+    icon_key: str = "Link"
+    category: str = "access"
+    task_id: str | None = None
+    roles: list[str] = []
+    sort_order: int = 0
+    is_visible: bool = True
+    open_new_tab: bool = True
+    extra: dict = {}
+
+
+class ServiceIn(BaseModel):
+    key: str = Field(min_length=1, max_length=64, pattern=r"^[a-z0-9][a-z0-9\-]{0,62}$")
+    title: str = Field(min_length=1, max_length=120)
+    subtitle: str = Field(default="", max_length=240)
+    url: str = Field(default="", max_length=500)
+    icon_key: str = Field(default="Link", max_length=40)
+    category: str = Field(default="access", max_length=20)
+    task_id: str | None = None
+    roles: list[str] = []
+    sort_order: int = 0
+    is_visible: bool = True
+    open_new_tab: bool = True
+    extra: dict = {}
+
+
+class ServicePatchIn(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=120)
+    subtitle: str | None = Field(default=None, max_length=240)
+    url: str | None = Field(default=None, max_length=500)
+    icon_key: str | None = Field(default=None, max_length=40)
+    category: str | None = Field(default=None, max_length=20)
+    task_id: str | None = None
+    roles: list[str] | None = None
+    sort_order: int | None = None
+    is_visible: bool | None = None
+    open_new_tab: bool | None = None
+    extra: dict | None = None
+
+
 class MeOut(BaseModel):
     user: UserOut
     progress: ProgressOut

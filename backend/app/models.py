@@ -31,12 +31,8 @@ class User(Base):
     avatar: Mapped[str | None] = mapped_column(Text, nullable=True)
     intro_seen: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     voice_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    # Упрощённая ролевая модель: employee (False) + staff/HR (True).
-    # User.role остаётся job-профилем (frontend/backend/design), не пермишеном.
     is_staff: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    # Telegram @username (с @ или без) — обязателен для auto-add через Bot API
     telegram_username: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    # Per-employee Lead/PM (для уведомлений о пропуске); fallback — contacts.lead_email
     lead_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
@@ -69,7 +65,6 @@ class VerificationLog(Base):
     task_id: Mapped[str] = mapped_column(Text, nullable=False)
     verified_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     method: Mapped[str] = mapped_column(String, nullable=False, default="manual")
-    # JSON-строка с деталями: {"opened_at": ..., "elapsed": ...} для timer и т.п.
     details: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
@@ -112,12 +107,6 @@ class WifiPassword(Base):
 
 
 class TelegramContact(Base):
-    """Вариант A «Сначала Start»: бот видел пользователя → getChat(@username) работает.
-
-    Webhook сохраняет связку tg_user_id ↔ username при /start (и любом сообщении
-    боту). Резолв в auto-add: 1) эта таблица, 2) getChat, 3) getUpdates.
-    """
-
     __tablename__ = "telegram_contacts"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -155,9 +144,7 @@ class StageTask(Base):
     title: Mapped[str] = mapped_column(Text, nullable=False)
     xp: Mapped[int] = mapped_column(Integer, nullable=False)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    # Кто/как верифицирует: manual_hr | manual_staff | technical_code | technical_password | technical_timer
     verification_type: Mapped[str] = mapped_column(String, nullable=False, default="manual")
-    # Ответственная роль-подпись для UI: hr | accountant | sysadmin | lead | teamlead | system
     responsible_role: Mapped[str] = mapped_column(String, nullable=False, default="")
 
     stage: Mapped[Stage] = relationship(back_populates="tasks")
@@ -173,3 +160,24 @@ class MpulseCode(Base):
     valid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ExternalService(Base):
+    __tablename__ = "external_services"
+
+    key: Mapped[str] = mapped_column(Text, primary_key=True)
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    subtitle: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    url: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    icon_key: Mapped[str] = mapped_column(Text, nullable=False, default="Link")
+    category: Mapped[str] = mapped_column(String, nullable=False, default="access")
+    task_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    roles: Mapped[dict] = mapped_column(FlexibleJSON, nullable=False, default=list)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    is_visible: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    open_new_tab: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    extra: Mapped[dict] = mapped_column(FlexibleJSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )

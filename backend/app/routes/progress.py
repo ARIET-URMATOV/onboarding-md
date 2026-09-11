@@ -33,7 +33,6 @@ ACCESS_TASKS = {"1-mbusiness", "1-accountant", "1-wifi", "1-proxy", "1-telegram"
 MPULSE_TASKS = ["1-mpulse", "1-mpulse-schedule", "1-mpulse-checkin", "1-mpulse-code", "1-mpulse-news"]
 # Step 4: Confluence (10 баллов, один тогглер; 5 обязательных ссылок + видимый таймер 120с)
 CONFLUENCE_READ = "1-confluence-read"
-CONFLUENCE_PAGE_IDS = frozenset({"51479172", "15370476", "86868582", "86868604", "51478978"})
 
 router = APIRouter()
 
@@ -674,25 +673,48 @@ async def confirm_confluence(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """«Я ознакомился» — идемпотентно: все 5 ссылок + минимум 120с видимого чтения."""
+    """«Я ознакомился» — идемпотентно: все видимые Confluence-страницы + 120с."""
+    import json
     import re
     from datetime import datetime, timezone
+
+    from sqlalchemy import select as _select
+
+    from app.models import ExternalService
 
     if CONFLUENCE_READ in normalize_tasks((await load_progress(db, user)).done_tasks)["1"]:
         prog = await load_progress(db, user)
         return await save_progress(db, prog, prog.done_tasks)
-    # все 5 pageId (list голых id/URL или dict {pageId: iso-клик})
+    # динамический набор pageId из видимых knowledge-сервисов
+    rows = (await db.execute(
+        _select(ExternalService).where(
+            ExternalService.category == "knowledge", ExternalService.is_visible == True  # noqa: E712
+        ).order_by(ExternalService.sort_order)
+    )).scalars().all()
+    required_page_ids: set[str] = set()
+    for s in rows:
+        try:
+            extra = s.extra if isinstance(s.extra, dict) else json.loads(str(s.extra or "{}"))
+        except Exception:
+            extra = {}
+        pid = str(extra.get("pageId", "")).strip()
+        if pid:
+            required_page_ids.add(pid)
+    if not required_page_ids:
+        # fallback: если таблица пуста (тесты / до сида), используем захардкоженные
+        required_page_ids = {"51479172", "15370476", "86868582", "86868604", "51478978"}
+    # все pageId (list голых id/URL или dict {pageId: iso-клик})
     raw_map: dict[str, str] = {}
     items = payload.links_clicked.items() if isinstance(payload.links_clicked, dict) else [(str(x), "") for x in payload.links_clicked]
     for raw, ts in items:
         m = re.search(r"pageId=(\d+)", str(raw))
         pid = m.group(1) if m else str(raw).strip()
         raw_map[pid] = str(ts or "")
-    missing = CONFLUENCE_PAGE_IDS - set(raw_map)
+    missing = required_page_ids - set(raw_map)
     if missing:
         raise HTTPException(
             status_code=400,
-            detail=f"Откройте все 5 страниц Confluence (не хватает: {len(missing)})",
+            detail=f"Откройте все {len(required_page_ids)} страниц Confluence (не хватает: {len(missing)})",
         )
     elapsed_s = 0.0
     if payload.opened_at:

@@ -82,13 +82,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from app.routes import admin, auth, integrations, progress, stages  # noqa: E402 — после создания app
+from app.routes import admin, auth, integrations, progress, services, stages  # noqa: E402
 
 app.include_router(auth.router, prefix="/api", tags=["auth"])
 app.include_router(progress.router, prefix="/api", tags=["progress"])
 app.include_router(stages.router, prefix="/api", tags=["stages"])
 app.include_router(admin.router, prefix="/api", tags=["admin"])
 app.include_router(integrations.router, prefix="/api", tags=["integrations"])
+app.include_router(services.router, prefix="/api", tags=["services"])
 
 
 @app.websocket("/ws/admin")
