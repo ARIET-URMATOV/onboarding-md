@@ -101,7 +101,7 @@ class Settings(BaseSettings):
         alias="MPULSE_ANDROID_URL",
     )
     mpulse_ios_url: str = Field(
-        default="https://apps.apple.com/app/mpulse/id6504685683",
+        default="https://apps.apple.com/us/app/mpulse-kg/id6740697046",
         alias="MPULSE_IOS_URL",
     )
 

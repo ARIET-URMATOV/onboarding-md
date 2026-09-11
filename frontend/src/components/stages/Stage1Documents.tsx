@@ -729,7 +729,7 @@ export function Stage1Documents({ stageId }: Props) {
           </ul>
           <div className="mpulse-links">
             <a href="https://play.google.com/store/apps/details?id=kg.pulse.app" target="_blank" rel="noopener noreferrer" className="mpulse-dl google">Google Play — Скачать MPulse</a>
-            <a href="https://apps.apple.com/app/mpulse/id6504685683" target="_blank" rel="noopener noreferrer" className="mpulse-dl apple">App Store — Скачать MPulse</a>
+            <a href="https://apps.apple.com/us/app/mpulse-kg/id6740697046" target="_blank" rel="noopener noreferrer" className="mpulse-dl apple">App Store — Скачать MPulse</a>
           </div>
           <div className="mpulse-verify">
             <div className="mpulse-verify-title">Верификация — введите проверочный код из MPulse</div>
