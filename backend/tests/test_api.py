@@ -334,26 +334,14 @@ def test_wifi_flow(client):
     client.post("/api/role", json={"role": "frontend"})
 
     bad = client.post("/api/wifi-mac", json={"mac": "not-a-mac"})
-    assert bad.status_code == 400
+    assert bad.status_code == 422  # Pydantic: min_length=17
 
     ok = client.post("/api/wifi-mac", json={"mac": "AA:BB:CC:DD:EE:FF"})
     assert ok.status_code == 200
+    assert "1-wifi" in ok.json()["done_tasks"]["1"]
     st = client.get("/api/wifi-status")
     assert st.json()["mac_sent"] is True
-    assert st.json()["verified"] is False
-    # отправка MAC ≠ верификация: задача не отмечена
-    assert "1-wifi" not in client.get("/api/me").json()["progress"]["done_tasks"]["1"]
-
-    wrong = client.post("/api/wifi-verify", json={"password": "nope"})
-    assert wrong.status_code == 400
-
-    from app.config import settings
-
-    good = client.post("/api/wifi-verify", json={"password": settings.wifi_password})
-    assert good.status_code == 200
-    assert "1-wifi" in good.json()["done_tasks"]["1"]
-    st2 = client.get("/api/wifi-status")
-    assert st2.json()["verified"] is True
+    assert st.json()["verified"] is True
 
 
 def test_mpulse_and_confluence_flow(client):
@@ -421,16 +409,10 @@ def test_staff_verify_and_admin(client):
     new_ok = client.post("/api/verify-mpulse-code", json={"code": "BATCH-99"})
     assert new_ok.status_code == 200
 
-    # персональный Wi-Fi пароль: генерация staff → env-пароль больше не подходит
-    gen = client.post("/api/admin/wifi-password", json={"user_id": uid, "task_id": "1-wifi"})
+    # персональный Wi-Fi пароль: генерация staff
+    gen = client.post("/api/admin/wifi-password", json={"user_id": uid})
     assert gen.status_code == 200
-    personal = gen.json()["password"]
-    assert personal
-    from app.config import settings as _s
-
-    assert client.post("/api/wifi-verify", json={"password": _s.wifi_password}).status_code == 400
-    mine = client.post("/api/wifi-verify", json={"password": personal})
-    assert mine.status_code == 200
+    assert gen.json()["password"]
 
     # снять staff с себя нельзя
     selfdem = client.patch(f"/api/admin/users/{uid}/staff", json={"is_staff": False})
@@ -697,18 +679,28 @@ def test_step2_services_and_lead(client):
     client.post("/api/role", json={"role": "frontend"})
     uid = _grant_staff(email)
 
-    # новые задачи доступны для запроса
+    # jira/figma/gitlab — self_link: запрос отклоняется, авто-зачёт через self-link
     for tid in ("1-jira", "1-figma", "1-gitlab"):
         q = client.post("/api/progress/request", json={"task_id": tid})
-        assert q.status_code == 200, tid
-    mine = client.get("/api/progress/pending")
-    for tid in ("1-jira", "1-figma", "1-gitlab"):
-        assert tid in mine.json()["pending"]
+        assert q.status_code == 400, f"{tid} should reject request"
 
-    # staff подтверждает доступ
-    v = client.post("/api/verify-access", json={"user_id": uid, "task_id": "1-jira"})
-    assert v.status_code == 200
-    assert "1-jira" in v.json()["done_tasks"]["1"]
+    # self-link: имитация клика по ссылке _blank
+    for tid in ("1-jira", "1-figma", "1-gitlab"):
+        sl = client.post("/api/progress/self-link", json={"stage_id": 1, "task_id": tid})
+        assert sl.status_code == 200, f"{tid} self-link failed"
+        assert tid in sl.json()["done_tasks"]["1"]
+
+    # self-link идемпотентен
+    again = client.post("/api/progress/self-link", json={"stage_id": 1, "task_id": "1-jira"})
+    assert again.status_code == 200
+
+    # несуществующая задача
+    bad2 = client.post("/api/progress/self-link", json={"stage_id": 1, "task_id": "1-fake"})
+    assert bad2.status_code == 400
+
+    # само-locked задача не self_link
+    bad3 = client.post("/api/progress/self-link", json={"stage_id": 1, "task_id": "1-dogovor"})
+    assert bad3.status_code == 400
 
     # назначение лида
     lead_email = _unique_email()
@@ -737,7 +729,10 @@ def test_wifi_password_shown_and_received(client):
     s0 = client.get("/api/wifi-password")
     assert s0.json() == {"password": None, "mac_sent": False}
 
-    client.post("/api/wifi-mac", json={"mac": "AA:BB:CC:DD:EE:FF"})
+    # MAC отправлен → 1-wifi auto-done + пароль пока нет
+    r1 = client.post("/api/wifi-mac", json={"mac": "AA:BB:CC:DD:EE:FF"})
+    assert "1-wifi" in r1.json()["done_tasks"]["1"]
+
     # сетевик задаёт пароль вручную
     gen = client.post("/api/admin/wifi-password", json={"user_id": uid, "password": "CompanyWiFi_2026!"})
     assert gen.json()["password"] == "CompanyWiFi_2026!"
@@ -746,11 +741,6 @@ def test_wifi_password_shown_and_received(client):
     s1 = client.get("/api/wifi-password")
     assert s1.json()["password"] == "CompanyWiFi_2026!"
     assert s1.json()["mac_sent"] is True
-
-    # «Пароль получен» закрывает задачу
-    done = client.post("/api/wifi-received")
-    assert done.status_code == 200
-    assert "1-wifi" in done.json()["done_tasks"]["1"]
 
 
 def test_admin_settings_and_contacts(client):

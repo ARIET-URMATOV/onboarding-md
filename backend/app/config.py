@@ -97,10 +97,12 @@ class Settings(BaseSettings):
     jira_url: str = Field(default="", alias="JIRA_URL")
     gitlab_url: str = Field(default="", alias="GITLAB_URL")
     mpulse_android_url: str = Field(
-        default="https://play.google.com/store/search?q=MPulse&c=apps", alias="MPULSE_ANDROID_URL"
+        default="https://play.google.com/store/apps/details?id=kg.pulse.app",
+        alias="MPULSE_ANDROID_URL",
     )
     mpulse_ios_url: str = Field(
-        default="https://apps.apple.com/search?term=MPulse", alias="MPULSE_IOS_URL"
+        default="https://apps.apple.com/app/mpulse/id6504685683",
+        alias="MPULSE_IOS_URL",
     )
 
     # Production integrations (пусто = соответствующий канал отключён, поведение fallback)

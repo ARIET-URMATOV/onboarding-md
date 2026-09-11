@@ -53,7 +53,6 @@ export function Stage1Documents({ stageId }: Props) {
   const [mac, setMac] = useState('');
   const [macSent, setMacSent] = useState(false);
   const [macError, setMacError] = useState<string | null>(null);
-  const [wifiPass, setWifiPass] = useState('');
   const [wifiMsg, setWifiMsg] = useState<string | null>(null);
 
   // MPulse code
@@ -322,33 +321,19 @@ export function Stage1Documents({ stageId }: Props) {
     try {
       await api.post('/api/wifi-mac', { mac: v });
       setMacSent(true);
+      await refreshMe();
     } catch (e) {
       setMacError(e instanceof Error ? e.message : 'Ошибка отправки MAC');
     }
   };
 
-  const handleWifiPassword = async () => {
-    const p = wifiPass.trim();
-    if (!p) { setWifiMsg('Введите пароль Wi-Fi от сетевиков'); return; }
-    setWifiMsg(null);
-    try {
-      await api.post('/api/wifi-verify', { password: p });
-      setWifiMsg('Пароль принят ✓ Wi-Fi подтверждён');
-      toast.success('Wi-Fi подтверждён');
-      await refreshMe();
-    } catch (e) {
-      setWifiMsg(e instanceof Error ? e.message : 'Неверный пароль');
-    }
-  };
-
-  // Шаг 2: запросы доступов (0 баллов, staff подтверждает)
+  // Шаг 2: сервисы (jira/gitlab/figma — _blank + авто-зачёт)
   const [accMsg, setAccMsg] = useState<string | null>(null);
   const [mbMsg, setMbMsg] = useState<string | null>(null);
   const [proxyMsg, setProxyMsg] = useState<string | null>(null);
   const [wifiShownPw, setWifiShownPw] = useState<string | null>(null);
-  const [svcMsg, setSvcMsg] = useState<Record<string, string>>({});
+  const [wifiShowPw, setWifiShowPw] = useState(false);
   const [links, setLinks] = useState({ jira_url: '', gitlab_url: '', figma_team_url: '', instruction_accountant: '' });
-  const [figmaSent, setFigmaSent] = useState(false);
   useEffect(() => {
     api.get<Record<string, string>>('/api/integrations/links')
       .then((l) => setLinks({
@@ -361,26 +346,12 @@ export function Stage1Documents({ stageId }: Props) {
       .catch(() => { /* пароля пока нет */ });
   }, []);
 
-  const requestAccess = async (taskId: string, setMsgFn: (m: string | null) => void, okText: string) => {
-    setMsgFn(null);
+  const handleSelfLink = async (taskId: string) => {
+    if (isTaskDone(taskId)) return;
     try {
-      await requestTask(taskId);
-      setMsgFn(okText);
-    } catch (e) {
-      setMsgFn(e instanceof Error ? e.message : 'Не удалось отправить запрос');
-    }
-  };
-
-  const handleWifiReceived = async () => {
-    setWifiMsg(null);
-    try {
-      await api.post('/api/wifi-received');
-      setWifiMsg('Приятной работы в сети ✓');
-      toast.success('Wi-Fi: пароль получен');
+      await api.post('/api/progress/self-link', { stage_id: 1, task_id: taskId });
       await refreshMe();
-    } catch (e) {
-      setWifiMsg(e instanceof Error ? e.message : 'Не удалось подтвердить');
-    }
+    } catch { /* best-effort */ }
   };
 
   const handleWifiCopy = async () => {
@@ -393,13 +364,17 @@ export function Stage1Documents({ stageId }: Props) {
     }
   };
 
-  const handleFigmaInvite = async () => {
+  const handleFigmaLink = () => {
+    handleSelfLink('1-figma');
+  };
+
+  const requestAccess = async (taskId: string, setMsgFn: (m: string | null) => void, okText: string) => {
+    setMsgFn(null);
     try {
-      await api.post('/api/integrations/figma-invite');
-      setFigmaSent(true);
-      setSvcMsg((p) => ({ ...p, '1-figma': 'Приглашение отправлено на вашу почту ✓ Проверьте inbox' }));
+      await requestTask(taskId);
+      setMsgFn(okText);
     } catch (e) {
-      setSvcMsg((p) => ({ ...p, '1-figma': e instanceof Error ? e.message : 'Инвайт недоступен' }));
+      setMsgFn(e instanceof Error ? e.message : 'Не удалось отправить запрос');
     }
   };
 
@@ -660,49 +635,40 @@ export function Stage1Documents({ stageId }: Props) {
               {rejNote('1-telegram') && <div className="wifi-err">Тимлид: {rejNote('1-telegram')}</div>}
             </div>
           </div>
-          {/* Сервисы команды: Jira / GitLab (LDAP-вход) */}
+          {/* Сервисы команды: Jira / GitLab (LDAP-вход, _blank + авто-зачёт) */}
           {[
-            { id: '1-jira', icon: <ClipboardCheck size={16} />, title: 'Jira', sub: 'Войдите со своим корпоративным логином и паролем', link: links.jira_url, linkLabel: 'Перейти в Jira', btn: 'Я вошёл в Jira' },
-            { id: '1-gitlab', icon: <KeyRound size={16} />, title: 'GitLab', sub: 'Войдите со своим корпоративным логином (или примите инвайт на почту)', link: links.gitlab_url, linkLabel: 'Перейти в GitLab', btn: 'Я вошёл в GitLab' },
+            { id: '1-jira', icon: <ClipboardCheck size={16} />, title: 'Jira', sub: 'Войдите со своим корпоративным логином и паролем', link: links.jira_url, linkLabel: 'Перейти в Jira' },
+            { id: '1-gitlab', icon: <KeyRound size={16} />, title: 'GitLab', sub: 'Войдите со своим корпоративным логином (или примите инвайт на почту)', link: links.gitlab_url, linkLabel: 'Перейти в GitLab' },
           ].map((s) => (
             <div key={s.id} className="doc-card svc-card">
               <div className="dc-icon">{s.icon}</div>
               <div className="dc-body" style={{ flex: 1 }}>
-                <div className="dc-title">{s.title} {isTaskDone(s.id) && <span className="dc-badge">выполнено</span>}{!isTaskDone(s.id) && pending.includes(s.id) && <span className="dc-badge pending">ожидает</span>}</div>
+                <div className="dc-title">{s.title} {isTaskDone(s.id) && <span className="dc-badge">выполнено</span>}</div>
                 <div className="dc-sub">{s.sub}</div>
-                {s.link && (
-                  <a href={s.link} target="_blank" rel="noopener noreferrer" className="wifi-help-link">{s.linkLabel} →</a>
-                )}
-                {!isTaskDone(s.id) && !pending.includes(s.id) && (
-                  <button type="button" className="wifi-btn" style={{ marginTop: 8 }} onClick={() => requestAccess(s.id, (m) => setSvcMsg((p) => ({ ...p, [s.id]: m ?? '' })), 'Запрос отправлен ✓')}>{s.btn}</button>
-                )}
-                {pending.includes(s.id) && !isTaskDone(s.id) && <div className="wifi-ok">Ожидает подтверждения тимлида…</div>}
-                {rejNote(s.id) && <div className="wifi-err">Тимлид: {rejNote(s.id)}</div>}
-                {svcMsg[s.id] && <div className="wifi-ok">{svcMsg[s.id]}</div>}
+                {s.link
+                  ? <a href={s.link} target="_blank" rel="noopener noreferrer" className="wifi-help-link" onClick={() => handleSelfLink(s.id)}>{s.linkLabel} →</a>
+                  : <span className="wifi-err">Ссылка не настроена (обратитесь к HR)</span>
+                }
               </div>
             </div>
           ))}
-          {/* Figma: инвайт по email */}
+          {/* Figma: ссылка _blank + авто-зачёт */}
           <div className="doc-card svc-card">
             <div className="dc-icon"><Send size={16} /></div>
             <div className="dc-body" style={{ flex: 1 }}>
-              <div className="dc-title">Figma {isTaskDone('1-figma') && <span className="dc-badge">выполнено</span>}{!isTaskDone('1-figma') && pending.includes('1-figma') && <span className="dc-badge pending">ожидает</span>}</div>
+              <div className="dc-title">Figma {isTaskDone('1-figma') && <span className="dc-badge">выполнено</span>}</div>
               <div className="dc-sub">Не поддерживает LDAP. Приглашение отправляется на вашу почту ({user?.email}) — проверьте inbox и примите.</div>
-              <div className="wifi-inline" onClick={e => e.stopPropagation()}>
-                {!figmaSent
-                  ? <button type="button" className="wifi-btn" onClick={handleFigmaInvite}>Отправить приглашение</button>
-                  : <button type="button" className="wifi-btn" onClick={() => requestAccess('1-figma', (m) => setSvcMsg((p) => ({ ...p, '1-figma': m ?? '' })), 'Отмечено — тимлид подтвердит ✓')}>Я принял приглашение</button>}
-              </div>
-              {svcMsg['1-figma'] && <div className="wifi-ok">{svcMsg['1-figma']}</div>}
-              {pending.includes('1-figma') && !isTaskDone('1-figma') && <div className="wifi-ok">Ожидает подтверждения тимлида…</div>}
-              {rejNote('1-figma') && <div className="wifi-err">Тимлид: {rejNote('1-figma')}</div>}
+              {links.figma_team_url
+                ? <a href={links.figma_team_url} target="_blank" rel="noopener noreferrer" className="wifi-help-link" onClick={handleFigmaLink}>Перейти в Figma →</a>
+                : <span className="wifi-err">Ссылка не настроена (обратитесь к HR)</span>
+              }
             </div>
           </div>
           <div className="doc-card wifi-card">
             <div className={`dc-icon ${isTaskDone('1-wifi') ? 'dc-done' : ''}`}>{isTaskDone('1-wifi') ? <CheckCircle2 size={16} /> : <Wifi size={16} />}</div>
             <div className="dc-body" style={{ flex: 1 }}>
               <div className="dc-title">Доступ к Wi-Fi (Закрытая сеть) {isTaskDone('1-wifi') && <span className="dc-badge">готово</span>}</div>
-              <div className="dc-sub">Введите MAC-адрес ноутбука — отправим сетевикам, выдадим пароль</div>
+              <div className="dc-sub">Введите MAC-адрес ноутбука — сетевик выдаст пароль</div>
               <div className="wifi-inline" onClick={e => e.stopPropagation()}>
                 <input
                   className="wifi-input"
@@ -717,31 +683,26 @@ export function Stage1Documents({ stageId }: Props) {
                 </button>
               </div>
               {macError && <div className="wifi-err">{macError}</div>}
-              {macSent && !isTaskDone('1-wifi') && !macError && <div className="wifi-ok">⏳ Ожидаем подтверждения от сетевика…</div>}
+              {macSent && !isTaskDone('1-wifi') && !wifiShownPw && !macError && <div className="wifi-ok">⏳ Ожидаем пароль от сетевика…</div>}
               {isTaskDone('1-wifi') && !macError && <div className="wifi-ok">Wi-Fi подтверждён ✓</div>}
-              {wifiShownPw && !isTaskDone('1-wifi') && (
+              {wifiShownPw && (
                 <div className="wifi-shown">
-                  <span>✅ Пароль от Wi-Fi: <code>{wifiShownPw}</code></span>
-                  <button type="button" className="wifi-btn" onClick={handleWifiCopy}>Скопировать</button>
+                  <div className="wifi-inline" onClick={e => e.stopPropagation()}>
+                    <input
+                      className="wifi-input"
+                      type={wifiShowPw ? 'text' : 'password'}
+                      value={wifiShownPw}
+                      readOnly
+                      aria-label="Пароль Wi-Fi"
+                    />
+                    <button type="button" className="wifi-btn" onClick={() => setWifiShowPw(!wifiShowPw)}>
+                      {wifiShowPw ? 'Скрыть' : 'Показать'}
+                    </button>
+                    <button type="button" className="wifi-btn" onClick={handleWifiCopy}>Копировать</button>
+                  </div>
                 </div>
               )}
-              {!isTaskDone('1-wifi') && (
-                <button type="button" className="wifi-btn" style={{ marginTop: 8 }} onClick={handleWifiReceived}>Пароль получен</button>
-              )}
-              <div className="wifi-inline" onClick={e => e.stopPropagation()}>
-                <input
-                  className="wifi-input"
-                  placeholder="Пароль Wi-Fi (если сетевик продиктовал)"
-                  type="password"
-                  value={wifiPass}
-                  onChange={e => setWifiPass(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') handleWifiPassword(); }}
-                  aria-label="Пароль Wi-Fi"
-                />
-                <button type="button" className="wifi-btn" onClick={handleWifiPassword}>Проверить</button>
-              </div>
               {wifiMsg && <div className={wifiMsg.includes('✓') ? 'wifi-ok' : 'wifi-err'}>{wifiMsg}</div>}
-              <button type="button" className="wifi-help-link" onClick={() => setOpen('wifi')}>Подробнее <ChevronRight size={12} style={{ verticalAlign: '-2px' }} /></button>
             </div>
           </div>
         </div>
@@ -767,12 +728,12 @@ export function Stage1Documents({ stageId }: Props) {
             <li>Корпоративные новости и уведомления</li>
           </ul>
           <div className="mpulse-links">
-            <a href="https://play.google.com/store/search?q=MPulse&c=apps" target="_blank" rel="noopener noreferrer" className="mpulse-dl google">Google Play — Скачать MPulse</a>
-            <a href="https://apps.apple.com/search?term=MPulse" target="_blank" rel="noopener noreferrer" className="mpulse-dl apple">App Store — Скачать MPulse</a>
+            <a href="https://play.google.com/store/apps/details?id=kg.pulse.app" target="_blank" rel="noopener noreferrer" className="mpulse-dl google">Google Play — Скачать MPulse</a>
+            <a href="https://apps.apple.com/app/mpulse/id6504685683" target="_blank" rel="noopener noreferrer" className="mpulse-dl apple">App Store — Скачать MPulse</a>
           </div>
           <div className="mpulse-verify">
             <div className="mpulse-verify-title">Верификация — введите проверочный код из MPulse</div>
-            <div className="mpulse-verify-sub">После регистрации в MPulse вы увидите специальный код (одинаковый для всех). Введите его здесь, чтобы система зачла выполнение.</div>
+            <div className="mpulse-verify-sub">После входа в приложение вы увидите код. Введите его здесь, чтобы система зачла выполнение.</div>
             <div className="mpulse-row">
               <input
                 className="mpulse-input"
@@ -787,21 +748,7 @@ export function Stage1Documents({ stageId }: Props) {
               </button>
             </div>
             {mpulseMsg && <div className={`mpulse-msg ${mpulseMsg.includes('✓') ? 'ok' : 'err'}`}>{mpulseMsg}</div>}
-            <div className="mpulse-tasks">
-              {[
-                { id: '1-mpulse', label: 'Установка и авторизация через AD' },
-                { id: '1-mpulse-schedule', label: 'Выбор рабочего графика' },
-                { id: '1-mpulse-checkin', label: 'Daily check-in / check-out' },
-                { id: '1-mpulse-code', label: 'Ввод проверочного кода' },
-                { id: '1-mpulse-news', label: 'Новости и уведомления' },
-              ].map(t => (
-                <label key={t.id} className={`mtask ro ${isTaskDone(t.id) ? 'done' : ''}`} title="Закрывается кодом MPulse, не галочкой">
-                  <input type="checkbox" checked={isTaskDone(t.id)} readOnly />
-                  <span className="mtask-box">{isTaskDone(t.id) ? '✓' : ''}</span>
-                  <span>{t.label}</span>
-                </label>
-              ))}
-            </div>
+            {step3Done && <div className="pkg-status done"><CheckCircle2 size={20} /><div><b>Выполнено — MPulse настроен</b></div></div>}
           </div>
         </div>
         </div>

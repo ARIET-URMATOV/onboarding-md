@@ -343,7 +343,7 @@ async def set_lead(
     done1: list[str] = []
     if prog is not None:
         done1 = normalize_tasks(prog.done_tasks).get("1", [])
-    return _admin_user_out(target, done1, lead.email)
+    return _admin_user_out(target, done1, email if email else "")
 
 
 @router.get("/admin/mpulse-code", response_model=list[MpulseCodeOut])

@@ -21,7 +21,6 @@ from app.schemas import (
     VerifyTargetIn,
     VoiceIn,
     WifiMacIn,
-    WifiVerifyIn,
 )
 from app.stages_data import STAGES, compute_level, compute_xp, is_all_complete, normalize_tasks, task_meta
 
@@ -117,14 +116,15 @@ async def toggle_task(
         raise HTTPException(status_code=400, detail="Неизвестная задача")
 
     # Замок TZ: задачи с верификацией нельзя закрыть свободным кликом.
-    # manual_* → POST /progress/request (HR очередь); technical_* → код/таймер/пароль.
+    # manual_* → POST /progress/request (HR очередь); technical_* → код/таймер/пароль;
+    # self_link → POST /progress/self-link (авто-зачёт при переходе по ссылке).
     vt, _rr = task_meta(payload.task_id)
     if vt == "manual_hr":
         raise HTTPException(status_code=403, detail="Защита от случайных галочек: документы подтверждает HR. Нажмите «Я передал документы HR».")
     if vt == "manual_staff":
         raise HTTPException(status_code=403, detail="Доступ подтверждает staff. Отправьте запрос на верификацию.")
-    if vt in ("technical_code", "technical_timer", "technical_password"):
-        raise HTTPException(status_code=403, detail="Задача закрывается кодом/таймером/паролем, а не галочкой.")
+    if vt in ("technical_code", "technical_timer", "technical_password", "self_link"):
+        raise HTTPException(status_code=403, detail="Эта задача закрывается автоматически.")
 
     prog = await load_progress(db, user)
     tasks = normalize_tasks(prog.done_tasks)
@@ -494,7 +494,7 @@ async def verify_access(
     return out
 
 
-@router.post("/wifi-mac", response_model=OkOut)
+@router.post("/wifi-mac", response_model=ProgressOut)
 @limiter.limit("10/minute")
 async def wifi_mac(
     request: Request,
@@ -502,7 +502,7 @@ async def wifi_mac(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Сотрудник отправляет MAC-адрес (sysadmin добавляет в allowlist)."""
+    """Сотрудник отправляет MAC-адрес → сетевик получает + авто-зачёт 1-wifi."""
     import re
 
     mac = payload.mac.strip().upper()
@@ -516,9 +516,49 @@ async def wifi_mac(
     if existing.scalar_one_or_none() is None:
         db.add(WifiMac(user_id=user.id, mac=mac))
         await db.commit()
-    # NB: отправка MAC ≠ верификация: 1-wifi отмечает staff через /verify-access
-    # (или пароль через /wifi-verify). done_tasks не трогаем.
-    return OkOut()
+    # Авто-зачёт 1-wifi при отправке MAC (сетевик задаёт пароль отдельно)
+    prog = await load_progress(db, user)
+    tasks = normalize_tasks(prog.done_tasks)
+    if "1-wifi" not in tasks["1"]:
+        tasks["1"] = [*tasks["1"], "1-wifi"]
+    await log_verification(db, user.id, "1-wifi", "technical_password",
+                           details={"via": "mac_submit"})
+    out = await save_progress(db, prog, tasks)
+    from app.notify import notify_verified
+
+    await notify_verified(user.email, "1-wifi", out.xp)
+    return out
+
+
+@router.post("/progress/self-link", response_model=ProgressOut)
+@limiter.limit("10/minute")
+async def self_link_task(
+    request: Request,
+    payload: TaskIn,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role),
+):
+    """Сотрудник подтвердил вход в сервис по ссылке _blank (jira/figma/gitlab).
+
+    Идемпотентно: повторный вызов возвращает текущий прогресс.
+    """
+    stage = STAGES.get(payload.stage_id)
+    if stage is None or payload.task_id not in stage["tasks"]:
+        raise HTTPException(status_code=400, detail="Неизвестная задача")
+    vt, _rr = task_meta(payload.task_id)
+    if vt != "self_link":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Задача {payload.task_id} не является self_link (тип: {vt})",
+        )
+    prog = await load_progress(db, user)
+    tasks = normalize_tasks(prog.done_tasks)
+    sid = str(payload.stage_id)
+    if payload.task_id not in tasks[sid]:
+        tasks[sid] = [*tasks[sid], payload.task_id]
+        await log_verification(db, user.id, payload.task_id, "self_link",
+                               details={"via": "_blank_redirect"})
+    return await save_progress(db, prog, tasks)
 
 
 @router.get("/wifi-status")
@@ -567,63 +607,7 @@ async def wifi_password_shown(
     return {"password": settings.wifi_password, "mac_sent": True}
 
 
-@router.post("/wifi-received", response_model=ProgressOut)
-@limiter.limit("10/minute")
-async def wifi_received(
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
-):
-    """«Пароль получен»: сотрудник подключился, задача закрывается (0 баллов)."""
-    prog = await load_progress(db, user)
-    tasks = normalize_tasks(prog.done_tasks)
-    if "1-wifi" not in tasks["1"]:
-        tasks["1"].append("1-wifi")
-    await log_verification(db, user.id, "1-wifi", "technical_password",
-                           details={"via": "shown_password"})
-    out = await save_progress(db, prog, tasks)
-    from app.notify import notify_verified
 
-    await notify_verified(user.email, "1-wifi", out.xp)
-    return out
-
-
-@router.post("/wifi-verify", response_model=ProgressOut)
-@limiter.limit("10/minute")
-async def wifi_verify(
-    request: Request,
-    payload: WifiVerifyIn,
-    db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
-):
-    """Сотрудник вводит Wi-Fi пароль (персональный из wifi_passwords, fallback WIFI_PASSWORD)."""
-    import hmac
-
-    from app.models import WifiPassword
-
-    expected: str | None = None
-    row = await db.get(WifiPassword, user.id)
-    if row is not None:
-        from app.crypto import decrypt_secret
-
-        try:
-            expected = decrypt_secret(row.password_encrypted)
-        except ValueError as e:
-            raise HTTPException(status_code=500, detail=str(e))
-    else:
-        expected = settings.wifi_password
-    if not hmac.compare_digest(payload.password, expected):
-        raise HTTPException(status_code=400, detail="Неверный пароль Wi-Fi")
-    prog = await load_progress(db, user)
-    tasks = normalize_tasks(prog.done_tasks)
-    if "1-wifi" not in tasks["1"]:
-        tasks["1"] = [*tasks["1"], "1-wifi"]
-    await log_verification(db, user.id, "1-wifi", "technical_password")
-    out = await save_progress(db, prog, tasks)
-    from app.notify import notify_verified
-
-    await notify_verified(user.email, "1-wifi", out.xp)
-    return out
 
 
 @router.post("/verify-mpulse-code", response_model=ProgressOut)
