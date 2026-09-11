@@ -246,6 +246,14 @@ async def telegram_auto_add(
         } for g in groups]
         return AutoAddOut(added=[], failed=failed, username=user.telegram_username,
                           invite_links=invite_links)
+    async def _member_status(chat_id: str) -> str:
+        """Реальный статус пользователя в чате (не верим unban на слово)."""
+        try:
+            m = await _tg_call(token, "getChatMember", {"chat_id": chat_id, "user_id": tg_id})
+            return str(m.get("status") or "")
+        except RuntimeError:
+            return "unknown"
+
     added: list[str] = []
     failed: list[dict] = []
     for g in groups:
@@ -261,10 +269,18 @@ async def telegram_auto_add(
                     pass  # владелец / уже участник — считаем добавленным
                 else:
                     await _tg_call(token, "addChatMember", {"chat_id": chat_id, "user_id": tg_id})
+            # проверка: unban снимает бан, но НЕ возвращает левнувшего в чат
+            status = await _member_status(chat_id)
+            if status in ("left", "kicked", "unknown"):
+                raise RuntimeError(
+                    "JOIN_REQUIRED: пользователь вне чата — вступите по ссылке-приглашению ниже."
+                )
             added.append(title)
         except RuntimeError as e:
             reason = str(e)
-            if "bot was blocked" in reason.lower() or "user not found" in reason.lower():
+            if reason.startswith("JOIN_REQUIRED"):
+                hint = "Вы вышли из группы — бот не может вернуть force-join. Вступите по ссылке ниже."
+            elif "bot was blocked" in reason.lower() or "user not found" in reason.lower():
                 hint = "Пользователь не найден — напишите боту /start и повторите."
             elif "not enough rights" in reason.lower() or "admin" in reason.lower():
                 hint = "Дайте боту админку в группе (can_invite_users)."
