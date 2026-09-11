@@ -124,19 +124,24 @@ async def _resolve_tg_id(db, token: str, handle: str) -> object:
 
     want = handle.lstrip("@").lower()
     if re.fullmatch(r"\d{5,20}", want):
+        print(f"tg-resolve: {handle} -> {want} via numeric-id")
         return int(want)
     row = (await db.execute(
         _select(TelegramContact).where(TelegramContact.username == want)
     )).scalars().first()
     if row is not None:
+        print(f"tg-resolve: {handle} -> {row.tg_user_id} via contacts")
         return row.tg_user_id
     try:
         resolved = await _tg_call(token, "getChat", {"chat_id": "@" + want})
         if resolved.get("id"):
+            print(f"tg-resolve: {handle} -> {resolved.get('id')} via getChat")
             return resolved.get("id")
-    except RuntimeError:
-        pass
-    return await _resolve_via_updates(token, handle)
+    except RuntimeError as e:
+        print(f"tg-resolve: getChat({handle}) failed: {e}")
+    got = await _resolve_via_updates(token, handle)
+    print(f"tg-resolve: {handle} -> {got} via getUpdates")
+    return got
 
 
 async def _auto_verify_telegram(db, user_id: int) -> bool:
