@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Award, BadgeCheck, CheckCircle2, ChevronDown, ChevronRight, ClipboardCheck, Clock, FileCheck,
+  Award, BadgeCheck, ChevronDown, ChevronRight, ClipboardCheck, Clock, FileCheck,
   FileText, FolderCheck, Hourglass, IdCard, KeyRound, RotateCcw, Send, ShieldCheck, Wifi, XCircle,
   Link as LinkIcon, Smartphone, Apple, BookOpen, Globe, Lock, MessageSquare, ExternalLink, Download,
+  CircleCheck,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import type { StageId } from '../../data/stages';
@@ -27,7 +28,7 @@ function StepHeader({ n, title, reward, desc, open, done, onToggle }: {
   return (
     <div className={`step-head ${onToggle ? 'clickable' : ''}`} onClick={onToggle} role={onToggle ? 'button' : undefined} tabIndex={onToggle ? 0 : undefined}
       onKeyDown={onToggle ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(); } } : undefined}>
-      <div className="sh-num">{done ? <CheckCircle2 size={16} /> : n}</div>
+      <div className="sh-num">{done ? <CircleCheck size={16} /> : n}</div>
       <div className="sh-body">
         <div className="sh-title">{title} <span className="sh-reward">{reward}</span></div>
         {desc && <div className="sh-desc">{desc}</div>}
@@ -469,7 +470,7 @@ export function Stage1Documents({ stageId }: Props) {
                   <button type="button" className="pkg-item-row" onClick={() => setOpenDoc(expanded ? null : d.id)} aria-expanded={expanded}>
                     <span className="pkg-item-ico"><d.Icon size={15} /></span>
                     <span className="pkg-item-body"><b>{i + 1}. {d.title}</b><span>{d.sub}</span></span>
-                    <span className="pkg-item-st">{st === 'done' ? <CheckCircle2 size={16} /> : st === 'pending' ? <Clock size={15} /> : <span className="pkg-dot" />}</span>
+                    <span className="pkg-item-st">{st === 'done' ? <CircleCheck size={16} /> : st === 'pending' ? <Clock size={15} /> : <span className="pkg-dot" />}</span>
                     <ChevronDown size={15} className={`pkg-chev ${expanded ? 'open' : ''}`} />
                   </button>
                   {expanded && <div className="pkg-detail">{d.detail}</div>}
@@ -478,7 +479,7 @@ export function Stage1Documents({ stageId }: Props) {
             })}
           </ul>
           {step1Done ? (
-            <div className="pkg-status done"><CheckCircle2 size={20} /><div><b>Выполнено — шаг 1 пройден</b><span>Подтверждено HR · <Award size={12} style={{ verticalAlign: '-2px' }} /> +5 баллов начислено</span></div></div>
+            <div className="pkg-status done"><CircleCheck size={20} /><div><b>Выполнено — шаг 1 пройден</b><span>Подтверждено HR · <Award size={12} style={{ verticalAlign: '-2px' }} /> +5 баллов начислено</span></div></div>
           ) : rejectedDocs.length ? (
             <div className="pkg-status rejected"><XCircle size={20} /><div><b>HR отклонил(а) — нужно доделать</b><span>Причина: {rejectedDocs[0].note}</span></div>
               <button type="button" className="pkg-submit" onClick={submitDocs} disabled={sendingDocs}><RotateCcw size={14} /> {sendingDocs ? 'Отправляем…' : 'Исправить и отправить снова'}</button>
@@ -541,7 +542,7 @@ export function Stage1Documents({ stageId }: Props) {
             </div>
           </div>
           <div className="doc-card tg-card">
-            <div className={`dc-icon ${isTaskDone('1-telegram') ? 'dc-done' : ''}`}>{isTaskDone('1-telegram') ? <CheckCircle2 size={16} /> : <Send size={16} />}</div>
+              <div className={`dc-icon ${isTaskDone('1-telegram') ? 'dc-done' : ''}`}>{isTaskDone('1-telegram') ? <CircleCheck size={16} /> : <Send size={16} />}</div>
             <div className="dc-body" style={{ flex: 1 }}>
               <div className="dc-title">Доступ в Telegram-группы {isTaskDone('1-telegram') && <span className="dc-badge">готово</span>}{!isTaskDone('1-telegram') && pending.includes('1-telegram') && <span className="dc-badge pending">ожидает HR</span>}{user?.email === 'demo@mdigital.kg' ? <span className="dc-badge">демо: все группы</span> : myRole ? <span className="dc-badge">{myRole}</span> : null}</div>
               {isTaskDone('1-telegram') ? (
@@ -600,7 +601,7 @@ export function Stage1Documents({ stageId }: Props) {
             </div>
           ))}
           <div className="doc-card wifi-card">
-            <div className={`dc-icon ${isTaskDone('1-wifi') ? 'dc-done' : ''}`}>{isTaskDone('1-wifi') ? <CheckCircle2 size={16} /> : <Wifi size={16} />}</div>
+            <div className={`dc-icon ${isTaskDone('1-wifi') ? 'dc-done' : ''}`}>{isTaskDone('1-wifi') ? <CircleCheck size={16} /> : <Wifi size={16} />}</div>
             <div className="dc-body" style={{ flex: 1 }}>
               <div className="dc-title">Доступ к Wi-Fi (Закрытая сеть) {isTaskDone('1-wifi') && <span className="dc-badge">готово</span>}</div>
               <div className="dc-sub">Введите MAC-адрес ноутбука — сетевик выдаст пароль</div>
@@ -659,7 +660,7 @@ export function Stage1Documents({ stageId }: Props) {
             <div className="mpulse-verify-sub">После входа в приложение вы увидите код. Введите его здесь, чтобы система зачла выполнение.</div>
             {isTaskDone('1-mpulse-code') ? (
               <div className="mpulse-verify-done">
-                <CheckCircle2 size={18} />
+                <CircleCheck size={18} />
                 <span>Код подтверждён ✓</span>
               </div>
             ) : (
@@ -669,7 +670,7 @@ export function Stage1Documents({ stageId }: Props) {
               </div>
             )}
             {mpulseMsg && <div className={`mpulse-msg ${mpulseMsg.includes('✓') ? 'ok' : 'err'}`}>{mpulseMsg}</div>}
-            {step3Done && <div className="pkg-status done"><CheckCircle2 size={20} /><div><b>Выполнено — MPulse настроен</b></div></div>}
+            {step3Done && <div className="pkg-status done"><CircleCheck size={20} /><div><b>Выполнено — MPulse настроен</b></div></div>}
           </div>
         </div>
         </div>
@@ -703,93 +704,103 @@ export function Stage1Documents({ stageId }: Props) {
         {step4ExplicitDone && <div className="step-done-badge">Шаг 4 выполнен ✓ +10 баллов</div>}
       </section>
 
-      <div className="doc-hint font-orbitron">Открой каждый документ и пролистай до конца — иначе не подтвердится. HR верификация шага 1 обязательна.</div>
+      <div className="doc-hint font-orbitron">HR верификация шага 1 обязательна.</div>
 
       <DocumentModal kind="wifi" open={open === 'wifi'} onClose={() => setOpen(null)} alreadyDone={isDone('wifi')} onConfirm={() => handleConfirm('wifi')} />
       {openInfo && <ServiceModal title={openInfo.title} sub={openInfo.sub} body={openInfo.body} onClose={() => setOpenInfo(null)} />}
 
       <style>{`
-        .stage-content.s1-steps{ display:flex; flex-direction:column; gap:16px; margin-bottom:6px; font-family:'Open Sans',sans-serif }
+        .stage-content.s1-steps{ display:flex; flex-direction:column; gap:16px; margin-bottom:6px; font-family:'Open Sans',sans-serif; -webkit-tap-highlight-color:transparent }
         .stage-content .font-orbitron{ font-family:'Open Sans',sans-serif !important }
         .sla-banner{ display:flex; align-items:center; gap:8px; padding:10px 12px; border-radius:10px; font-size:11.5px; line-height:1.4; border:1px solid rgba(96,165,250,.22); background:rgba(59,130,246,.08); color:#BFDBFE; flex-wrap:wrap }
         .sla-banner.overdue{ background:rgba(239,68,68,.10); border-color:rgba(239,68,68,.35); color:#FECACA; animation:slaPulse 1.6s ease-in-out infinite }
         @keyframes slaPulse{ 0%,100%{ box-shadow:0 0 0 0 rgba(239,68,68,.18)} 50%{ box-shadow:0 0 0 6px rgba(239,68,68,0)} }
         .sla-icon{ font-size:14px }
         .sla-date{ margin-left:auto; font-size:10.5px; opacity:.85; color:var(--muted) }
-        .s1-step{ display:flex; flex-direction:column; gap:10px; padding:14px 12px; border-radius:14px; background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.06) }
-        .s1-step-body{ display:flex; flex-direction:column; gap:10px; }
-        .step-head{ display:flex; gap:10px; align-items:flex-start }
-        .step-head.clickable{ cursor:pointer; }
-        .sh-num{ width:32px; height:32px; border-radius:9px; display:grid; place-items:center; flex-shrink:0; font-size:13px; font-weight:800; color:#fff; background:linear-gradient(135deg,#1E3A8A,#2563EB); box-shadow:0 4px 14px rgba(37,99,235,.35) }
+        .s1-step{ display:flex; flex-direction:column; gap:10px; padding:14px 12px; border-radius:14px; background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.06); position:relative }
+        .s1-step.done{ border-color:rgba(34,197,94,.45); box-shadow:0 0 24px rgba(34,197,94,.08) }
+        .s1-step.done::before{ content:''; position:absolute; top:0; left:0; right:0; height:2px; border-radius:14px 14px 0 0; background:linear-gradient(90deg,#22C55E,#3B82F6) }
+        .s1-step-body{ display:flex; flex-direction:column; gap:10px }
+        .step-head{ display:flex; gap:10px; align-items:flex-start; cursor:pointer; touch-action:manipulation }
+        .step-head.clickable{ cursor:pointer }
+        .step-head:active{ transform:scale(.99) }
+        .sh-num{ width:32px; height:32px; border-radius:9px; display:grid; place-items:center; flex-shrink:0; font-size:13px; font-weight:800; color:#fff; background:linear-gradient(135deg,#1E3A8A,#2563EB); box-shadow:0 4px 14px rgba(37,99,235,.35); transition:background .3s, box-shadow .3s }
+        .s1-step.done .sh-num{ background:linear-gradient(135deg,#16A34A,#22C55E); box-shadow:0 4px 14px rgba(34,197,94,.4) }
         .sh-body{ flex:1 }
         .sh-title{ font-size:13.5px; font-weight:800; color:var(--text); display:flex; align-items:center; gap:8px; flex-wrap:wrap }
+        .s1-step.done .sh-title{ color:#86EFAC }
         .sh-reward{ font-size:10px; letter-spacing:.10em; text-transform:uppercase; padding:2px 7px; border-radius:999px; background:rgba(251,191,36,.12); border:1px solid rgba(251,191,36,.28); color:#FBBF24 }
         .sh-desc{ font-size:11.5px; color:var(--muted); margin-top:4px; line-height:1.45 }
         .sh-chevron{ margin-left:auto; color:#60A5FA; font-size:16px; line-height:1; transition:transform .2s ease; flex-shrink:0; display:none }
         @media(min-width:641px){ .sh-chevron{ display:block; transition:transform .35s cubic-bezier(.16,1,.3,1); transform-origin:center } .s1-step.open .sh-chevron{ transform:rotate(180deg) } }
-        .pkg-card{ display:flex; flex-direction:column; gap:12px; padding:14px; border-radius:12px; background:rgba(37,99,235,.05); border:1px solid rgba(59,130,246,.18); }
-        .pkg-head{ display:flex; gap:12px; align-items:flex-start; }
-        .pkg-ico{ width:44px; height:44px; border-radius:11px; display:grid; place-items:center; flex-shrink:0; color:#fff; background:linear-gradient(135deg,#1E3A8A,#2563EB); }
-        .pkg-title{ font-size:13.5px; font-weight:800; color:var(--text); }
-        .pkg-sub{ font-size:11.5px; color:var(--muted); margin-top:4px; line-height:1.45; }
-        .pkg-list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:7px; }
-        .pkg-item{ display:flex; flex-direction:column; gap:0; padding:0; border-radius:9px; background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.06); overflow:hidden; }
-        .pkg-item-row{ display:flex; align-items:center; gap:10px; width:100%; padding:9px 11px; background:none; border:none; color:inherit; cursor:pointer; text-align:left; font:inherit; }
-        .pkg-detail{ font-size:11px; color:var(--muted); line-height:1.6; padding:2px 11px 10px 51px; border-top:1px dashed rgba(255,255,255,.07); margin-top:2px; padding-top:8px; }
-        .pkg-chev{ color:#60A5FA; transition:transform .2s ease; flex-shrink:0; }
-        .pkg-chev.open{ transform:rotate(180deg); }
-        .pkg-item.done{ border-color:rgba(34,197,94,.3); }
-        .pkg-item.pending{ border-style:dashed; border-color:rgba(251,191,36,.35); }
-        .pkg-item-ico{ width:30px; height:30px; border-radius:8px; display:grid; place-items:center; flex-shrink:0; background:rgba(59,130,246,.1); border:1px solid rgba(59,130,246,.25); color:#93C5FD; }
-        .pkg-item.done .pkg-item-ico{ background:rgba(34,197,94,.14); border-color:rgba(34,197,94,.35); color:#86EFAC; }
-        .pkg-item-body{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
-        .pkg-item-body b{ font-size:12.5px; color:var(--text); }
-        .pkg-item-body span{ font-size:11px; color:var(--muted); }
-        .pkg-item-st{ color:#86EFAC; display:grid; place-items:center; flex-shrink:0; }
-        .pkg-item.pending .pkg-item-st{ color:#FBBF24; }
-        .pkg-dot{ width:9px; height:9px; border-radius:50%; border:1.5px solid rgba(147,197,253,.45); }
-        .pkg-status{ display:flex; gap:10px; align-items:flex-start; padding:11px 12px; border-radius:10px; font-size:12px; line-height:1.5; }
-        .pkg-status b{ display:block; font-size:12.5px; }
-        .pkg-status span{ color:var(--muted); }
-        .pkg-status.done{ border:1px solid rgba(34,197,94,.35); background:rgba(34,197,94,.08); color:#86EFAC; }
-        .pkg-status.pending{ border:1px solid rgba(251,191,36,.3); background:rgba(251,191,36,.06); color:#FDE68A; }
-        .pkg-status.rejected{ border:1px solid rgba(239,68,68,.35); background:rgba(239,68,68,.08); color:#FCA5A5; }
-        .pkg-submit{ display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:8px; border:none; cursor:pointer; font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; font-family:'Open Sans',sans-serif; background:linear-gradient(90deg,#1E3A8A,#2563EB); color:#fff; transition:filter .15s }
-        .pkg-submit:hover{ filter:brightness(1.1) }
-        .pkg-submit:disabled{ opacity:.55; cursor:not-allowed }
+        .pkg-card{ display:flex; flex-direction:column; gap:12px; padding:14px; border-radius:12px; background:rgba(37,99,235,.05); border:1px solid rgba(59,130,246,.18) }
+        .pkg-head{ display:flex; gap:12px; align-items:flex-start }
+        .pkg-ico{ width:44px; height:44px; border-radius:11px; display:grid; place-items:center; flex-shrink:0; color:#fff; background:linear-gradient(135deg,#1E3A8A,#2563EB) }
+        .pkg-title{ font-size:13.5px; font-weight:800; color:var(--text) }
+        .pkg-sub{ font-size:11.5px; color:var(--muted); margin-top:4px; line-height:1.45 }
+        .pkg-list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:7px }
+        .pkg-item{ display:flex; flex-direction:column; gap:0; padding:0; border-radius:9px; background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.06); overflow:hidden }
+        .pkg-item-row{ display:flex; align-items:center; gap:10px; width:100%; padding:9px 11px; background:none; border:none; color:inherit; cursor:pointer; text-align:left; font:inherit }
+        .pkg-detail{ font-size:11px; color:var(--muted); line-height:1.6; padding:2px 11px 10px 51px; border-top:1px dashed rgba(255,255,255,.07); margin-top:2px; padding-top:8px }
+        .pkg-chev{ color:#60A5FA; transition:transform .2s ease; flex-shrink:0 }
+        .pkg-chev.open{ transform:rotate(180deg) }
+        .pkg-item.done{ border-color:rgba(34,197,94,.3) }
+        .pkg-item.pending{ border-style:dashed; border-color:rgba(251,191,36,.35) }
+        .pkg-item-ico{ width:30px; height:30px; border-radius:8px; display:grid; place-items:center; flex-shrink:0; background:rgba(59,130,246,.1); border:1px solid rgba(59,130,246,.25); color:#93C5FD }
+        .pkg-item.done .pkg-item-ico{ background:rgba(34,197,94,.14); border-color:rgba(34,197,94,.35); color:#86EFAC }
+        .pkg-item-body{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px }
+        .pkg-item-body b{ font-size:12.5px; color:var(--text) }
+        .pkg-item-body span{ font-size:11px; color:var(--muted) }
+        .pkg-item-st{ color:#86EFAC; display:grid; place-items:center; flex-shrink:0 }
+        .pkg-item.pending .pkg-item-st{ color:#FBBF24 }
+        .pkg-dot{ width:9px; height:9px; border-radius:50%; border:1.5px solid rgba(147,197,253,.45) }
+        .pkg-status{ display:flex; gap:10px; align-items:flex-start; padding:11px 12px; border-radius:10px; font-size:12px; line-height:1.5 }
+        .pkg-status b{ display:block; font-size:12.5px }
+        .pkg-status span{ color:var(--muted) }
+        .pkg-status.done{ border:1px solid rgba(34,197,94,.35); background:rgba(34,197,94,.08); color:#86EFAC }
+        .pkg-status.pending{ border:1px solid rgba(251,191,36,.3); background:rgba(251,191,36,.06); color:#FDE68A }
+        .pkg-status.rejected{ border:1px solid rgba(239,68,68,.35); background:rgba(239,68,68,.08); color:#FCA5A5 }
+        .pkg-submit{ display:inline-flex; align-items:center; gap:6px; padding:7px 16px; border-radius:10px; border:1px solid rgba(147,197,253,.35); cursor:pointer; font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; font-family:'Open Sans',sans-serif; background:linear-gradient(135deg,rgba(30,58,138,.8),rgba(59,130,246,.6)); color:#fff; backdrop-filter:blur(8px); box-shadow:0 0 12px rgba(59,130,246,.2),0 1px 3px rgba(0,0,0,.3); transition:all .15s ease; -webkit-tap-highlight-color:transparent; touch-action:manipulation }
+        .pkg-submit:hover{ filter:brightness(1.15); box-shadow:0 0 20px rgba(59,130,246,.35),0 2px 6px rgba(0,0,0,.4); transform:translateY(-1px) }
+        .pkg-submit:active{ transform:scale(.97) }
+        .pkg-submit:disabled{ opacity:.45; cursor:not-allowed; transform:none; box-shadow:none }
         .step-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:10px }
-        .doc-card{ display:flex; flex-direction:column; gap:8px; padding:12px; border-radius:11px; background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.07); transition:border-color .2s }
-        .doc-card:hover{ border-color:rgba(59,130,246,.25) }
-        .dc-icon{ width:36px; height:36px; border-radius:9px; display:grid; place-items:center; flex-shrink:0; background:rgba(59,130,246,.1); border:1px solid rgba(59,130,246,.25); color:#93C5FD }
+        .doc-card{ display:flex; flex-direction:column; gap:8px; padding:12px; border-radius:11px; background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.07); transition:border-color .2s, background .2s; cursor:pointer; -webkit-tap-highlight-color:transparent }
+        .doc-card:hover{ border-color:rgba(59,130,246,.25); background:rgba(59,130,246,.03) }
+        .doc-card:active{ transform:scale(.99) }
+        .dc-icon{ width:36px; height:36px; border-radius:9px; display:grid; place-items:center; flex-shrink:0; background:rgba(59,130,246,.1); border:1px solid rgba(59,130,246,.25); color:#93C5FD; pointer-events:none }
         .dc-icon.dc-done{ background:rgba(34,197,94,.14); border-color:rgba(34,197,94,.35); color:#86EFAC }
         .dc-body{ display:flex; flex-direction:column; gap:6px }
         .dc-title{ font-size:13px; font-weight:700; color:var(--text); display:flex; gap:6px; align-items:center; flex-wrap:wrap }
         .dc-badge{ font-size:9px; letter-spacing:.1em; text-transform:uppercase; padding:2px 7px; border-radius:999px; background:rgba(34,197,94,.12); border:1px solid rgba(34,197,94,.3); color:#86EFAC }
         .dc-badge.pending{ background:rgba(251,191,36,.12); border-color:rgba(251,191,36,.3); color:#FBBF24 }
         .dc-sub{ font-size:11.5px; color:var(--muted); line-height:1.5 }
-        .wifi-input{ flex:1; padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,.10); background:rgba(0,0,0,.22); color:var(--text); font-size:12.5px; font-family:'Open Sans',sans-serif; outline:none }
-        .wifi-input:focus{ border-color:rgba(59,130,246,.45); box-shadow:0 0 0 3px rgba(59,130,246,.18) }
-        .wifi-btn{ padding:8px 14px; border-radius:8px; border:none; cursor:pointer; font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; font-family:'Open Sans',sans-serif; background:linear-gradient(90deg,#1E3A8A,#2563EB); color:#fff; flex-shrink:0; transition:filter .15s, opacity .15s }
-        .wifi-btn:hover{ filter:brightness(1.08) }
-        .wifi-btn:disabled{ opacity:.55; cursor:not-allowed }
+        .wifi-input{ flex:1; padding:7px 10px; border-radius:8px; border:1px solid rgba(255,255,255,.12); background:rgba(0,0,0,.3); color:#fff; font-size:12.5px; font-family:'Open Sans',sans-serif; outline:none; -webkit-tap-highlight-color:transparent; transition:border-color .15s, box-shadow .15s }
+        .wifi-input::placeholder{ color:rgba(148,163,184,.6) }
+        .wifi-input:focus{ border-color:rgba(59,130,246,.45); box-shadow:0 0 0 3px rgba(59,130,246,.15) }
+        .wifi-btn{ padding:7px 14px; border-radius:10px; border:1px solid rgba(147,197,253,.3); cursor:pointer; font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; font-family:'Open Sans',sans-serif; background:linear-gradient(135deg,rgba(30,58,138,.75),rgba(59,130,246,.55)); color:#fff; flex-shrink:0; backdrop-filter:blur(6px); box-shadow:0 0 10px rgba(59,130,246,.18); transition:all .15s ease; -webkit-tap-highlight-color:transparent; touch-action:manipulation }
+        .wifi-btn:hover{ filter:brightness(1.12); box-shadow:0 0 18px rgba(59,130,246,.3); transform:translateY(-1px) }
+        .wifi-btn:active{ transform:scale(.97) }
+        .wifi-btn:disabled{ opacity:.45; cursor:not-allowed; transform:none; box-shadow:none }
         .wifi-inline{ display:flex; gap:8px; align-items:center }
         .wifi-ok{ font-size:11.5px; padding:6px 10px; border-radius:8px; background:rgba(34,197,94,.10); border:1px solid rgba(34,197,94,.25); color:#86EFAC }
         .wifi-err{ font-size:11.5px; padding:6px 10px; border-radius:8px; background:rgba(239,68,68,.10); border:1px solid rgba(239,68,68,.25); color:#FCA5A5 }
-        .wifi-help-link{ font-size:11.5px; color:#60A5FA; text-decoration:underline; cursor:pointer; background:none; border:none; padding:0 }
+        .wifi-help-link{ font-size:11.5px; color:#60A5FA; text-decoration:underline; cursor:pointer; background:none; border:none; padding:0; -webkit-tap-highlight-color:transparent }
         .wifi-shown{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:8px 10px; border-radius:8px; background:rgba(34,197,94,.08); border:1px dashed rgba(34,197,94,.35); font-size:12px; color:#86EFAC }
         .wifi-shown code{ font-family:monospace; font-size:13px; color:#fff; user-select:all }
-        .svc-card{ cursor:default; align-items:flex-start; }
-        .svc-card:hover{ transform:none; }
-        .tg-card{ border-color:rgba(59,130,246,.18); }
-        .tg-card.dc-done{ border-color:rgba(34,197,94,.3); }
+        .svc-card{ cursor:pointer }
+        .svc-card:hover{ border-color:rgba(59,130,246,.25); background:rgba(59,130,246,.03) }
+        .svc-card:active{ transform:scale(.99) }
+        .tg-card{ border-color:rgba(59,130,246,.18) }
+        .tg-card.dc-done{ border-color:rgba(34,197,94,.3) }
         .tg-groups{ display:flex; flex-direction:column; gap:6px; margin-top:4px }
         .tg-group-row{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 10px; border-radius:8px; background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.05); font-size:12px }
         .tg-greet{ display:flex; flex-direction:column; gap:6px; margin-top:8px }
         .tg-greet-title{ font-size:11.5px; font-weight:700; color:var(--text) }
         .tg-textarea{ resize:vertical; min-height:60px }
         .tg-pending{ color:var(--muted) }
-        .wifi-card{ border-color:rgba(96,165,250,.18); }
-        .wifi-card.dc-done{ border-color:rgba(34,197,94,.3); }
+        .wifi-card{ border-color:rgba(96,165,250,.18) }
+        .wifi-card.dc-done{ border-color:rgba(34,197,94,.3) }
         .mpulse-step .mpulse-card{ display:flex; flex-direction:column; gap:12px; padding:14px; border-radius:12px; background:rgba(37,99,235,.06); border:1px solid rgba(59,130,246,.18) }
         .mpulse-head{ display:flex; gap:12px; align-items:flex-start }
         .mpulse-icon-img{ width:44px; height:44px; border-radius:11px; object-fit:contain; flex-shrink:0; background:rgba(255,255,255,.06); border:1px solid rgba(59,130,246,.18) }
@@ -800,29 +811,38 @@ export function Stage1Documents({ stageId }: Props) {
         .mpulse-links{ display:flex; gap:8px; flex-wrap:wrap }
         .mpulse-dl{ display:inline-flex; align-items:center; gap:6px; padding:9px 14px; border-radius:999px; font-size:11px; font-weight:700; text-decoration:none; color:#fff }
         .mpulse-dl.google{ background:#01875f } .mpulse-dl.apple{ background:#000 }
-        .mpulse-verify{ padding:14px; border-radius:12px; background:linear-gradient(180deg, rgba(37,99,235,.12), rgba(0,0,0,.25)); border:1px solid rgba(59,130,246,.35); display:flex; flex-direction:column; gap:10px }
+        .mpulse-verify{ padding:14px; border-radius:12px; background:linear-gradient(180deg,rgba(37,99,235,.12),rgba(0,0,0,.25)); border:1px solid rgba(59,130,246,.35); display:flex; flex-direction:column; gap:10px }
         .mpulse-verify-title{ font-size:13px; font-weight:800; color:var(--text); display:flex; align-items:center; gap:8px }
         .mpulse-verify-ico{ font-size:18px }
         .mpulse-verify-sub{ font-size:11.5px; color:var(--muted); line-height:1.5 }
         .mpulse-verify-done{ display:flex; align-items:center; gap:8px; padding:8px 12px; border-radius:8px; background:rgba(34,197,94,.12); border:1px solid rgba(34,197,94,.3); color:#86EFAC; font-size:12px; font-weight:700 }
+        .mpulse-input{ flex:1; padding:7px 10px; border-radius:8px; border:1px solid rgba(59,130,246,.35); background:rgba(0,0,0,.35); color:#fff; font-size:12.5px; font-family:'Open Sans',sans-serif; outline:none; letter-spacing:.06em; transition:border-color .15s, box-shadow .15s }
+        .mpulse-input::placeholder{ color:rgba(148,163,184,.5); letter-spacing:.04em }
+        .mpulse-input:focus{ border-color:rgba(59,130,246,.55); box-shadow:0 0 0 3px rgba(59,130,246,.18) }
+        .mpulse-btn{ padding:7px 16px; border-radius:10px; border:1px solid rgba(147,197,253,.35); cursor:pointer; font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; font-family:'Open Sans',sans-serif; background:linear-gradient(135deg,rgba(30,58,138,.85),rgba(59,130,246,.7)); color:#fff; flex-shrink:0; backdrop-filter:blur(8px); box-shadow:0 0 14px rgba(59,130,246,.25); transition:all .15s ease; -webkit-tap-highlight-color:transparent; touch-action:manipulation }
+        .mpulse-btn:hover{ filter:brightness(1.15); box-shadow:0 0 22px rgba(59,130,246,.4); transform:translateY(-1px) }
+        .mpulse-btn:active{ transform:scale(.97) }
+        .mpulse-btn:disabled{ opacity:.45; cursor:not-allowed; transform:none; box-shadow:none }
         .mpulse-row{ display:flex; gap:8px; align-items:center }
         .mpulse-msg{ font-size:11.5px; padding:8px 12px; border-radius:8px; display:flex; align-items:center; gap:6px }
         .mpulse-msg.ok{ background:rgba(34,197,94,.10); border:1px solid rgba(34,197,94,.25); color:#86EFAC }
         .mpulse-msg.err{ background:rgba(239,68,68,.10); border:1px solid rgba(239,68,68,.25); color:#FCA5A5 }
+        .cf-links{ display:flex; flex-direction:column; gap:10px }
         .confluence-link{ display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:11px; background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.08); text-decoration:none; color:inherit; transition:background .15s, border-color .15s }
         .confluence-link:hover{ background:rgba(59,130,246,.06); border-color:rgba(59,130,246,.22) }
-        .confluence-link.seen{ border-color:rgba(34,197,94,.3); }
-        .confluence-link.seen .cf-icon{ background:rgba(34,197,94,.14); border-color:rgba(34,197,94,.35); color:#86EFAC; }
+        .confluence-link.seen{ border-color:rgba(34,197,94,.3) }
+        .confluence-link.seen .cf-icon{ background:rgba(34,197,94,.14); border-color:rgba(34,197,94,.35); color:#86EFAC }
         .cf-icon{ width:32px; height:32px; border-radius:8px; display:grid; place-items:center; flex-shrink:0; font-size:11px; font-weight:800; background:rgba(59,130,246,.1); border:1px solid rgba(59,130,246,.25); color:#93C5FD }
         .cf-body{ flex:1; display:flex; flex-direction:column; gap:2px }
         .cf-title{ font-size:12.5px; font-weight:700; color:var(--text) }
         .cf-sub{ font-size:11px; color:var(--muted) }
         .cf-arrow{ color:#60A5FA; flex-shrink:0 }
         .cf-progress{ font-size:11.5px; color:var(--muted); padding:6px 0 }
-        .cf-confirm{ width:100%; padding:10px; border-radius:10px; border:none; cursor:pointer; font-size:12px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; background:linear-gradient(90deg,#1E3A8A,#2563EB); color:#fff; transition:filter .15s }
-        .cf-confirm:hover{ filter:brightness(1.08) }
-        .cf-confirm:disabled{ opacity:.5; cursor:not-allowed }
-        .cf-confirm.done{ background:rgba(34,197,94,.2); color:#86EFAC; cursor:default }
+        .cf-confirm{ width:100%; padding:7px 16px; border-radius:10px; border:1px solid rgba(147,197,253,.35); cursor:pointer; font-size:12px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; background:linear-gradient(135deg,rgba(30,58,138,.8),rgba(59,130,246,.6)); color:#fff; backdrop-filter:blur(8px); box-shadow:0 0 12px rgba(59,130,246,.2); transition:all .15s ease; -webkit-tap-highlight-color:transparent; touch-action:manipulation }
+        .cf-confirm:hover{ filter:brightness(1.15); box-shadow:0 0 20px rgba(59,130,246,.35); transform:translateY(-1px) }
+        .cf-confirm:active{ transform:scale(.97) }
+        .cf-confirm:disabled{ opacity:.4; cursor:not-allowed; transform:none; box-shadow:none }
+        .cf-confirm.done{ background:linear-gradient(135deg,rgba(22,163,74,.6),rgba(34,197,94,.4)); color:#86EFAC; border-color:rgba(34,197,94,.4); box-shadow:0 0 16px rgba(34,197,94,.25); cursor:default }
         .cf-hint{ font-size:11px; color:var(--muted); text-align:center }
         .step-done-badge{ font-size:11.5px; font-weight:700; color:#86EFAC; text-align:center; padding:6px; border-radius:8px; background:rgba(34,197,94,.08); border:1px solid rgba(34,197,94,.2) }
         .doc-hint{ font-size:11px; color:var(--muted); text-align:center; padding:8px 12px; border-radius:8px; background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.05) }
@@ -830,14 +850,14 @@ export function Stage1Documents({ stageId }: Props) {
           .step-grid{ grid-template-columns:1fr }
           .wifi-inline, .mpulse-row{ flex-wrap:wrap }
           .wifi-input, .mpulse-input{ flex:1 1 100%; min-height:44px; font-size:13px }
-          .wifi-btn, .mpulse-btn{ flex:1 1 100%; min-height:44px; font-size:12px }
+          .wifi-btn, .mpulse-btn{ flex:1 1 100%; min-height:40px; font-size:11px }
           .wifi-shown .wifi-inline{ flex-direction:column; gap:6px }
-          .wifi-shown .wifi-btn{ width:100%; min-height:44px }
+          .wifi-shown .wifi-btn{ width:100%; min-height:40px }
           .mpulse-row{ flex-direction:column; gap:10px }
-          .mpulse-dl{ width:100%; justify-content:center; min-height:44px }
+          .mpulse-dl{ width:100%; justify-content:center; min-height:40px }
           .pkg-item-row{ padding:10px 11px }
-          .pkg-submit{ width:100%; justify-content:center; min-height:44px }
-          .cf-confirm{ min-height:44px }
+          .pkg-submit{ width:100%; justify-content:center; min-height:40px }
+          .cf-confirm{ min-height:40px }
           .tg-group-row{ font-size:11.5px; padding:5px 8px }
           .tg-greet{ gap:5px }
           .tg-textarea{ min-height:52px }
@@ -864,7 +884,7 @@ export function Stage1Documents({ stageId }: Props) {
           .cf-sub{ font-size:10.5px }
           .cf-icon{ width:28px; height:28px; font-size:10px }
           .confluence-link{ padding:10px 12px; gap:10px }
-          .wifi-btn{ font-size:11px; padding:7px 12px }
+          .wifi-btn{ font-size:10.5px; padding:6px 12px }
           .wifi-input{ padding:7px 9px; font-size:12px }
           .wifi-ok, .wifi-err{ font-size:11px; padding:5px 8px }
           .wifi-help-link{ font-size:11px }
@@ -872,7 +892,7 @@ export function Stage1Documents({ stageId }: Props) {
         @media(max-width:380px){
           .dc-title{ font-size:11.5px }
           .dc-sub{ font-size:10px }
-          .pkg-submit{ font-size:10px; padding:7px 10px }
+          .pkg-submit{ font-size:10px; padding:6px 10px }
           .mpulse-verify{ padding:10px }
           .mpulse-verify-title{ font-size:11.5px }
           .sh-num{ width:26px; height:26px; font-size:11px }

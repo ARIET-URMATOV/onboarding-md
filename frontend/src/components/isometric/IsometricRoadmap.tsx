@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Check, LayoutDashboard, Lock, Map as MapIcon, Sparkles } from 'lucide-react';
+import { Check, LayoutDashboard, Lock, Map as MapIcon, Sparkles, FileText, Users, Video, ListChecks, ClipboardCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { STAGES as FALLBACK_STAGES } from '../../data/stages';
@@ -217,18 +217,20 @@ export function IsometricRoadmap({ statuses, done }: Props) {
         <nav className="gm-bottombar" aria-label="Этапы">
           {STAGES.map((s) => {
             const st = statuses[s.id];
+            const isOn = selected === s.id && st !== 'locked';
+            const StageIcon = [FileText, Users, Video, ListChecks, ClipboardCheck][s.id - 1] ?? FileText;
             return (
               <button
                 key={s.id}
                 type="button"
-                className={`gm-btab ${st} ${selected === s.id ? 'on' : ''}`}
+                className={`gm-btab ${st} ${isOn ? 'on' : ''}`}
                 onClick={() => pick(s.id as StageId)}
                 disabled={st === 'locked'}
                 aria-label={`Этап ${s.id}: ${s.title}`}
               >
-                <span className="n">0{s.id}</span>
-                <span className="t">{s.shortLabel}</span>
-                <span className={`dot ${st}`} />
+                <span className="btab-icon">{st === 'done' ? <Check size={18} strokeWidth={2.5} /> : <StageIcon size={16} strokeWidth={1.8} />}</span>
+                <span className="btab-label">{s.shortLabel}</span>
+                <span className={`btab-dot ${st}`} />
               </button>
             );
           })}
@@ -762,30 +764,34 @@ export function IsometricRoadmap({ statuses, done }: Props) {
           .gr-foot{ gap:10px; padding:14px 0 0; margin-top:auto } .gr-hint{ font-size:9px; flex:1 1 160px } .gr-cta{ display:inline-flex; align-items:center; gap:6px; padding:10px 22px; font-size:10.5px; letter-spacing:.11em; clip-path:polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%) }
           .gr-emblem.done .ge-core{ color:#3B82F6 }
         }
-        /* ===== МОБАЙЛ-НАВИГАЦИЯ: ≤640px нижняя таб-панель, 641–860px список; desktop не трогаем ===== */
+        /* ===== МОБАЙЛ-НАВИГАЦИЯ: ≤640px нижняя таб-панель ===== */
         .gm-bottombar{ display:none; }
         @media (max-width:640px){
           .gm-left{ display:none; }
           .gm-bottombar{
             display:flex; position:fixed; left:0; right:0; bottom:0; z-index:60;
-            padding:8px 8px calc(8px + env(safe-area-inset-bottom, 0px));
-            background:rgba(10,15,30,.94); border-top:1px solid rgba(37,99,235,.25);
-            backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
-            gap:2px;
+            padding:6px 6px calc(6px + env(safe-area-inset-bottom, 0px));
+            background:rgba(8,12,24,.96); border-top:1px solid rgba(59,130,246,.2);
+            backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
+            gap:0; justify-content:space-around;
           }
           .gm-btab{
-            flex:1; display:flex; flex-direction:column; align-items:center; gap:2px;
-            padding:6px 2px; border-radius:8px; color:#8c88a6; min-width:0;
+            flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;
+            padding:5px 2px; border-radius:10px; color:#64748b; min-width:0;
+            transition:color .15s, background .15s; -webkit-tap-highlight-color:transparent; border:none; background:none;
           }
-          .gm-btab .n{ font-size:12px; font-weight:800; }
-          .gm-btab .t{ font-size:8.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
-          .gm-btab .dot{ width:5px; height:5px; border-radius:50%; background:#64748b; }
-          .gm-btab .dot.done{ background:#3B82F6; box-shadow:0 0 6px rgba(59,130,246,.8); }
-          .gm-btab .dot.current{ background:#fff; box-shadow:0 0 6px rgba(255,255,255,.7); }
-          .gm-btab.on{ color:#fff; background:rgba(37,99,235,.18); }
-          .gm-btab.done{ color:#93C5FD; }
-          .gm-btab:disabled{ opacity:.45; }
-          .gr-foot{ padding:10px 0 0 }
+          .gm-btab:active{ transform:scale(.92) }
+          .btab-icon{ display:grid; place-items:center; width:22px; height:22px; border-radius:6px; transition:background .15s, box-shadow .15s, color .15s }
+          .gm-btab.on .btab-icon{ background:rgba(59,130,246,.2); color:#fff; box-shadow:0 0 10px rgba(59,130,246,.35) }
+          .gm-btab.done .btab-icon{ color:#60A5FA }
+          .btab-label{ font-size:9px; font-weight:600; letter-spacing:.04em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100% }
+          .gm-btab.on .btab-label{ color:#fff }
+          .btab-dot{ width:5px; height:5px; border-radius:50%; background:#334155; transition:background .15s, box-shadow .15s }
+          .btab-dot.done{ background:#3B82F6; box-shadow:0 0 6px rgba(59,130,246,.8) }
+          .btab-dot.current{ background:#fff; box-shadow:0 0 6px rgba(255,255,255,.7) }
+          .gm-btab:disabled{ opacity:.35; -webkit-tap-highlight-color:transparent }
+          .gm-btab:disabled .btab-icon{ background:none; box-shadow:none }
+          .gr-foot{ position:sticky; bottom:76px; padding:12px 0; background:rgba(10,15,30,.94); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); z-index:15; border-top:1px solid rgba(30,58,138,.15) }
           .gr-hint{ font-size:8px; letter-spacing:.1em } .gr-cta{ padding:8px 14px; font-size:9px; min-height:38px; clip-path:none; border-radius:8px }
           .gm-right{ padding-bottom:12px; }
         }
