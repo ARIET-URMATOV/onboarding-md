@@ -652,12 +652,22 @@ export function Stage1Documents({ stageId }: Props) {
             ))}
           </div>
           <div className="mpulse-verify">
-            <div className="mpulse-verify-title">Верификация — введите проверочный код из MPulse</div>
-            <div className="mpulse-verify-sub">После входа в приложение вы увидите код. Введите его здесь, чтобы система зачла выполнение.</div>
-            <div className="mpulse-row">
-              <input className="mpulse-input" placeholder="Например: MPULSE-2026" value={mpulseCode} onChange={e => setMpulseCode(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleMpulseVerify(); }} aria-label="Проверочный код MPulse" />
-              <button type="button" className="mpulse-btn" onClick={handleMpulseVerify} disabled={mpulseVerifying}>{mpulseVerifying ? 'Проверка…' : isTaskDone('1-mpulse-code') ? 'Подтверждено ✓' : 'Подтвердить код'}</button>
+            <div className="mpulse-verify-title">
+              <span className="mpulse-verify-ico">🔑</span>
+              Верификация — введите проверочный код из MPulse
             </div>
+            <div className="mpulse-verify-sub">После входа в приложение вы увидите код. Введите его здесь, чтобы система зачла выполнение.</div>
+            {isTaskDone('1-mpulse-code') ? (
+              <div className="mpulse-verify-done">
+                <CheckCircle2 size={18} />
+                <span>Код подтверждён ✓</span>
+              </div>
+            ) : (
+              <div className="mpulse-row">
+                <input className="mpulse-input" placeholder="Например: MPULSE-2026" value={mpulseCode} onChange={e => setMpulseCode(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleMpulseVerify(); }} aria-label="Проверочный код MPulse" />
+                <button type="button" className="mpulse-btn" onClick={handleMpulseVerify} disabled={mpulseVerifying}>{mpulseVerifying ? 'Проверка…' : 'Подтвердить код'}</button>
+              </div>
+            )}
             {mpulseMsg && <div className={`mpulse-msg ${mpulseMsg.includes('✓') ? 'ok' : 'err'}`}>{mpulseMsg}</div>}
             {step3Done && <div className="pkg-status done"><CheckCircle2 size={20} /><div><b>Выполнено — MPulse настроен</b></div></div>}
           </div>
@@ -790,11 +800,13 @@ export function Stage1Documents({ stageId }: Props) {
         .mpulse-links{ display:flex; gap:8px; flex-wrap:wrap }
         .mpulse-dl{ display:inline-flex; align-items:center; gap:6px; padding:9px 14px; border-radius:999px; font-size:11px; font-weight:700; text-decoration:none; color:#fff }
         .mpulse-dl.google{ background:#01875f } .mpulse-dl.apple{ background:#000 }
-        .mpulse-verify{ padding:12px; border-radius:10px; background:rgba(0,0,0,.18); border:1px solid rgba(255,255,255,.06); display:flex; flex-direction:column; gap:8px }
-        .mpulse-verify-title{ font-size:12px; font-weight:800; color:var(--text) }
-        .mpulse-verify-sub{ font-size:11.5px; color:var(--muted); line-height:1.45 }
+        .mpulse-verify{ padding:14px; border-radius:12px; background:linear-gradient(180deg, rgba(37,99,235,.12), rgba(0,0,0,.25)); border:1px solid rgba(59,130,246,.35); display:flex; flex-direction:column; gap:10px }
+        .mpulse-verify-title{ font-size:13px; font-weight:800; color:var(--text); display:flex; align-items:center; gap:8px }
+        .mpulse-verify-ico{ font-size:18px }
+        .mpulse-verify-sub{ font-size:11.5px; color:var(--muted); line-height:1.5 }
+        .mpulse-verify-done{ display:flex; align-items:center; gap:8px; padding:8px 12px; border-radius:8px; background:rgba(34,197,94,.12); border:1px solid rgba(34,197,94,.3); color:#86EFAC; font-size:12px; font-weight:700 }
         .mpulse-row{ display:flex; gap:8px; align-items:center }
-        .mpulse-msg{ font-size:11.5px; padding:7px 10px; border-radius:8px }
+        .mpulse-msg{ font-size:11.5px; padding:8px 12px; border-radius:8px; display:flex; align-items:center; gap:6px }
         .mpulse-msg.ok{ background:rgba(34,197,94,.10); border:1px solid rgba(34,197,94,.25); color:#86EFAC }
         .mpulse-msg.err{ background:rgba(239,68,68,.10); border:1px solid rgba(239,68,68,.25); color:#FCA5A5 }
         .confluence-link{ display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:11px; background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.08); text-decoration:none; color:inherit; transition:background .15s, border-color .15s }
@@ -814,7 +826,27 @@ export function Stage1Documents({ stageId }: Props) {
         .cf-hint{ font-size:11px; color:var(--muted); text-align:center }
         .step-done-badge{ font-size:11.5px; font-weight:700; color:#86EFAC; text-align:center; padding:6px; border-radius:8px; background:rgba(34,197,94,.08); border:1px solid rgba(34,197,94,.2) }
         .doc-hint{ font-size:11px; color:var(--muted); text-align:center; padding:8px 12px; border-radius:8px; background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.05) }
-        @media(max-width:640px){ .step-grid{ grid-template-columns:1fr } .wifi-inline, .mpulse-row{ flex-wrap:wrap; } .wifi-input, .mpulse-input{ flex:1 1 100%; } .wifi-btn, .mpulse-btn{ flex:1 1 100%; } }
+        @media(max-width:640px){
+          .step-grid{ grid-template-columns:1fr }
+          .wifi-inline, .mpulse-row{ flex-wrap:wrap }
+          .wifi-input, .mpulse-input{ flex:1 1 100% }
+          .wifi-btn, .mpulse-btn{ flex:1 1 100%; min-height:44px; font-size:12px }
+          .wifi-shown .wifi-inline{ flex-direction:column; gap:6px }
+          .wifi-shown .wifi-btn{ width:100%; min-height:44px }
+          .mpulse-row{ flex-direction:column; gap:10px }
+          .mpulse-dl{ width:100%; justify-content:center; min-height:44px }
+          .pkg-item-row{ padding:10px 11px }
+          .pkg-submit{ width:100%; justify-content:center; min-height:44px }
+          .cf-confirm{ min-height:44px }
+        }
+        @media(max-width:380px){
+          .dc-title{ font-size:12px }
+          .dc-sub{ font-size:10.5px }
+          .mpulse-verify{ padding:12px }
+          .mpulse-verify-title{ font-size:12px }
+          .gr-hint{ font-size:7px }
+          .step-done-badge{ font-size:10.5px }
+        }
       `}</style>
     </div>
   );

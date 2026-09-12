@@ -315,13 +315,14 @@ export function DashboardPage() {
           position:absolute; inset:0; z-index:0;
           background:url('/blue_var_bg.jpg') center/cover no-repeat;
           opacity:0; transition:opacity 2.4s ease .2s;
+          filter:saturate(1.1) brightness(1.08);
         }
         .dash-hero.revealed .bg-photo{ opacity:1 }
         .bg-shade{
           position:absolute; inset:0; z-index:1;
           background:
-            linear-gradient(180deg, rgba(11,11,16,.55) 0%, rgba(26,21,37,.72) 45%, rgba(26,21,37,.94) 100%),
-            radial-gradient(closest-side at 50% 46%, rgba(96,165,250,.16), transparent 72%);
+            linear-gradient(180deg, rgba(11,11,16,.45) 0%, rgba(26,21,37,.55) 45%, rgba(26,21,37,.72) 100%),
+            radial-gradient(closest-side at 50% 46%, rgba(96,165,250,.08), transparent 72%);
           opacity:0; transition:opacity 2.4s ease .2s;
         }
         .dash-hero.revealed .bg-shade{ opacity:1 }

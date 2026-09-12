@@ -608,13 +608,17 @@ export function IsometricRoadmap({ statuses, done }: Props) {
 
         .gr-foot{
           display:flex; justify-content:space-between; align-items:center; gap:8px;
-          padding-top:10px; margin-top:12px; border-top:1px solid rgba(30,58,138,.12);
-          position:static; background:none; backdrop-filter:none; flex-wrap:wrap;
+          padding:12px 0 0; margin-top:auto;
+          border-top:1px solid rgba(30,58,138,.15);
+          position:sticky; bottom:0; z-index:10;
+          background:rgba(10,15,30,.92);
+          backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+          flex-wrap:wrap;
         }
-        .gr-hint{ font-size:9px; letter-spacing:.12em; color:#a9a6c2; text-transform:uppercase; flex:1; min-width:0; }
+        .gr-hint{ font-size:9px; letter-spacing:.12em; color:#a9a6c2; text-transform:uppercase; flex:1 1 200px; min-width:0 }
         .gr-cta{
           display:inline-flex; align-items:center; gap:6px;
-          padding:10px 18px; border:none; cursor:pointer; flex-shrink:0;
+          padding:10px 18px; border:none; cursor:pointer; flex-shrink:0; min-width:44px; min-height:40px;
           font-family:'Open Sans',sans-serif; font-size:10px; font-weight:700; letter-spacing:.09em; text-transform:uppercase;
           color:#fff; background:linear-gradient(90deg,#1E3A8A 0%,#1D4ED8 100%);
           clip-path:polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
@@ -715,7 +719,7 @@ export function IsometricRoadmap({ statuses, done }: Props) {
           .sub-tasks{ gap:6px } .task-row{ padding:8px 10px; font-size:10.5px; gap:8px } .task-box{ width:16px; height:16px; border-radius:4px } .task-box svg{ width:9px; height:9px } .task-title{ font-size:11.5px } .task-xp{ font-size:9px }
           .reward{ gap:8px; margin-top:10px; padding:9px 11px } .reward svg{ width:14px; height:14px } .reward b{ font-size:10.5px } .reward span{ font-size:10px }
           .locked-body{ padding:14px 0 6px } .locked-icon{ font-size:22px; margin-bottom:8px } .locked-title{ font-size:11px } .locked-desc{ font-size:10.5px; max-width:260px }
-          .gr-foot{ gap:10px; padding-top:12px; margin-top:14px } .gr-hint{ font-size:9px } .gr-cta{ display:inline-flex; align-items:center; gap:6px; padding:10px 22px; font-size:10.5px; letter-spacing:.11em; clip-path:polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%) }
+          .gr-foot{ gap:10px; padding:14px 0 0; margin-top:auto } .gr-hint{ font-size:9px; flex:1 1 160px } .gr-cta{ display:inline-flex; align-items:center; gap:6px; padding:10px 22px; font-size:10.5px; letter-spacing:.11em; clip-path:polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%) }
           .gr-emblem.done .ge-core{ color:#3B82F6 }
         }
         /* ===== МОБАЙЛ-НАВИГАЦИЯ: ≤640px нижняя таб-панель, 641–860px список; desktop не трогаем ===== */
@@ -741,7 +745,9 @@ export function IsometricRoadmap({ statuses, done }: Props) {
           .gm-btab.on{ color:#fff; background:rgba(37,99,235,.18); }
           .gm-btab.done{ color:#93C5FD; }
           .gm-btab:disabled{ opacity:.45; }
-          .gm-right{ padding-bottom:84px; }
+          .gr-foot{ position:sticky; bottom:76px; padding:10px 0; background:rgba(10,15,30,.94); backdrop-filter:blur(12px); z-index:15 }
+          .gr-hint{ font-size:8px; letter-spacing:.1em } .gr-cta{ padding:8px 14px; font-size:9px; min-height:38px; clip-path:none; border-radius:8px }
+          .gm-right{ padding-bottom:12px; }
         }
         @media (prefers-reduced-motion: reduce){
           .gc-spark, .ge-ring, .gr-chip, .gm-cardWrap.shake, .reward::after{ animation:none !important }
