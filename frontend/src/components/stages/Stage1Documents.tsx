@@ -726,7 +726,7 @@ export function Stage1Documents({ stageId }: Props) {
         .sh-reward{ font-size:10px; letter-spacing:.10em; text-transform:uppercase; padding:2px 7px; border-radius:999px; background:rgba(251,191,36,.12); border:1px solid rgba(251,191,36,.28); color:#FBBF24 }
         .sh-desc{ font-size:11.5px; color:var(--muted); margin-top:4px; line-height:1.45 }
         .sh-chevron{ margin-left:auto; color:#60A5FA; font-size:16px; line-height:1; transition:transform .2s ease; flex-shrink:0; display:none }
-        @media(min-width:641px){ .sh-chevron{ display:block; transition:transform .35s cubic-bezier(.16,1,.3,1); transform-origin:center } .s1-step.open .sh-chevron{ transform:rotate(180deg) }
+        @media(min-width:641px){ .sh-chevron{ display:block; transition:transform .35s cubic-bezier(.16,1,.3,1); transform-origin:center } .s1-step.open .sh-chevron{ transform:rotate(180deg) } }
         .pkg-card{ display:flex; flex-direction:column; gap:12px; padding:14px; border-radius:12px; background:rgba(37,99,235,.05); border:1px solid rgba(59,130,246,.18); }
         .pkg-head{ display:flex; gap:12px; align-items:flex-start; }
         .pkg-ico{ width:44px; height:44px; border-radius:11px; display:grid; place-items:center; flex-shrink:0; color:#fff; background:linear-gradient(135deg,#1E3A8A,#2563EB); }
