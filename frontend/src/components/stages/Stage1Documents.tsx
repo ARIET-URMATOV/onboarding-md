@@ -499,7 +499,7 @@ export function Stage1Documents({ stageId }: Props) {
         <StepHeader n={2} title="Получение доступов" reward="0 баллов" desc="Подтверждение staff (HR/лид/сисадмин) — сотрудник отмечает, staff верифицирует" open={effectiveOpen === 2} done={step2Done} onToggle={() => toggleStep(2)} />
         <div className="s1-step-body">
         <div className="step-grid">
-          <div className="doc-card svc-card">
+          <div className="doc-card svc-card" onClick={() => setOpenInfo(INFO_MODALS.mbusiness)}>
             <div className="dc-icon"><img src="/mbusiness-logo.png" alt="MBusiness" width={28} height={28} loading="lazy" decoding="async" style={{ objectFit: 'contain' }} /></div>
             <div className="dc-body" style={{ flex: 1 }}>
               <div className="dc-title">MBusiness — открытие {isTaskDone('1-mbusiness') && <span className="dc-badge">выполнено</span>}{!isTaskDone('1-mbusiness') && pending.includes('1-mbusiness') && <span className="dc-badge pending">ожидает HR</span>}</div>
@@ -513,7 +513,7 @@ export function Stage1Documents({ stageId }: Props) {
               <button type="button" className="wifi-help-link" onClick={() => setOpenInfo(INFO_MODALS.mbusiness)}>Подробнее <ChevronRight size={12} style={{ verticalAlign: '-2px' }} /></button>
             </div>
           </div>
-          <div className="doc-card svc-card">
+          <div className="doc-card svc-card" onClick={() => setOpenInfo(INFO_MODALS.accountant)}>
             <div className="dc-icon"><ClipboardCheck size={16} /></div>
             <div className="dc-body" style={{ flex: 1 }}>
               <div className="dc-title">Доступ бухгалтеру {isTaskDone('1-accountant') && <span className="dc-badge">выполнено</span>}{!isTaskDone('1-accountant') && pending.includes('1-accountant') && <span className="dc-badge pending">ожидает бухгалтера</span>}</div>
@@ -527,7 +527,7 @@ export function Stage1Documents({ stageId }: Props) {
               <button type="button" className="wifi-help-link" onClick={() => setOpenInfo(INFO_MODALS.accountant)}>Подробнее <ChevronRight size={12} style={{ verticalAlign: '-2px' }} /></button>
             </div>
           </div>
-          <div className="doc-card svc-card">
+          <div className="doc-card svc-card" onClick={() => setOpenInfo(INFO_MODALS.proxy)}>
             <div className="dc-icon"><KeyRound size={16} /></div>
             <div className="dc-body" style={{ flex: 1 }}>
               <div className="dc-title">Прокси-карта и Face ID {isTaskDone('1-proxy') && <span className="dc-badge">выполнено</span>}{!isTaskDone('1-proxy') && pending.includes('1-proxy') && <span className="dc-badge pending">ожидает выдачи</span>}</div>
@@ -541,7 +541,7 @@ export function Stage1Documents({ stageId }: Props) {
               <button type="button" className="wifi-help-link" onClick={() => setOpenInfo(INFO_MODALS.proxy)}>Подробнее <ChevronRight size={12} style={{ verticalAlign: '-2px' }} /></button>
             </div>
           </div>
-          <div className="doc-card tg-card">
+          <div className="doc-card tg-card" onClick={() => setOpenInfo(INFO_MODALS.telegram)}>
               <div className={`dc-icon ${isTaskDone('1-telegram') ? 'dc-done' : ''}`}>{isTaskDone('1-telegram') ? <CircleCheck size={16} /> : <Send size={16} />}</div>
             <div className="dc-body" style={{ flex: 1 }}>
               <div className="dc-title">Доступ в Telegram-группы {isTaskDone('1-telegram') && <span className="dc-badge">готово</span>}{!isTaskDone('1-telegram') && pending.includes('1-telegram') && <span className="dc-badge pending">ожидает HR</span>}{user?.email === 'demo@mdigital.kg' ? <span className="dc-badge">демо: все группы</span> : myRole ? <span className="dc-badge">{myRole}</span> : null}</div>
@@ -600,7 +600,7 @@ export function Stage1Documents({ stageId }: Props) {
               </div>
             </div>
           ))}
-          <div className="doc-card wifi-card">
+          <div className="doc-card wifi-card" onClick={() => setOpenInfo(INFO_MODALS.wifi)}>
             <div className={`dc-icon ${isTaskDone('1-wifi') ? 'dc-done' : ''}`}>{isTaskDone('1-wifi') ? <CircleCheck size={16} /> : <Wifi size={16} />}</div>
             <div className="dc-body" style={{ flex: 1 }}>
               <div className="dc-title">Доступ к Wi-Fi (Закрытая сеть) {isTaskDone('1-wifi') && <span className="dc-badge">готово</span>}</div>
@@ -717,7 +717,7 @@ export function Stage1Documents({ stageId }: Props) {
         @keyframes slaPulse{ 0%,100%{ box-shadow:0 0 0 0 rgba(239,68,68,.18)} 50%{ box-shadow:0 0 0 6px rgba(239,68,68,0)} }
         .sla-icon{ font-size:14px }
         .sla-date{ margin-left:auto; font-size:10.5px; opacity:.85; color:var(--muted) }
-        .s1-step{ display:flex; flex-direction:column; gap:10px; padding:14px 12px; border-radius:14px; background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.06); position:relative }
+        .s1-step{ display:flex; flex-direction:column; gap:10px; padding:14px 12px; border-radius:14px; background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.06); position:relative; transition:border-color .3s, box-shadow .3s }
         .s1-step.done{ border-color:rgba(34,197,94,.45); box-shadow:0 0 24px rgba(34,197,94,.08) }
         .s1-step.done::before{ content:''; position:absolute; top:0; left:0; right:0; height:2px; border-radius:14px 14px 0 0; background:linear-gradient(90deg,#22C55E,#3B82F6) }
         .s1-step-body{ display:flex; flex-direction:column; gap:10px }
