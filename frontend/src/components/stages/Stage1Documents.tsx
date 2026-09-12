@@ -829,7 +829,7 @@ export function Stage1Documents({ stageId }: Props) {
         @media(max-width:640px){
           .step-grid{ grid-template-columns:1fr }
           .wifi-inline, .mpulse-row{ flex-wrap:wrap }
-          .wifi-input, .mpulse-input{ flex:1 1 100% }
+          .wifi-input, .mpulse-input{ flex:1 1 100%; min-height:44px; font-size:13px }
           .wifi-btn, .mpulse-btn{ flex:1 1 100%; min-height:44px; font-size:12px }
           .wifi-shown .wifi-inline{ flex-direction:column; gap:6px }
           .wifi-shown .wifi-btn{ width:100%; min-height:44px }
@@ -838,14 +838,46 @@ export function Stage1Documents({ stageId }: Props) {
           .pkg-item-row{ padding:10px 11px }
           .pkg-submit{ width:100%; justify-content:center; min-height:44px }
           .cf-confirm{ min-height:44px }
+          .tg-group-row{ font-size:11.5px; padding:5px 8px }
+          .tg-greet{ gap:5px }
+          .tg-textarea{ min-height:52px }
+          .dc-title{ font-size:12.5px }
+          .dc-sub{ font-size:11px; line-height:1.45 }
+          .pkg-sub{ font-size:11px }
+          .s1-step{ padding:12px 10px; gap:8px }
+          .s1-step-body{ gap:8px }
+          .step-done-badge{ font-size:11px; padding:5px }
         }
-        @media(max-width:380px){
+        @media(max-width:480px){
           .dc-title{ font-size:12px }
           .dc-sub{ font-size:10.5px }
-          .mpulse-verify{ padding:12px }
-          .mpulse-verify-title{ font-size:12px }
-          .gr-hint{ font-size:7px }
+          .s1-step{ padding:10px 8px }
+          .pkg-card{ padding:12px }
+          .pkg-title{ font-size:12.5px }
+          .mpulse-title{ font-size:12.5px }
+          .mpulse-sub{ font-size:10.5px }
+          .sh-num{ width:28px; height:28px; font-size:12px; border-radius:7px }
+          .sh-title{ font-size:12.5px }
+          .sh-desc{ font-size:10.5px }
+          .tg-greet-title{ font-size:10.5px }
+          .cf-title{ font-size:12px }
+          .cf-sub{ font-size:10.5px }
+          .cf-icon{ width:28px; height:28px; font-size:10px }
+          .confluence-link{ padding:10px 12px; gap:10px }
+          .wifi-btn{ font-size:11px; padding:7px 12px }
+          .wifi-input{ padding:7px 9px; font-size:12px }
+          .wifi-ok, .wifi-err{ font-size:11px; padding:5px 8px }
+          .wifi-help-link{ font-size:11px }
+        }
+        @media(max-width:380px){
+          .dc-title{ font-size:11.5px }
+          .dc-sub{ font-size:10px }
+          .pkg-submit{ font-size:10px; padding:7px 10px }
+          .mpulse-verify{ padding:10px }
+          .mpulse-verify-title{ font-size:11.5px }
+          .sh-num{ width:26px; height:26px; font-size:11px }
           .step-done-badge{ font-size:10.5px }
+          .doc-hint{ font-size:10px; padding:6px 8px }
         }
       `}</style>
     </div>

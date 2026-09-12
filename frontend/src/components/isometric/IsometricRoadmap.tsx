@@ -343,21 +343,52 @@ export function IsometricRoadmap({ statuses, done }: Props) {
               <div className="gr-gate">Открой каждый документ и пролистай до конца — иначе этап не засчитается.</div>
             )}
 
-            <div className="gr-tasksLabel font-mono" style={{ marginTop: 16 }}>Задачи этапа</div>
+            <div className="gr-tasksLabel font-mono" style={{ marginTop: 16 }}>
+              {selected === 1 ? 'Шаги этапа' : 'Задачи этапа'}
+            </div>
             <div className="gr-chips">
-              {selDoneTasks.map((t, i) => (
-                <motion.span
-                  key={t.id}
-                  className={`gr-chip ${selDoneIds.includes(t.id) || selStatus === 'done' ? 'is-done' : ''}`}
-                  title={t.title}
-                  initial={{ opacity: 0, scale: 0.6 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: i * 0.06, type: 'spring', stiffness: 420, damping: 18 }}
-                >
-                  {selDoneIds.includes(t.id) || selStatus === 'done' ? '✓' : i + 1}
-                </motion.span>
-              ))}
-              <span className="gr-chipLabel">{selDoneTasks.length} задач{selDoneTasks.length === 1 ? 'а' : selDoneTasks.length < 5 ? 'и' : ''}</span>
+              {selected === 1 ? (
+                (() => {
+                  const d1 = (doneTasks[1] || []);
+                  const steps = [
+                    { label: 'Документы', ids: ['1-dogovor','1-nda','1-pdp','1-ip','1-sn'], hint: '5 документов' },
+                    { label: 'Доступы', ids: ['1-mbusiness','1-accountant','1-wifi','1-proxy','1-telegram','1-jira','1-figma','1-gitlab'], hint: '8 сервисов' },
+                    { label: 'MPulse', ids: ['1-mpulse','1-mpulse-schedule','1-mpulse-checkin','1-mpulse-code','1-mpulse-news'], hint: '5 задач' },
+                    { label: 'Confluence', ids: ['1-confluence-read'], hint: '1 задача' },
+                  ];
+                  return steps.map((s, i) => {
+                    const done = s.ids.every((id) => d1.includes(id)) || selStatus === 'done';
+                    return (
+                      <motion.span
+                        key={s.label}
+                        className={`gr-chip ${done ? 'is-done' : ''}`}
+                        title={`${s.label} · ${s.hint}`}
+                        initial={{ opacity: 0, scale: 0.6 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: i * 0.06, type: 'spring', stiffness: 420, damping: 18 }}
+                      >
+                        {done ? '✓' : i + 1}
+                      </motion.span>
+                    );
+                  });
+                })()
+              ) : (
+                selDoneTasks.map((t, i) => (
+                  <motion.span
+                    key={t.id}
+                    className={`gr-chip ${selDoneIds.includes(t.id) || selStatus === 'done' ? 'is-done' : ''}`}
+                    title={t.title}
+                    initial={{ opacity: 0, scale: 0.6 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: i * 0.06, type: 'spring', stiffness: 420, damping: 18 }}
+                  >
+                    {selDoneIds.includes(t.id) || selStatus === 'done' ? '✓' : i + 1}
+                  </motion.span>
+                ))
+              )}
+              <span className="gr-chipLabel">
+                {selected === 1 ? '4 шага' : `${selDoneTasks.length} задач${selDoneTasks.length === 1 ? 'а' : selDoneTasks.length < 5 ? 'и' : ''}`}
+              </span>
             </div>
           </div>
 
@@ -610,10 +641,7 @@ export function IsometricRoadmap({ statuses, done }: Props) {
           display:flex; justify-content:space-between; align-items:center; gap:8px;
           padding:12px 0 0; margin-top:auto;
           border-top:1px solid rgba(30,58,138,.15);
-          position:sticky; bottom:0; z-index:10;
-          background:rgba(10,15,30,.92);
-          backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
-          flex-wrap:wrap;
+          background:none; flex-wrap:wrap;
         }
         .gr-hint{ font-size:9px; letter-spacing:.12em; color:#a9a6c2; text-transform:uppercase; flex:1 1 200px; min-width:0 }
         .gr-cta{
@@ -663,16 +691,28 @@ export function IsometricRoadmap({ statuses, done }: Props) {
         }
         .gf-cta:hover{ filter:brightness(1.15) }
 
-        /* ===== ТЕЛЕФОНЫ (≤480) — сохраняем читабельный размер подзадач ===== */
+        /* ===== ТЕЛЕФОНЫ (≤480) — компактный UI ===== */
         @media (max-width:480px){
           .gm-left{ padding:10px 8px 8px; }
           .gm-card{ padding:9px 10px; gap:8px; }
-          .gc-name{ font-size:12px; } .gc-state{ font-size:7px; } .gc-ico{ width:26px; height:26px; }
-          .gr-title{ font-size:18px; } .gr-chip{ width:26px; height:26px; font-size:9px; }
+          .gc-name{ font-size:11.5px; } .gc-state{ font-size:7px; } .gc-ico{ width:26px; height:26px; }
+          .gr-title{ font-size:15px; } .gr-chip{ width:24px; height:24px; font-size:9px; }
           .gm-right{ padding:10px 8px 8px; }
+          .gr-desc{ font-size:13px; line-height:1.45; }
+          .gr-emblem{ width:34px; height:34px; } .ge-core{ font-size:11px; }
+          .task-row{ padding:9px 10px; font-size:12px; gap:8px; }
+          .task-box{ width:16px; height:16px; border-radius:4px; } .task-box svg{ width:9px; height:9px; }
+          .task-title{ font-size:12.5px; } .task-xp{ font-size:9.5px; }
+          .reward{ padding:8px 10px; gap:7px; } .reward svg{ width:13px; height:13px; } .reward b{ font-size:10px; } .reward span{ font-size:9.5px; }
+          .gr-gate{ padding:6px 8px; font-size:10.5px; }
+          .gr-chips{ gap:6px; } .gr-chipLabel{ font-size:9px; }
         }
         @media (max-width:380px){
-          .gr-title{ font-size:16px; }
+          .gr-title{ font-size:14px; }
+          .gr-desc{ font-size:12px; }
+          .task-row{ padding:8px 8px; font-size:11.5px; gap:6px; }
+          .task-title{ font-size:11.5px; }
+          .gr-cta{ padding:8px 12px; font-size:8.5px; min-height:36px; }
         }
 
         /* ===== ДЕСКТОП / ТАБЛЕТ (≥861) — app-shell: страница не скроллится,
@@ -745,7 +785,7 @@ export function IsometricRoadmap({ statuses, done }: Props) {
           .gm-btab.on{ color:#fff; background:rgba(37,99,235,.18); }
           .gm-btab.done{ color:#93C5FD; }
           .gm-btab:disabled{ opacity:.45; }
-          .gr-foot{ position:sticky; bottom:76px; padding:10px 0; background:rgba(10,15,30,.94); backdrop-filter:blur(12px); z-index:15 }
+          .gr-foot{ padding:10px 0 0 }
           .gr-hint{ font-size:8px; letter-spacing:.1em } .gr-cta{ padding:8px 14px; font-size:9px; min-height:38px; clip-path:none; border-radius:8px }
           .gm-right{ padding-bottom:12px; }
         }
