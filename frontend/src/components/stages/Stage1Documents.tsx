@@ -499,7 +499,7 @@ export function Stage1Documents({ stageId }: Props) {
         <StepHeader n={2} title="Получение доступов" reward="0 баллов" desc="Подтверждение staff (HR/лид/сисадмин) — сотрудник отмечает, staff верифицирует" open={effectiveOpen === 2} done={step2Done} onToggle={() => toggleStep(2)} />
         <div className="s1-step-body">
         <div className="step-grid">
-          <div className="doc-card svc-card" onClick={() => setOpenInfo(INFO_MODALS.mbusiness)}>
+          <div className="doc-card svc-card">
             <div className="dc-icon"><img src="/mbusiness-logo.png" alt="MBusiness" width={28} height={28} loading="lazy" decoding="async" style={{ objectFit: 'contain' }} /></div>
             <div className="dc-body" style={{ flex: 1 }}>
               <div className="dc-title">MBusiness — открытие {isTaskDone('1-mbusiness') && <span className="dc-badge">выполнено</span>}{!isTaskDone('1-mbusiness') && pending.includes('1-mbusiness') && <span className="dc-badge pending">ожидает HR</span>}</div>
@@ -511,9 +511,9 @@ export function Stage1Documents({ stageId }: Props) {
               {rejNote('1-mbusiness') && <div className="wifi-err">HR: {rejNote('1-mbusiness')}</div>}
               {mbMsg && <div className="wifi-ok">{mbMsg}</div>}
             </div>
-            <span className="dc-info-icon"><Info size={14} /></span>
+            <button type="button" className="dc-info-icon" onClick={(e) => { e.stopPropagation(); setOpenInfo(INFO_MODALS.mbusiness); }} aria-label="Подробнее"><Info size={14} /></button>
           </div>
-          <div className="doc-card svc-card" onClick={() => setOpenInfo(INFO_MODALS.accountant)}>
+          <div className="doc-card svc-card">
             <div className="dc-icon"><ClipboardCheck size={16} /></div>
             <div className="dc-body" style={{ flex: 1 }}>
               <div className="dc-title">Доступ бухгалтеру {isTaskDone('1-accountant') && <span className="dc-badge">выполнено</span>}{!isTaskDone('1-accountant') && pending.includes('1-accountant') && <span className="dc-badge pending">ожидает бухгалтера</span>}</div>
@@ -525,9 +525,9 @@ export function Stage1Documents({ stageId }: Props) {
               {rejNote('1-accountant') && <div className="wifi-err">Бухгалтер: {rejNote('1-accountant')}</div>}
               {accMsg && <div className="wifi-ok">{accMsg}</div>}
             </div>
-            <span className="dc-info-icon"><Info size={14} /></span>
+            <button type="button" className="dc-info-icon" onClick={(e) => { e.stopPropagation(); setOpenInfo(INFO_MODALS.accountant); }} aria-label="Подробнее"><Info size={14} /></button>
           </div>
-          <div className="doc-card svc-card" onClick={() => setOpenInfo(INFO_MODALS.proxy)}>
+          <div className="doc-card svc-card">
             <div className="dc-icon"><KeyRound size={16} /></div>
             <div className="dc-body" style={{ flex: 1 }}>
               <div className="dc-title">Прокси-карта и Face ID {isTaskDone('1-proxy') && <span className="dc-badge">выполнено</span>}{!isTaskDone('1-proxy') && pending.includes('1-proxy') && <span className="dc-badge pending">ожидает выдачи</span>}</div>
@@ -539,9 +539,9 @@ export function Stage1Documents({ stageId }: Props) {
               {rejNote('1-proxy') && <div className="wifi-err">Лид: {rejNote('1-proxy')}</div>}
               {proxyMsg && <div className="wifi-ok">{proxyMsg}</div>}
             </div>
-            <span className="dc-info-icon"><Info size={14} /></span>
+            <button type="button" className="dc-info-icon" onClick={(e) => { e.stopPropagation(); setOpenInfo(INFO_MODALS.proxy); }} aria-label="Подробнее"><Info size={14} /></button>
           </div>
-          <div className="doc-card tg-card" onClick={() => setOpenInfo(INFO_MODALS.telegram)}>
+          <div className="doc-card tg-card">
               <div className={`dc-icon ${isTaskDone('1-telegram') ? 'dc-done' : ''}`}>{isTaskDone('1-telegram') ? <CircleCheck size={16} /> : <Send size={16} />}</div>
             <div className="dc-body" style={{ flex: 1 }}>
               <div className="dc-title">Доступ в Telegram-группы {isTaskDone('1-telegram') && <span className="dc-badge">готово</span>}{!isTaskDone('1-telegram') && pending.includes('1-telegram') && <span className="dc-badge pending">ожидает HR</span>}{user?.email === 'demo@mdigital.kg' ? <span className="dc-badge">демо: все группы</span> : myRole ? <span className="dc-badge">{myRole}</span> : null}</div>
@@ -570,9 +570,9 @@ export function Stage1Documents({ stageId }: Props) {
               )}
               <div className="tg-greet">
                 <div className="tg-greet-title">Шаблон приветствия:</div>
-                <div className="tg-greet-row">
+                <div className="tg-greet-wrap">
                   <textarea className="wifi-input tg-textarea" rows={2} value={tgGreet} onChange={e => setTgGreet(e.target.value)} onClick={e => e.stopPropagation()} aria-label="Текст приветствия" />
-                  <button type="button" className="wifi-btn tg-copy-btn" onClick={handleTgCopy} title="Копировать"><Copy size={14} /></button>
+                  <button type="button" className="tg-copy-inside" onClick={handleTgCopy} title="Копировать"><Copy size={13} /></button>
                 </div>
               </div>
               {tgInvites.length > 0 && (
@@ -583,8 +583,8 @@ export function Stage1Documents({ stageId }: Props) {
               )}
               {tgMsg && <div className={tgMsg.includes('✓') ? 'wifi-ok' : 'wifi-err'}>{tgMsg}</div>}
               {rejNote('1-telegram') && <div className="wifi-err">Тимлид: {rejNote('1-telegram')}</div>}
-              <button type="button" className="wifi-help-link" onClick={() => setOpenInfo(INFO_MODALS.telegram)}>Подробнее <ChevronRight size={12} style={{ verticalAlign: '-2px' }} /></button>
             </div>
+            <button type="button" className="dc-info-icon" onClick={(e) => { e.stopPropagation(); setOpenInfo(INFO_MODALS.telegram); }} aria-label="Подробнее"><Info size={14} /></button>
           </div>
           {/* Access services from DB */}
           {accessServices.map((s) => (
@@ -598,11 +598,11 @@ export function Stage1Documents({ stageId }: Props) {
                     ? <a href={s.url} target="_blank" rel="noopener noreferrer" className="wifi-help-link" onClick={() => handleSelfLink(s.task_id!)}>{s.title} →</a>
                     : <a href={s.url} target="_blank" rel="noopener noreferrer" className="wifi-help-link">{s.title} →</a>
                 ) : <span className="wifi-err">Ссылка не настроена</span>}
-                {s.details && <button type="button" className="wifi-help-link" onClick={() => setOpenInfo({ title: s.title, sub: s.subtitle, body: s.details })}>Подробнее <ChevronRight size={12} style={{ verticalAlign: '-2px' }} /></button>}
               </div>
+              {s.details && <button type="button" className="dc-info-icon" onClick={(e) => { e.stopPropagation(); setOpenInfo({ title: s.title, sub: s.subtitle, body: s.details }); }} aria-label="Подробнее"><Info size={14} /></button>}
             </div>
           ))}
-          <div className="doc-card wifi-card" onClick={() => setOpenInfo(INFO_MODALS.wifi)}>
+          <div className="doc-card wifi-card">
             <div className={`dc-icon ${isTaskDone('1-wifi') ? 'dc-done' : ''}`}>{isTaskDone('1-wifi') ? <CircleCheck size={16} /> : <Wifi size={16} />}</div>
             <div className="dc-body" style={{ flex: 1 }}>
               <div className="dc-title">Доступ к Wi-Fi (Закрытая сеть) {isTaskDone('1-wifi') && <span className="dc-badge">готово</span>}</div>
@@ -624,8 +624,8 @@ export function Stage1Documents({ stageId }: Props) {
                 </div>
               )}
               {wifiMsg && <div className={wifiMsg.includes('✓') ? 'wifi-ok' : 'wifi-err'}>{wifiMsg}</div>}
-              <button type="button" className="wifi-help-link" onClick={() => setOpenInfo(INFO_MODALS.wifi)}>Подробнее <ChevronRight size={12} style={{ verticalAlign: '-2px' }} /></button>
             </div>
+            <button type="button" className="dc-info-icon" onClick={(e) => { e.stopPropagation(); setOpenInfo(INFO_MODALS.wifi); }} aria-label="Подробнее"><Info size={14} /></button>
           </div>
         </div>
         </div>
@@ -770,14 +770,14 @@ export function Stage1Documents({ stageId }: Props) {
         .pkg-submit:active{ transform:scale(.97) }
         .pkg-submit:disabled{ opacity:.45; cursor:not-allowed; transform:none; box-shadow:none }
         .step-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:10px }
-        .doc-card{ display:flex; flex-direction:column; gap:8px; padding:12px; border-radius:11px; background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.07); transition:border-color .2s, background .2s; cursor:pointer; -webkit-tap-highlight-color:transparent; position:relative }
+        .doc-card{ display:flex; flex-direction:column; gap:8px; padding:12px; border-radius:11px; background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.07); transition:border-color .2s, background .2s; position:relative }
         .doc-card:hover{ border-color:rgba(59,130,246,.25); background:rgba(59,130,246,.03) }
-        .doc-card:active{ transform:scale(.99) }
-        .dc-info-icon{ position:absolute; top:10px; right:10px; color:rgba(147,197,253,.5); pointer-events:none; transition:color .2s }
-        .doc-card:hover .dc-info-icon{ color:rgba(147,197,253,.8) }
+        .dc-info-icon{ position:absolute; top:8px; right:8px; width:30px; height:30px; border-radius:8px; display:grid; place-items:center; background:rgba(59,130,246,.08); border:1px solid rgba(59,130,246,.2); color:rgba(147,197,253,.7); cursor:pointer; transition:all .15s ease; -webkit-tap-highlight-color:transparent; touch-action:manipulation }
+        .dc-info-icon:hover{ background:rgba(59,130,246,.18); border-color:rgba(59,130,246,.45); color:#DBEAFE; box-shadow:0 0 12px rgba(59,130,246,.35) }
+        .dc-info-icon:active{ transform:scale(.92) }
         .dc-icon{ width:36px; height:36px; border-radius:9px; display:grid; place-items:center; flex-shrink:0; background:rgba(59,130,246,.1); border:1px solid rgba(59,130,246,.25); color:#93C5FD; pointer-events:none }
         .dc-icon.dc-done{ background:rgba(34,197,94,.14); border-color:rgba(34,197,94,.35); color:#86EFAC }
-        .dc-body{ display:flex; flex-direction:column; gap:6px }
+        .dc-body{ display:flex; flex-direction:column; gap:6px; padding-right:30px }
         .dc-title{ font-size:13px; font-weight:700; color:var(--text); display:flex; gap:6px; align-items:center; flex-wrap:wrap }
         .dc-badge{ font-size:9px; letter-spacing:.1em; text-transform:uppercase; padding:2px 7px; border-radius:999px; background:rgba(34,197,94,.12); border:1px solid rgba(34,197,94,.3); color:#86EFAC }
         .dc-badge.pending{ background:rgba(251,191,36,.12); border-color:rgba(251,191,36,.3); color:#FBBF24 }
@@ -795,17 +795,18 @@ export function Stage1Documents({ stageId }: Props) {
         .wifi-help-link{ font-size:11.5px; color:#60A5FA; text-decoration:underline; cursor:pointer; background:none; border:none; padding:0; -webkit-tap-highlight-color:transparent }
         .wifi-shown{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:8px 10px; border-radius:8px; background:rgba(34,197,94,.08); border:1px dashed rgba(34,197,94,.35); font-size:12px; color:#86EFAC }
         .wifi-shown code{ font-family:monospace; font-size:13px; color:#fff; user-select:all }
-        .svc-card{ cursor:pointer }
         .svc-card:hover{ border-color:rgba(59,130,246,.25); background:rgba(59,130,246,.03) }
-        .svc-card:active{ transform:scale(.99) }
         .tg-card{ border-color:rgba(59,130,246,.18) }
         .tg-card.dc-done{ border-color:rgba(34,197,94,.3) }
         .tg-groups{ display:flex; flex-direction:column; gap:6px; margin-top:4px }
         .tg-group-row{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 10px; border-radius:8px; background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.05); font-size:12px }
         .tg-greet{ display:flex; flex-direction:column; gap:6px; margin-top:8px }
         .tg-greet-title{ font-size:11.5px; font-weight:700; color:var(--text) }
-        .tg-greet-row{ display:flex; gap:6px; align-items:stretch }
-        .tg-copy-btn{ padding:0 10px; min-width:36px; display:grid; place-items:center }
+        .tg-greet-wrap{ position:relative }
+        .tg-greet-wrap .tg-textarea{ padding-bottom:34px }
+        .tg-copy-inside{ position:absolute; right:6px; bottom:6px; width:28px; height:28px; border-radius:7px; display:grid; place-items:center; background:rgba(59,130,246,.12); border:1px solid rgba(59,130,246,.3); color:#93C5FD; cursor:pointer; transition:all .15s ease; -webkit-tap-highlight-color:transparent; touch-action:manipulation }
+        .tg-copy-inside:hover{ background:rgba(59,130,246,.22); border-color:rgba(59,130,246,.5); color:#DBEAFE; box-shadow:0 0 10px rgba(59,130,246,.35) }
+        .tg-copy-inside:active{ transform:scale(.92) }
         .tg-textarea{ resize:vertical; min-height:48px }
         .tg-pending{ color:var(--muted) }
         .wifi-card{ border-color:rgba(96,165,250,.18) }
