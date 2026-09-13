@@ -3,7 +3,7 @@ import {
   Award, BadgeCheck, ChevronDown, ChevronRight, ClipboardCheck, Clock, FileCheck,
   FileText, FolderCheck, Hourglass, IdCard, KeyRound, RotateCcw, Send, ShieldCheck, Wifi, XCircle,
   Link as LinkIcon, Smartphone, Apple, BookOpen, Globe, Lock, MessageSquare, ExternalLink, Download,
-  CircleCheck,
+  CircleCheck, Copy, Info,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import type { StageId } from '../../data/stages';
@@ -510,8 +510,8 @@ export function Stage1Documents({ stageId }: Props) {
               {pending.includes('1-mbusiness') && !isTaskDone('1-mbusiness') && <div className="wifi-ok">Ожидает подтверждения HR…</div>}
               {rejNote('1-mbusiness') && <div className="wifi-err">HR: {rejNote('1-mbusiness')}</div>}
               {mbMsg && <div className="wifi-ok">{mbMsg}</div>}
-              <button type="button" className="wifi-help-link" onClick={() => setOpenInfo(INFO_MODALS.mbusiness)}>Подробнее <ChevronRight size={12} style={{ verticalAlign: '-2px' }} /></button>
             </div>
+            <span className="dc-info-icon"><Info size={14} /></span>
           </div>
           <div className="doc-card svc-card" onClick={() => setOpenInfo(INFO_MODALS.accountant)}>
             <div className="dc-icon"><ClipboardCheck size={16} /></div>
@@ -524,8 +524,8 @@ export function Stage1Documents({ stageId }: Props) {
               {pending.includes('1-accountant') && !isTaskDone('1-accountant') && <div className="wifi-ok">Ожидает подтверждения бухгалтера…</div>}
               {rejNote('1-accountant') && <div className="wifi-err">Бухгалтер: {rejNote('1-accountant')}</div>}
               {accMsg && <div className="wifi-ok">{accMsg}</div>}
-              <button type="button" className="wifi-help-link" onClick={() => setOpenInfo(INFO_MODALS.accountant)}>Подробнее <ChevronRight size={12} style={{ verticalAlign: '-2px' }} /></button>
             </div>
+            <span className="dc-info-icon"><Info size={14} /></span>
           </div>
           <div className="doc-card svc-card" onClick={() => setOpenInfo(INFO_MODALS.proxy)}>
             <div className="dc-icon"><KeyRound size={16} /></div>
@@ -538,8 +538,8 @@ export function Stage1Documents({ stageId }: Props) {
               {pending.includes('1-proxy') && !isTaskDone('1-proxy') && <div className="wifi-ok">Ожидает выдачи…</div>}
               {rejNote('1-proxy') && <div className="wifi-err">Лид: {rejNote('1-proxy')}</div>}
               {proxyMsg && <div className="wifi-ok">{proxyMsg}</div>}
-              <button type="button" className="wifi-help-link" onClick={() => setOpenInfo(INFO_MODALS.proxy)}>Подробнее <ChevronRight size={12} style={{ verticalAlign: '-2px' }} /></button>
             </div>
+            <span className="dc-info-icon"><Info size={14} /></span>
           </div>
           <div className="doc-card tg-card" onClick={() => setOpenInfo(INFO_MODALS.telegram)}>
               <div className={`dc-icon ${isTaskDone('1-telegram') ? 'dc-done' : ''}`}>{isTaskDone('1-telegram') ? <CircleCheck size={16} /> : <Send size={16} />}</div>
@@ -554,7 +554,7 @@ export function Stage1Documents({ stageId }: Props) {
               ) : (
                 <>
                   <div className="dc-sub">1. Напишите нашему боту команду /start:</div>
-                  <div className="wifi-inline" onClick={e => e.stopPropagation()}><a href="https://t.me/onboarding_admin_bot?start=onboarding" target="_blank" rel="noopener noreferrer" className="wifi-btn" style={{ textDecoration: 'none' }}>Открыть бота →</a></div>
+                  <div className="wifi-inline" onClick={e => e.stopPropagation()}><a href="https://t.me/onboarding_admin_bot?start=onboarding" target="_blank" rel="noopener noreferrer" className="wifi-btn" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>Открыть бота →</a></div>
                   <div className="dc-sub">2. Укажите ваш @username в Telegram:</div>
                   <div className="wifi-inline" onClick={e => e.stopPropagation()}>
                     <input className="wifi-input" placeholder="@ivan_99" value={tgHandle} onChange={e => setTgHandle(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleTgAutoAdd(); }} aria-label="Telegram username" />
@@ -569,9 +569,11 @@ export function Stage1Documents({ stageId }: Props) {
                 </>
               )}
               <div className="tg-greet">
-                <div className="tg-greet-title">Шаблон приветствия (можно править):</div>
-                <textarea className="wifi-input tg-textarea" rows={3} value={tgGreet} onChange={e => setTgGreet(e.target.value)} onClick={e => e.stopPropagation()} aria-label="Текст приветствия" />
-                <div className="wifi-inline" onClick={e => e.stopPropagation()}><button type="button" className="wifi-btn" onClick={handleTgCopy}>Скопировать шаблон</button></div>
+                <div className="tg-greet-title">Шаблон приветствия:</div>
+                <div className="tg-greet-row">
+                  <textarea className="wifi-input tg-textarea" rows={2} value={tgGreet} onChange={e => setTgGreet(e.target.value)} onClick={e => e.stopPropagation()} aria-label="Текст приветствия" />
+                  <button type="button" className="wifi-btn tg-copy-btn" onClick={handleTgCopy} title="Копировать"><Copy size={14} /></button>
+                </div>
               </div>
               {tgInvites.length > 0 && (
                 <div className="tg-groups">
@@ -649,7 +651,10 @@ export function Stage1Documents({ stageId }: Props) {
           </ul>
           <div className="mpulse-links">
             {mpulseServices.map((s) => (
-              <a key={s.key} href={s.url} target="_blank" rel="noopener noreferrer" className={`mpulse-dl ${s.icon_key === 'Apple' ? 'apple' : 'google'}`}>{s.title}</a>
+              <a key={s.key} href={s.url} target="_blank" rel="noopener noreferrer" className={`mpulse-dl ${s.icon_key === 'Apple' ? 'apple' : 'google'}`}>
+                {s.icon_key === 'Apple' ? <Apple size={14} /> : <Smartphone size={14} />}
+                <span>{s.title}</span>
+              </a>
             ))}
           </div>
           <div className="mpulse-verify">
@@ -765,9 +770,11 @@ export function Stage1Documents({ stageId }: Props) {
         .pkg-submit:active{ transform:scale(.97) }
         .pkg-submit:disabled{ opacity:.45; cursor:not-allowed; transform:none; box-shadow:none }
         .step-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:10px }
-        .doc-card{ display:flex; flex-direction:column; gap:8px; padding:12px; border-radius:11px; background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.07); transition:border-color .2s, background .2s; cursor:pointer; -webkit-tap-highlight-color:transparent }
+        .doc-card{ display:flex; flex-direction:column; gap:8px; padding:12px; border-radius:11px; background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.07); transition:border-color .2s, background .2s; cursor:pointer; -webkit-tap-highlight-color:transparent; position:relative }
         .doc-card:hover{ border-color:rgba(59,130,246,.25); background:rgba(59,130,246,.03) }
         .doc-card:active{ transform:scale(.99) }
+        .dc-info-icon{ position:absolute; top:10px; right:10px; color:rgba(147,197,253,.5); pointer-events:none; transition:color .2s }
+        .doc-card:hover .dc-info-icon{ color:rgba(147,197,253,.8) }
         .dc-icon{ width:36px; height:36px; border-radius:9px; display:grid; place-items:center; flex-shrink:0; background:rgba(59,130,246,.1); border:1px solid rgba(59,130,246,.25); color:#93C5FD; pointer-events:none }
         .dc-icon.dc-done{ background:rgba(34,197,94,.14); border-color:rgba(34,197,94,.35); color:#86EFAC }
         .dc-body{ display:flex; flex-direction:column; gap:6px }
@@ -797,7 +804,9 @@ export function Stage1Documents({ stageId }: Props) {
         .tg-group-row{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 10px; border-radius:8px; background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.05); font-size:12px }
         .tg-greet{ display:flex; flex-direction:column; gap:6px; margin-top:8px }
         .tg-greet-title{ font-size:11.5px; font-weight:700; color:var(--text) }
-        .tg-textarea{ resize:vertical; min-height:60px }
+        .tg-greet-row{ display:flex; gap:6px; align-items:stretch }
+        .tg-copy-btn{ padding:0 10px; min-width:36px; display:grid; place-items:center }
+        .tg-textarea{ resize:vertical; min-height:48px }
         .tg-pending{ color:var(--muted) }
         .wifi-card{ border-color:rgba(96,165,250,.18) }
         .wifi-card.dc-done{ border-color:rgba(34,197,94,.3) }
@@ -809,8 +818,11 @@ export function Stage1Documents({ stageId }: Props) {
         .mpulse-list{ margin:0; padding-left:18px; font-size:12px; color:var(--muted); line-height:1.6 }
         .mpulse-list b{ color:var(--text) }
         .mpulse-links{ display:flex; gap:8px; flex-wrap:wrap }
-        .mpulse-dl{ display:inline-flex; align-items:center; gap:6px; padding:9px 14px; border-radius:999px; font-size:11px; font-weight:700; text-decoration:none; color:#fff }
+        .mpulse-dl{ display:inline-flex; align-items:center; gap:6px; padding:9px 14px; border-radius:999px; font-size:11px; font-weight:700; text-decoration:none; color:#fff; transition:filter .15s, transform .15s; -webkit-tap-highlight-color:transparent; touch-action:manipulation }
+        .mpulse-dl:hover{ filter:brightness(1.15); transform:translateY(-1px) }
+        .mpulse-dl:active{ transform:scale(.97) }
         .mpulse-dl.google{ background:#01875f } .mpulse-dl.apple{ background:#000 }
+        .mpulse-dl svg{ flex-shrink:0 }
         .mpulse-verify{ padding:14px; border-radius:12px; background:linear-gradient(180deg,rgba(37,99,235,.12),rgba(0,0,0,.25)); border:1px solid rgba(59,130,246,.35); display:flex; flex-direction:column; gap:10px }
         .mpulse-verify-title{ font-size:13px; font-weight:800; color:var(--text); display:flex; align-items:center; gap:8px }
         .mpulse-verify-ico{ font-size:18px }

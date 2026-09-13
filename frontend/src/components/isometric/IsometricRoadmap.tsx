@@ -589,7 +589,7 @@ export function IsometricRoadmap({ statuses, done }: Props) {
 
         .gr-divider{ height:1px; margin:12px 0; background:linear-gradient(90deg, rgba(37,99,235,.4), rgba(37,99,235,.06)) }
 
-        .gr-body{ flex:1; min-height:0; overflow:visible; padding-right:4px; padding-bottom:8px; }
+        .gr-body{ flex:1; min-height:0; overflow:visible; padding-right:4px; padding-bottom:24px; }
         .gr-desc{ font-family:'Open Sans',sans-serif; font-size:16px; line-height:1.55; color:#E2E8F0; margin:0 0 12px; word-break:break-word; }
         .gr-gate{
           padding:8px 10px; border-radius:10px; margin-bottom:10px;
