@@ -1,17 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Bell } from 'lucide-react';
+import { Bell, User as UserIcon, Sparkles } from 'lucide-react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useOnboarding, getProgress } from '../../store/useOnboarding';
 import { api } from '../../api/client';
 
-export function DefaultAvatar({ size = 32 }: { size?: number }) {
-  return (
-    <svg viewBox="0 0 32 32" width={size} height={size} aria-hidden="true">
-      <circle cx="16" cy="16" r="16" fill="#3B4A5C" />
-      <circle cx="16" cy="12.5" r="6" fill="#8FA3B8" />
-      <path d="M4.5 29.5a11.5 9 0 0 1 23 0 16 16 0 0 1-23 0z" fill="#8FA3B8" />
-    </svg>
-  );
+export function DefaultAvatar({ size = 18 }: { size?: number }) {
+  return <UserIcon size={size} color="#8FA3B8" />;
 }
 
 export function TopBar() {
@@ -22,208 +16,411 @@ export function TopBar() {
   const doneTasks = useOnboarding((s) => s.doneTasks);
   const progress = getProgress(doneTasks);
   const lvl = Math.floor(xp / 100) + 1;
-  const pct = progress.pct;
+  const pct = Math.min(100, Math.max(0, progress.pct));
   const isDashboard = pathname === '/dashboard';
   const isStaff = user?.isStaff ?? false;
   const [pendingCount, setPendingCount] = useState(0);
 
-  // HR-колокольчик: счётчик ожидающих запросов, polling 30с
+  // HR Notification Count Polling (30s)
   useEffect(() => {
-    if (!isStaff) { setPendingCount(0); return; }
+    if (!isStaff) {
+      setPendingCount(0);
+      return;
+    }
     let alive = true;
     const fetchCount = () => {
-      api.get<{ pending: number }>('/api/admin/pending-count')
-        .then((r) => { if (alive) setPendingCount(r.pending); })
-        .catch(() => { /* ignore */ });
+      api
+        .get<{ pending: number }>('/api/admin/pending-count')
+        .then((r) => {
+          if (alive) setPendingCount(r.pending);
+        })
+        .catch(() => {});
     };
     fetchCount();
     const id = setInterval(fetchCount, 30000);
-    return () => { alive = false; clearInterval(id); };
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
   }, [isStaff]);
 
   return (
-    <header className={`topbar-min ${isDashboard ? 'mode-overlay' : 'mode-sticky'}`}>
+    <header className={`topbar-wrapper ${isDashboard ? 'mode-overlay' : 'mode-sticky'}`}>
+      {/* Navigation */}
       <div className="t-left">
         <nav className="t-nav">
           <NavLink to="/dashboard" className={({ isActive }) => `t-link ${isActive ? 'on' : ''}`}>
-            Dashboard
+            <span>Dashboard</span>
           </NavLink>
-          <NavLink to="/roadmap" className={({ isActive }) => `t-link ${isActive ? 'on' : ''}`}>
-            Onboarding
+          <NavLink to="/stages" className={({ isActive }) => `t-link ${isActive ? 'on' : ''}`}>
+            <span>Onboarding</span>
           </NavLink>
         </nav>
       </div>
 
+      {/* User Actions & Stats */}
       <div className="t-right">
+        {/* HR Staff Notification Bell */}
         {isStaff && (
-          <button type="button" className="t-bell" onClick={() => navigate('/admin')} title="HR-панель: ожидающие запросы" aria-label="Открыть HR-панель">
-            <Bell size={17} />{pendingCount > 0 && <span className="t-bell-count">{pendingCount > 99 ? '99+' : pendingCount}</span>}
+          <button
+            type="button"
+            className="t-icon-btn t-bell"
+            onClick={() => navigate('/admin')}
+            title="HR Panel: Pending Requests"
+            aria-label="Open HR Panel"
+          >
+            <Bell size={18} />
+            {pendingCount > 0 && (
+              <span className="t-bell-badge">
+                {pendingCount > 99 ? '99+' : pendingCount}
+              </span>
+            )}
           </button>
         )}
-        <div className="t-xp" title={`${xp} XP · ${progress.done}/5 этапов`}>
-          <span className="t-lvl">Lv.{lvl}</span>
-          <div className="t-bar">
-            <i style={{ width: `${pct}%` }} />
+
+        {/* Level & XP Widget */}
+        <div className="t-xp-widget" title={`${xp} XP · ${progress.done}/5 Tasks Completed`}>
+          <div className="t-xp-head">
+            <div className="t-badge">
+              <Sparkles size={11} className="t-badge-icon" />
+              <span>Lv.{lvl}</span>
+            </div>
+            <span className="t-xp-val">
+              {xp >= 1000 ? `${(xp / 1000).toFixed(1)}k` : xp} <small>XP</small>
+            </span>
           </div>
-          <span className="t-xpnum">{xp >= 1000 ? `${(xp / 1000).toFixed(1)}k` : `${xp}`} XP</span>
+          <div className="t-progress-track">
+            <div className="t-progress-fill" style={{ width: `${pct}%` }} />
+          </div>
         </div>
 
-        <button type="button" className="t-user" onClick={() => navigate('/profile')} title="Профиль" aria-label="Открыть профиль">
-          <span className="t-avatar">
-            {user?.avatar
-              ? <img src={user.avatar} alt="" />
-              : <DefaultAvatar size={26} />}
-          </span>
-          <span className="t-name">{user?.name?.split(' ')[0] || 'Гость'}</span>
+        {/* User Profile Button */}
+        <button
+          type="button"
+          className="t-user-btn"
+          onClick={() => navigate('/profile')}
+          title="Profile"
+          aria-label="Open Profile"
+        >
+          <div className="t-avatar-ring">
+            {user?.avatar ? (
+              <img src={user.avatar} alt={user.name || 'User Avatar'} className="t-avatar-img" />
+            ) : (
+              <div className="t-avatar-fallback">
+                <DefaultAvatar />
+              </div>
+            )}
+          </div>
+          <span className="t-user-name">{user?.name?.split(' ')[0] || 'Guest'}</span>
         </button>
       </div>
 
       <style>{`
-        .topbar-min {
-          left: 0; right: 0; z-index: 30;
-          display: flex; align-items: center; justify-content: space-between;
-          padding: 0 48px; gap: 24px;
-          animation: fadeDown 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-          transition: opacity .22s ease, transform .22s ease, visibility .22s;
-        }
-        body.modal-open .topbar-min {
-          opacity: 0 !important; pointer-events: none !important; transform: translateY(-100%); visibility: hidden;
-        }
-        /* Dashboard: overlay transparent (hero image visible behind) */
-        .topbar-min.mode-overlay {
-          position: absolute; top: 0;
-          height: 72px;
-          background: transparent !important;
-          backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
-          border: none !important; box-shadow: none !important;
-        }
-        /* Roadmap & others: sticky best-practice, no content jump */
-        .topbar-min.mode-sticky {
-          position: sticky; top: 0;
-          height: 60px;
-          background: rgba(11,7,25,0.82);
-          backdrop-filter: blur(12px) saturate(1.15);
-          -webkit-backdrop-filter: blur(12px) saturate(1.15);
-          border-bottom: 1px solid rgba(37,99,235,0.14);
-          box-shadow: 0 4px 24px rgba(0,0,0,.22);
+        .topbar-wrapper {
+          left: 0;
+          right: 0;
+          z-index: 40;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0 40px;
+          box-sizing: border-box;
+          animation: topbarFade 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+          transition: background 0.3s ease, border-color 0.3s ease, transform 0.25s ease, opacity 0.25s ease;
         }
 
-        .t-left { display: flex; align-items: center; gap: 32px; min-width: 0; }
-
-        .t-brand {
-          display: flex; align-items: center; gap: 10px;
-          text-decoration: none; flex-shrink: 0;
-        }
-        .t-brand img {
-          width: 26px; height: 26px; object-fit: contain;
-          filter: drop-shadow(0 0 10px rgba(37, 99, 235, 0.5));
-        }
-        .t-brand-name {
-          font-family: 'Inter', sans-serif;
-          font-size: 14px; font-weight: 800; letter-spacing: 0.14em;
-          color: rgba(255, 255, 255, 0.95);
-          text-shadow: 0 2px 20px rgba(0, 0, 0, 0.4);
+        body.modal-open .topbar-wrapper {
+          opacity: 0 !important;
+          pointer-events: none !important;
+          transform: translateY(-100%);
+          visibility: hidden;
         }
 
-        .t-nav { display: flex; gap: 32px; align-items: center; }
+        /* Mode: Transparent Overlay (Dashboard) */
+        .topbar-wrapper.mode-overlay {
+          position: absolute;
+          top: 0;
+          height: 76px;
+          background: transparent;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        /* Mode: Glassmorphic Sticky (Roadmap & others) */
+        .topbar-wrapper.mode-sticky {
+          position: sticky;
+          top: 0;
+          height: 68px;
+          background: rgba(13, 16, 27, 0.75);
+          backdrop-filter: blur(16px) saturate(180%);
+          -webkit-backdrop-filter: blur(16px) saturate(180%);
+          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.36);
+        }
+
+        /* Left Navigation */
+        .t-left {
+          display: flex;
+          align-items: center;
+          gap: 24px;
+        }
+
+        .t-nav {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
 
         .t-link {
-          font-family: 'Inter', -apple-system, sans-serif;
-          font-size: 14px; font-weight: 500;
-          color: rgba(255, 255, 255, 0.35);
-          padding: 8px 0; position: relative;
-          transition: color 0.25s ease; text-decoration: none;
-          letter-spacing: 0.3px; text-shadow: 0 2px 20px rgba(0, 0, 0, 0.4);
+          position: relative;
+          display: inline-flex;
+          align-items: center;
+          padding: 8px 16px;
+          font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          font-size: 14px;
+          font-weight: 500;
+          color: rgba(255, 255, 255, 0.55);
+          text-decoration: none;
+          border-radius: 10px;
+          transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
         }
-        .t-link:hover { color: rgba(255, 255, 255, 0.7); }
-        .t-link.on { color: rgba(255, 255, 255, 0.95); }
+
+        .t-link:hover {
+          color: rgba(255, 255, 255, 0.9);
+          background: rgba(255, 255, 255, 0.04);
+        }
+
+        .t-link.on {
+          color: #ffffff;
+          font-weight: 600;
+          background: rgba(255, 255, 255, 0.07);
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        }
+
         .t-link.on::after {
-          content: ''; position: absolute; bottom: -2px; left: 0; right: 0;
-          height: 2px; background: #2563EB; border-radius: 2px;
-          box-shadow: 0 0 16px rgba(37, 99, 235, 0.45);
-          animation: linkSlide 0.3s ease;
+          content: '';
+          position: absolute;
+          bottom: 4px;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 16px;
+          height: 2px;
+          background: #3b82f6;
+          border-radius: 4px;
+          box-shadow: 0 0 10px #3b82f6;
         }
-        @keyframes linkSlide { from{ transform:scaleX(0); opacity:0 } to{ transform:scaleX(1); opacity:1 } }
 
-        .t-right { display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
-        .t-bell{ position:relative; width:36px; height:36px; border-radius:8px; display:grid; place-items:center; font-size:17px; background:rgba(37,99,235,.06); border:1px solid rgba(37,99,235,.12); cursor:pointer; transition:all .2s ease; }
-        .t-bell:hover{ background:rgba(37,99,235,.14); }
-        .t-bell-count{ position:absolute; top:-6px; right:-6px; min-width:17px; height:17px; padding:0 4px; border-radius:999px; background:#EF4444; color:#fff; font-size:10px; font-weight:800; display:grid; place-items:center; box-shadow:0 0 10px rgba(239,68,68,.6); }
+        /* Right Section */
+        .t-right {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+        }
 
-        .t-xp {
-          display: flex; align-items: center; gap: 10px; padding: 8px 14px;
-          background: rgba(37, 99, 235, 0.06); border-radius: 8px;
-          border: 1px solid rgba(37, 99, 235, 0.08);
-          backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-          transition: all 0.25s ease;
+        /* Icon Button / HR Bell */
+        .t-icon-btn {
+          position: relative;
+          width: 40px;
+          height: 40px;
+          border-radius: 12px;
+          display: grid;
+          place-items: center;
+          background: rgba(255, 255, 255, 0.04);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          color: rgba(255, 255, 255, 0.75);
+          cursor: pointer;
+          outline: none;
+          transition: all 0.2s ease;
         }
-        .t-xp:hover { background: rgba(37, 99, 235, 0.12); border-color: rgba(37, 99, 235, 0.15); }
-        .t-lvl { font-size: 12px; font-weight: 600; color: rgba(37, 99, 235, 0.8); font-family: 'Inter', sans-serif; letter-spacing: 0.5px; text-shadow: 0 2px 12px rgba(0,0,0,0.2); }
-        .t-bar { width: 52px; height: 3px; border-radius: 2px; background: rgba(37, 99, 235, 0.16); overflow: hidden; }
-        .t-bar i { display: block; height: 100%; background: linear-gradient(90deg, #2563EB, #1E3A8A); border-radius: 2px; transition: width 0.6s ease; box-shadow: 0 0 12px rgba(37,99,235,0.35); }
-        .t-xpnum { font-size: 12px; font-weight: 500; color: rgba(255, 255, 255, 0.35); font-family: 'Inter', sans-serif; text-shadow: 0 2px 12px rgba(0,0,0,0.2); }
 
-        .t-user {
-          display: flex; align-items: center; gap: 10px; padding: 6px 16px 6px 6px; border-radius: 8px;
-          background: rgba(37, 99, 235, 0.06); border: 1px solid rgba(37, 99, 235, 0.08);
-          backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); transition: all 0.25s ease; cursor: pointer;
-          font: inherit; color: inherit;
+        .t-icon-btn:hover {
+          background: rgba(255, 255, 255, 0.08);
+          border-color: rgba(255, 255, 255, 0.15);
+          color: #ffffff;
+          transform: translateY(-1px);
         }
-        .t-user:hover { background: rgba(37, 99, 235, 0.12); border-color: rgba(37, 99, 235, 0.15); }
-        .t-avatar { width: 32px; height: 32px; border-radius: 6px; display: grid; place-items: center; background: linear-gradient(135deg, #2563EB, #1E3A8A); color: #fff; font-size: 12px; font-weight: 700; font-family: 'Inter', sans-serif; letter-spacing: 0.5px; box-shadow: 0 0 20px rgba(37,99,235,0.22); overflow: hidden; flex-shrink: 0; }
-        .t-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
-        .t-name { font-size: 14px; font-weight: 500; color: rgba(255, 255, 255, 0.7); font-family: 'Inter', sans-serif; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-shadow: 0 2px 12px rgba(0,0,0,0.2); }
 
-        @media (max-width: 800px) {
-          .topbar-min { padding: 0 24px; }
-          .topbar-min.mode-overlay { height: 68px; }
-          .topbar-min.mode-sticky { height: 60px; }
-          .t-left { gap: 24px; }
-          .t-nav { gap: 28px; } .t-link { font-size: 15px; padding: 10px 0; }
-          .t-xp { display: none; }
-          .t-user { padding: 8px 14px 8px 8px; gap: 12px; min-height: 44px; background: rgba(37,99,235,.10); border-color: rgba(37,99,235,.14); }
-          .t-avatar { width: 36px; height: 36px; }
-          .t-name { font-size: 13.5px; font-weight: 600; color: rgba(255,255,255,.85); max-width: 110px; }
+        .t-bell-badge {
+          position: absolute;
+          top: -3px;
+          right: -3px;
+          min-width: 18px;
+          height: 18px;
+          padding: 0 5px;
+          border-radius: 99px;
+          background: linear-gradient(135deg, #ef4444, #dc2626);
+          color: #ffffff;
+          font-size: 10px;
+          font-weight: 700;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border: 2px solid #0d101b;
+          box-shadow: 0 0 12px rgba(239, 68, 68, 0.5);
         }
-        @media (max-width: 640px) {
-          .topbar-min { padding: 0 18px; }
-          .topbar-min.mode-overlay { height: 64px; }
-          .topbar-min.mode-sticky { height: 60px; }
-          .t-left { gap: 18px; }
-          .t-brand-name { display: none; }
-          .t-brand img { width: 24px; height: 24px; }
-          .t-nav { gap: 22px; } .t-link { font-size: 15.5px; font-weight:600; padding: 10px 0; color: rgba(255,255,255,0.92); letter-spacing:.01em; min-height:44px; display:inline-flex; align-items:center; }
-          .t-right { gap: 12px; }
-          .t-user { padding: 7px 12px 7px 7px; background: rgba(37,99,235,.10); border-color: rgba(37,99,235,.14); min-height: 44px; }
-          .t-avatar { width: 34px; height: 34px; }
-          .t-name { font-size: 13px; font-weight: 600; max-width: 95px; color: rgba(255,255,255,.85); }
+
+        /* XP & Level Widget */
+        .t-xp-widget {
+          display: flex;
+          flex-direction: column;
+          gap: 5px;
+          padding: 6px 14px;
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 12px;
+          min-width: 120px;
+          backdrop-filter: blur(8px);
+          transition: all 0.2s ease;
         }
+
+        .t-xp-widget:hover {
+          background: rgba(255, 255, 255, 0.06);
+          border-color: rgba(255, 255, 255, 0.14);
+        }
+
+        .t-xp-head {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+        }
+
+        .t-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          font-size: 11px;
+          font-weight: 700;
+          color: #60a5fa;
+          letter-spacing: 0.3px;
+        }
+
+        .t-badge-icon {
+          color: #93c5fd;
+        }
+
+        .t-xp-val {
+          font-size: 11px;
+          font-weight: 600;
+          color: rgba(255, 255, 255, 0.5);
+        }
+
+        .t-xp-val small {
+          font-size: 9px;
+          font-weight: 700;
+          color: rgba(255, 255, 255, 0.35);
+          text-transform: uppercase;
+        }
+
+        .t-progress-track {
+          width: 100%;
+          height: 4px;
+          border-radius: 99px;
+          background: rgba(255, 255, 255, 0.08);
+          overflow: hidden;
+        }
+
+        .t-progress-fill {
+          height: 100%;
+          border-radius: 99px;
+          background: linear-gradient(90deg, #2563eb, #60a5fa);
+          box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+          transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        /* Profile Button */
+        .t-user-btn {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 4px 14px 4px 5px;
+          background: rgba(255, 255, 255, 0.04);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 99px;
+          cursor: pointer;
+          outline: none;
+          transition: all 0.2s ease;
+        }
+
+        .t-user-btn:hover {
+          background: rgba(255, 255, 255, 0.08);
+          border-color: rgba(255, 255, 255, 0.16);
+          transform: translateY(-1px);
+        }
+
+        .t-avatar-ring {
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, #1e293b, #0f172a);
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          display: grid;
+          place-items: center;
+          overflow: hidden;
+          flex-shrink: 0;
+        }
+
+        .t-avatar-img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+
+        .t-avatar-fallback {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .t-user-name {
+          font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          font-size: 13px;
+          font-weight: 600;
+          color: rgba(255, 255, 255, 0.85);
+          max-width: 100px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        /* Responsive Breakpoints */
+        @media (max-width: 768px) {
+          .topbar-wrapper {
+            padding: 0 20px;
+          }
+          .t-xp-widget {
+            display: none;
+          }
+        }
+
         @media (max-width: 480px) {
-          .topbar-min { padding: 0 16px; }
-          .topbar-min.mode-overlay { height: 62px; }
-          .topbar-min.mode-sticky { height: 58px; }
-          .t-nav { gap: 18px; } .t-link { font-size: 15px; font-weight:600; color: rgba(255,255,255,0.92); min-height:44px; display:inline-flex; align-items:center; }
-          .t-right { gap: 10px; }
-          .t-user { padding: 6px 12px 6px 6px; background: rgba(37,99,235,.10); border-color: rgba(37,99,235,.14); min-height: 44px; }
-          .t-avatar { width: 32px; height: 32px; }
-          .t-name { font-size: 12.5px; font-weight: 600; max-width: 85px; color: rgba(255,255,255,.85); display: inline; }
+          .topbar-wrapper {
+            padding: 0 14px;
+          }
+          .t-nav {
+            gap: 2px;
+          }
+          .t-link {
+            padding: 6px 10px;
+            font-size: 13px;
+          }
+          .t-user-name {
+            display: none;
+          }
+          .t-user-btn {
+            padding: 4px;
+          }
         }
-        @media (max-width: 360px) {
-          .topbar-min { padding:0 10px; gap:12px; }
-          .t-nav { gap:12px; } .t-link { font-size:13px; min-height:44px; }
-          .t-right { gap:8px; }
-          .t-name { display:none; }
-          .t-user { padding:6px; }
+
+        @keyframes topbarFade {
+          from {
+            opacity: 0;
+            transform: translateY(-8px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
         }
-        @media (max-width: 380px) {
-          .topbar-min { padding: 0 12px; }
-          .topbar-min.mode-overlay { height: 58px; } .topbar-min.mode-sticky { height: 56px; }
-          .t-nav { gap: 16px; } .t-link { font-size: 14px; font-weight:600; letter-spacing: 0.01em; min-height:44px; display:inline-flex; align-items:center; }
-          .t-user { padding: 6px 10px 6px 6px; min-height: 44px; background: rgba(37,99,235,.10); border-color: rgba(37,99,235,.14); }
-          .t-avatar { width: 30px; height: 30px; }
-          .t-name { display: inline; font-size: 12px; font-weight: 600; max-width: 70px; color: rgba(255,255,255,.85); }
-        }
-        @keyframes fadeDown { from{ opacity:0; transform:translateY(-10px)} to{ opacity:1; transform:translateY(0)} }
       `}</style>
     </header>
   );

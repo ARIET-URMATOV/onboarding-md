@@ -9,7 +9,7 @@ from app.database import get_db
 from app.limiter import limiter
 from app.models import AppSetting, User
 from app.routes.auth import get_current_user, require_staff
-from app.schemas import AutoAddOut, LinksOut
+from app.schemas import AutoAddIn, AutoAddOut, LinksOut
 
 router = APIRouter()
 
@@ -275,6 +275,7 @@ async def telegram_groups(
 @limiter.limit("5/minute")
 async def telegram_auto_add(
     request: Request,
+    body: AutoAddIn | None = None,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -363,12 +364,27 @@ async def telegram_auto_add(
         failed_ids = {f["title"] for f in failed}
         invite_links = await _make_invite_links(
             token, [g for g in groups if str(g.get("title") or g["chat_id"]) in failed_ids])
+    # автоотправка приветствия от бота в добавленные группы
+    greeted: list[str] = []
+    greeting_text = (body.greeting or "").strip()[:500] if body and body.greeting else ""
+    if greeting_text and added:
+        greet_msg = f"\U0001f44b \u041d\u043e\u0432\u044b\u0439 \u0441\u043e\u0442\u0440\u0443\u0434\u043d\u0438\u043a @{user.telegram_username}:\n{greeting_text}"
+        added_ids = {str(g["chat_id"]) for g in groups if str(g.get("title") or g["chat_id"]) in set(added)}
+        for g in groups:
+            chat_id = str(g["chat_id"])
+            if chat_id not in added_ids:
+                continue
+            try:
+                await _tg_call(token, "sendMessage", {"chat_id": chat_id, "text": greet_msg})
+                greeted.append(str(g.get("title") or chat_id))
+            except RuntimeError:
+                pass  # best-effort — greeting failure must not break verification
     verified = False
     if not failed:
         # вариант A, шаг 4: бот реально добавил во все группы → задача выполнена
         verified = await _auto_verify_telegram(db, user.id)
     return AutoAddOut(added=added, failed=failed, username=user.telegram_username,
-                      invite_links=invite_links, verified=verified)
+                      invite_links=invite_links, verified=verified, greeted=greeted)
 
 
 @router.post("/integrations/telegram-webhook")

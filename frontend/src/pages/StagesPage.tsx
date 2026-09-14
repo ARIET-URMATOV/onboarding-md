@@ -4,7 +4,7 @@ import { useOnboarding, getAllStatuses, getProgress } from '../store/useOnboardi
 import { usePageMeta } from '../hooks/usePageMeta';
 import { IsometricRoadmap } from '../components/isometric/IsometricRoadmap';
 
-export function RoadmapPage() {
+export function StagesPage() {
   usePageMeta("Этапы онбординга — MDIGITAL", "Пять этапов онбординга MDIGITAL: документы, команда, видео, доступы и финальный тест. Отмечай выполненные задачи и получай опыт.");
   const doneTasks = useOnboarding((s) => s.doneTasks);
   const statuses = useMemo(() => getAllStatuses(doneTasks), [doneTasks]);
@@ -13,17 +13,17 @@ export function RoadmapPage() {
   return (
     <>
       <TopBar />
-      <main className="roadmap-gm">
+      <main className="stages-gm">
         <IsometricRoadmap statuses={statuses} done={progress.done} />
       </main>
       <style>{`
-        .roadmap-gm{
+        .stages-gm{
           position:relative; width:100%; max-width:100%; margin:0 auto;
           padding:12px 12px 32px;
           font-family:'Open Sans',sans-serif;
         }
         @media (min-width:861px){
-          .roadmap-gm{ max-width:1220px; padding:18px 18px 40px; }
+          .stages-gm{ max-width:1220px; padding:18px 18px 40px; }
         }
       `}</style>
     </>

@@ -26,6 +26,29 @@ async def lifespan(_: FastAPI):
         await warm_stages_cache()
     except Exception as e:
         print(f"stages warmup: {e}")
+    # Telegram webhook auto-registration (best-effort)
+    if settings.telegram_bot_token and settings.telegram_webhook_secret and settings.public_base_url:
+        import httpx as _httpx
+
+        wh_url = f"{settings.public_base_url.rstrip('/')}/api/integrations/telegram-webhook"
+        try:
+            async with _httpx.AsyncClient(timeout=10) as _cl:
+                _resp = await _cl.post(
+                    f"https://api.telegram.org/bot{settings.telegram_bot_token}/setWebhook",
+                    json={
+                        "url": wh_url,
+                        "secret_token": settings.telegram_webhook_secret,
+                        "allowed_updates": ["message", "edited_message", "my_chat_member"],
+                    },
+                )
+                _data = _resp.json()
+                if _data.get("ok"):
+                    print(f"TG webhook registered → {wh_url}")
+                else:
+                    print(f"TG webhook register failed: {_data.get('description', _resp.status_code)}")
+        except Exception as e:
+            print(f"TG webhook register error (non-fatal): {e}")
+
     # SLA-мониторинг Stage 1 (фон, 24ч; первая проверка через 30с)
     import asyncio
 

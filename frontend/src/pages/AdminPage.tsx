@@ -54,6 +54,18 @@ interface Links {
 const DOC_TASKS = ['1-dogovor', '1-nda', '1-pdp', '1-ip', '1-sn'];
 const ACCESS_TASKS = ['1-mbusiness', '1-accountant', '1-wifi', '1-proxy', '1-telegram'];
 
+const TASK_LABELS: Record<string, string> = {
+  '1-dogovor': 'Договор', '1-nda': 'NDA', '1-pdp': 'Персональные данные',
+  '1-ip': 'Свидетельство ИП', '1-sn': 'Справка о несудимости',
+  '1-mbusiness': 'MBusiness', '1-accountant': 'Бухгалтер', '1-wifi': 'Wi-Fi',
+  '1-proxy': 'Прокси-карта', '1-telegram': 'Telegram',
+  '1-jira': 'Jira', '1-figma': 'Figma', '1-gitlab': 'GitLab',
+  '1-mpulse': 'MPulse', '1-mpulse-schedule': 'MPulse (график)',
+  '1-mpulse-checkin': 'MPulse (check-in)', '1-mpulse-code': 'MPulse (код)',
+  '1-mpulse-news': 'MPulse (новости)', '1-confluence-read': 'Confluence',
+};
+function taskLabel(tid: string): string { return TASK_LABELS[tid] || tid.replace('1-', ''); }
+
 function ago(iso: string): string {
   const s = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
   if (s < 60) return `${s} сек назад`;
@@ -100,6 +112,8 @@ export function AdminPage() {
   const [leadForm, setLeadForm] = useState<Record<number, string>>({});
   const [tgGroupsJson, setTgGroupsJson] = useState('[]');
   const [tgRights, setTgRights] = useState<{ bot: string; groups: { title: string; ok: boolean; detail: string; roles?: string[] }[] } | null>(null);
+  const [tgWhStatus, setTgWhStatus] = useState<{ url?: string; has_custom_certificate?: boolean; pending_update_count?: number; last_error_message?: string; last_error_date?: number } | null>(null);
+  const [tgWhRegistering, setTgWhRegistering] = useState(false);
   const [svcList, setSvcList] = useState<{ key: string; title: string; subtitle: string; url: string; icon_key: string; category: string; task_id: string | null; roles: string[]; sort_order: number; is_visible: boolean; open_new_tab: boolean; extra: Record<string, string>; details: string }[]>([]);
   const [svcForm, setSvcForm] = useState<{ key: string; title: string; subtitle: string; url: string; icon_key: string; category: string; task_id: string | null; roles: string[]; sort_order: number; is_visible: boolean; open_new_tab: boolean; extra: Record<string, string>; details: string }>({ key: '', title: '', subtitle: '', url: '', icon_key: 'Link', category: 'access', task_id: null, roles: [], sort_order: 0, is_visible: true, open_new_tab: true, extra: {}, details: '' });
   const [svcEditKey, setSvcEditKey] = useState<string | null>(null);
@@ -170,6 +184,28 @@ export function AdminPage() {
       setTgRights(r);
     } catch (e) {
       setMsg(e instanceof Error ? e.message : 'Бот недоступен');
+    }
+  };
+
+  const registerTgWebhook = async () => {
+    setTgWhRegistering(true);
+    try {
+      await api.post('/api/admin/telegram-webhook/register');
+      setMsg('✓ Webhook зарегистрирован');
+      await checkTgWhStatus();
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : 'Ошибка webhook');
+    } finally {
+      setTgWhRegistering(false);
+    }
+  };
+
+  const checkTgWhStatus = async () => {
+    try {
+      const r = await api.get<{ url?: string; has_custom_certificate?: boolean; pending_update_count?: number; last_error_message?: string; last_error_date?: number }>('/api/admin/telegram-webhook/status');
+      setTgWhStatus(r);
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : 'Webhook недоступен');
     }
   };
   const toast = useToast();
@@ -462,7 +498,7 @@ export function AdminPage() {
                 <b>{r.name}</b> <span className="admin-email">{r.email}</span>
               </div>
               <div className="admin-card-sub">
-                <code style={{ fontFamily: 'monospace' }}>{r.task_id}</code>
+                <b>{taskLabel(r.task_id)}</b>
                 {' · '}
                 {r.created_at ? ago(r.created_at) : '—'}
                 {r.note ? ` · «${r.note}»` : ''}
@@ -618,7 +654,7 @@ export function AdminPage() {
               <div className="admin-card-head">
                 <b>{s.title}</b>
                 <span className="admin-staff-badge">{s.category}</span>
-                {s.task_id && <span className="admin-staff-badge">{s.task_id}</span>}
+                {s.task_id && <span className="admin-staff-badge">{taskLabel(s.task_id)}</span>}
                 {!s.is_visible && <span className="admin-staff-badge" style={{ background: 'rgba(239,68,68,.12)', borderColor: 'rgba(239,68,68,.3)', color: '#FCA5A5' }}>скрыт</span>}
               </div>
               <div className="admin-card-sub">{s.subtitle} · {s.url || '—'} · icon: {s.icon_key} · roles: {s.roles.length ? s.roles.join(',') : 'все'}</div>
@@ -697,7 +733,7 @@ export function AdminPage() {
         <div className="admin-list">
           {audit.map((r) => (
             <div key={r.id} className="admin-card audit">
-              <b>{r.task_id}</b> · user #{r.user_id} · {r.method} · by #{r.verified_by ?? '—'} ·{' '}
+              <b>{taskLabel(r.task_id)}</b> · user #{r.user_id} · {r.method} · by #{r.verified_by ?? '—'} ·{' '}
               {r.created_at ? new Date(r.created_at).toLocaleString('ru-RU') : '—'}
               {prettyDetails(r.details) && <span className="admin-detail"> · {prettyDetails(r.details)}</span>}
             </div>
@@ -731,7 +767,17 @@ export function AdminPage() {
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button type="button" onClick={saveTgGroups} className="admin-btn small">Сохранить группы</button>
               <button type="button" onClick={checkTgRights} className="admin-btn small">Проверить права бота</button>
+              <button type="button" onClick={registerTgWebhook} className="admin-btn small" disabled={tgWhRegistering}>{tgWhRegistering ? 'Регистрирую…' : 'Зарегистрировать webhook'}</button>
+              <button type="button" onClick={checkTgWhStatus} className="admin-btn small">Статус webhook</button>
             </div>
+            {tgWhStatus && (
+              <div style={{ fontSize: 11.5, lineHeight: 1.7, padding: '6px 0' }}>
+                <div>URL: <code style={{ fontFamily: 'monospace', fontSize: 11 }}>{tgWhStatus.url || '—'}</code></div>
+                <div>Ожидает апдейтов: <b>{tgWhStatus.pending_update_count ?? 0}</b></div>
+                {tgWhStatus.last_error_message && <div style={{ color: '#FCA5A5' }}>Последняя ошибка: {tgWhStatus.last_error_message}</div>}
+                {tgWhStatus.has_custom_certificate !== undefined && <div>Свой сертификат: {tgWhStatus.has_custom_certificate ? 'да' : 'нет (OK)'}</div>}
+              </div>
+            )}
             {tgRights && (
               <div style={{ fontSize: 11.5, lineHeight: 1.7 }}>
                 <div>Бот: @{tgRights.bot || '—'}</div>
@@ -779,28 +825,30 @@ export function AdminPage() {
       )}
 
       <style>{`
-        .admin-page{ display:flex; flex-direction:column; gap:12px; padding:16px 12px; max-width:760px; margin:0 auto }
-        .admin-title{ font-size:16px; font-weight:800; color:var(--text) }
-        .admin-tabs{ display:flex; gap:8px }
-        .admin-tab{ padding:7px 12px; border-radius:8px; border:1px solid rgba(255,255,255,.1); background:rgba(255,255,255,.03); color:var(--text); font-size:12px; cursor:pointer }
-        .admin-tab.active{ border-color:rgba(59,130,246,.5); background:rgba(59,130,246,.12) }
+        .admin-page{ display:flex; flex-direction:column; gap:14px; padding:16px 14px; max-width:900px; margin:0 auto; padding-bottom:80px }
+        .admin-title{ font-size:17px; font-weight:800; color:var(--text); letter-spacing:-.02em }
+        .admin-tabs{ display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch; padding-bottom:2px; flex-wrap:wrap }
+        .admin-tabs::-webkit-scrollbar{ display:none }
+        .admin-tab{ padding:7px 12px; border-radius:8px; border:1px solid rgba(255,255,255,.1); background:rgba(255,255,255,.03); color:var(--text); font-size:11.5px; cursor:pointer; white-space:nowrap; transition:all .15s }
+        .admin-tab:hover{ border-color:rgba(255,255,255,.2); background:rgba(255,255,255,.06) }
+        .admin-tab.active{ border-color:rgba(59,130,246,.5); background:rgba(59,130,246,.12); color:#93C5FD }
         .admin-msg{ font-size:12px; padding:8px 12px; border-radius:8px; background:rgba(34,197,94,.1); border:1px solid rgba(34,197,94,.25); color:#86EFAC }
         .admin-list{ display:flex; flex-direction:column; gap:10px }
-        .admin-card{ padding:12px; border-radius:10px; background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.07); display:flex; flex-direction:column; gap:8px }
+        .admin-card{ padding:12px 14px; border-radius:10px; background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.07); display:flex; flex-direction:column; gap:8px }
         .admin-card-head{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; font-size:13px }
         .admin-email{ font-size:11.5px; color:var(--muted) }
         .admin-staff-badge{ font-size:9px; letter-spacing:.1em; text-transform:uppercase; padding:2px 7px; border-radius:999px; background:rgba(251,191,36,.12); border:1px solid rgba(251,191,36,.3); color:#FBBF24 }
-        .admin-card-sub{ font-size:11.5px; color:var(--muted) }
-        .admin-verify-btn{ padding:5px 10px; border-radius:7px; border:1px solid rgba(34,197,94,.35); background:rgba(34,197,94,.08); color:#86EFAC; font-size:11px; cursor:pointer; font-family:monospace }
+        .admin-card-sub{ font-size:11.5px; color:var(--muted); line-height:1.5 }
+        .admin-verify-btn{ padding:5px 10px; border-radius:7px; border:1px solid rgba(34,197,94,.35); background:rgba(34,197,94,.08); color:#86EFAC; font-size:11px; cursor:pointer }
         .admin-verify-btn:hover{ background:rgba(34,197,94,.18) }
         .admin-reject-btn{ padding:5px 10px; border-radius:7px; border:1px solid rgba(239,68,68,.35); background:rgba(239,68,68,.08); color:#FCA5A5; font-size:11px; cursor:pointer }
         .admin-reject-btn:hover{ background:rgba(239,68,68,.18) }
         .admin-live{ font-size:10px; font-weight:400; color:#64748b; }
         .admin-live.on{ color:#86EFAC; }
         .admin-detail{ color:var(--muted); font-size:11px; }
-        .admin-search{ display:flex; gap:8px }
-        .admin-input{ flex:1; padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,.1); background:rgba(0,0,0,.22); color:var(--text); font-size:12.5px }
-        .admin-btn{ padding:8px 14px; border-radius:8px; border:none; cursor:pointer; font-size:11px; font-weight:800; text-transform:uppercase; background:linear-gradient(90deg,#1E3A8A,#2563EB); color:#fff }
+        .admin-search{ display:flex; gap:8px; flex-wrap:wrap }
+        .admin-input{ flex:1; min-width:0; padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,.1); background:rgba(0,0,0,.22); color:var(--text); font-size:12.5px }
+        .admin-btn{ padding:8px 14px; border-radius:8px; border:none; cursor:pointer; font-size:11px; font-weight:800; text-transform:uppercase; background:linear-gradient(90deg,#1E3A8A,#2563EB); color:#fff; white-space:nowrap }
         .admin-btn.small{ align-self:flex-start; padding:6px 10px; font-size:10px }
         .admin-card.audit{ font-size:12px }
         .admin-empty{ font-size:12.5px; color:var(--muted); text-align:center; padding:20px }
@@ -820,6 +868,13 @@ export function AdminPage() {
         .skel-line{ height:14px; border-radius:6px; background:linear-gradient(90deg, rgba(255,255,255,.04), rgba(255,255,255,.1), rgba(255,255,255,.04)); background-size:200% 100%; animation:skel 1.2s ease-in-out infinite; }
         .skel-line.short{ width:55%; }
         @keyframes skel{ to{ background-position:-200% 0 } }
+        @media (max-width:480px){
+          .admin-page{ padding:12px 10px }
+          .admin-tab{ padding:6px 10px; font-size:10.5px }
+          .admin-card{ padding:10px 12px }
+          .admin-search{ flex-direction:column }
+          .admin-search .admin-btn{ width:100%; text-align:center }
+        }
       `}</style>
     </div>
   );

@@ -11,7 +11,7 @@ import { RegisterPage } from './pages/RegisterPage';
 // Lazy: heavy / authenticated pages — code-split per route
 const RoleSelectPage = lazy(() => import('./pages/RoleSelectPage').then((m) => ({ default: m.RoleSelectPage })));
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
-const RoadmapPage = lazy(() => import('./pages/RoadmapPage').then((m) => ({ default: m.RoadmapPage })));
+const StagesPage = lazy(() => import('./pages/StagesPage').then((m) => ({ default: m.StagesPage })));
 const MapPage = lazy(() => import('./pages/MapPage').then((m) => ({ default: m.MapPage })));
 const ProfilePage = lazy(() => import('./pages/ProfilePage').then((m) => ({ default: m.ProfilePage })));
 const CompletePage = lazy(() => import('./pages/CompletePage').then((m) => ({ default: m.CompletePage })));
@@ -34,7 +34,8 @@ export default function App() {
               <Route path="/register" element={<GuestOnly><RegisterPage /></GuestOnly>} />
               <Route path="/role" element={<AuthGate><RoleSelectPage /></AuthGate>} />
               <Route path="/dashboard" element={<AuthGate><RequireRole><DashboardPage /></RequireRole></AuthGate>} />
-              <Route path="/roadmap" element={<AuthGate><RequireRole><RoadmapPage /></RequireRole></AuthGate>} />
+              <Route path="/stages" element={<AuthGate><RequireRole><StagesPage /></RequireRole></AuthGate>} />
+              <Route path="/roadmap" element={<Navigate to="/stages" replace />} />
               <Route path="/map" element={<AuthGate><RequireRole><MapPage /></RequireRole></AuthGate>} />
               <Route path="/profile" element={<AuthGate><RequireRole><ProfilePage /></RequireRole></AuthGate>} />
               <Route path="/complete" element={<AuthGate><RequireRole><CompletePage /></RequireRole></AuthGate>} />

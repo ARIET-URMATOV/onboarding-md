@@ -37,6 +37,11 @@ class AutoAddOut(BaseModel):
     username: str = ""
     invite_links: list[dict] = []
     verified: bool = False
+    greeted: list[str] = []
+
+
+class AutoAddIn(BaseModel):
+    greeting: str | None = None
 
 
 class PasswordChangeIn(BaseModel):

@@ -564,7 +564,8 @@ export function IsometricRoadmap({ statuses, done }: Props) {
           position:relative; z-index:2;
           display:flex; flex-direction:column; min-height:0;
           padding:12px 10px 10px;
-          overflow:hidden; max-width:100%;
+          overflow:hidden;
+          max-width:100%;
         }
 
         .gr-head{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px }
@@ -589,7 +590,7 @@ export function IsometricRoadmap({ statuses, done }: Props) {
 
         .gr-divider{ height:1px; margin:12px 0; background:linear-gradient(90deg, rgba(37,99,235,.4), rgba(37,99,235,.06)) }
 
-        .gr-body{ flex:1; min-height:0; overflow:visible; padding-right:4px; padding-bottom:24px; }
+        .gr-body{ flex:1; min-height:0; overflow-y:auto; overflow-x:hidden; padding-right:4px; padding-bottom:24px; }
         .gr-desc{ font-family:'Open Sans',sans-serif; font-size:16px; line-height:1.55; color:#E2E8F0; margin:0 0 12px; word-break:break-word; }
         .gr-gate{
           padding:8px 10px; border-radius:10px; margin-bottom:10px;
@@ -597,7 +598,7 @@ export function IsometricRoadmap({ statuses, done }: Props) {
           color:#93C5FD; font-size:11.5px; line-height:1.2; font-family:'Open Sans',sans-serif;
         }
         .gr-tasksLabel{ font-size:10.5px; letter-spacing:.18em; text-transform:uppercase; color:#b8b5cc; margin-bottom:8px }
-        .gr-chips{ display:flex; align-items:center; gap:6px; flex-wrap:wrap }
+        .gr-chips{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; padding:12px 0 0; }
         .gr-chip{
           width:30px; height:30px; border-radius:50%; display:grid; place-items:center;
           font-family:'Open Sans',sans-serif; font-size:10.5px; font-weight:700; color:#3B82F6;
@@ -641,7 +642,7 @@ export function IsometricRoadmap({ statuses, done }: Props) {
 
         .gr-foot{
           display:flex; justify-content:space-between; align-items:center; gap:8px;
-          padding:12px 0 0; margin-top:auto;
+          padding:12px 0 16px; margin-top:auto; flex-shrink:0;
           border-top:1px solid rgba(30,58,138,.15);
           background:none; flex-wrap:wrap;
         }
@@ -751,10 +752,11 @@ export function IsometricRoadmap({ statuses, done }: Props) {
           .gc-ico{ width:34px; height:34px; } .gc-ico svg{ width:15px; height:15px; }
           .gc-spark{ font-size:14px; }
           .gc-body{ gap:3px } .gc-name{ font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } .gc-state{ font-size:9.5px; letter-spacing:.12em } .gc-num{ font-size:8px }
-          .gm-right{ padding:16px 18px 18px; height:100%; overflow-y:auto; overflow-x:hidden; scrollbar-gutter:stable; }
+          .gm-right{ padding:16px 18px 18px; height:100%; overflow:hidden; scrollbar-gutter:stable; }
           .gr-head{ gap:12px } .gr-title{ font-size:15px; text-shadow:none } .gr-subtitle{ font-size:9.5px; letter-spacing:.14em; margin-top:3px } .gr-emblem{ width:46px; height:46px } .ge-core{ font-size:13px }
           .gr-divider{ margin:12px 0 }
           .gr-desc{ font-size:12px; line-height:1.6; margin:0 0 12px }
+          .gr-body{ overflow-y:auto; overflow-x:hidden; scrollbar-gutter:stable; }
           .gr-gate{ padding:8px 10px; font-size:10.5px; margin-bottom:12px }
           .gr-tasksLabel{ font-size:9.5px; margin-bottom:8px }
           .gr-chips{ gap:8px } .gr-chip{ width:34px; height:34px; font-size:11px; border-width:1.5px } .gr-chipLabel{ font-size:10px }
@@ -791,9 +793,9 @@ export function IsometricRoadmap({ statuses, done }: Props) {
           .btab-dot.current{ background:#fff; box-shadow:0 0 6px rgba(255,255,255,.7) }
           .gm-btab:disabled{ opacity:.35; -webkit-tap-highlight-color:transparent }
           .gm-btab:disabled .btab-icon{ background:none; box-shadow:none }
-          .gr-foot{ position:sticky; bottom:76px; padding:12px 0; background:rgba(10,15,30,.94); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); z-index:15; border-top:1px solid rgba(30,58,138,.15) }
           .gr-hint{ font-size:8px; letter-spacing:.1em } .gr-cta{ padding:8px 14px; font-size:9px; min-height:38px; clip-path:none; border-radius:8px }
-          .gm-right{ padding-bottom:12px; }
+          .gm-right{ padding-bottom:calc(76px + env(safe-area-inset-bottom, 0px)); }
+          .gr-body{ padding-bottom:8px; }
         }
         @media (prefers-reduced-motion: reduce){
           .gc-spark, .ge-ring, .gr-chip, .gm-cardWrap.shake, .reward::after{ animation:none !important }

@@ -110,7 +110,7 @@ export function MapPage() {
 
   const openStage = (id: StageId) => {
     if (statuses[id] === 'locked') return;
-    nav('/roadmap');
+    nav('/stages');
   };
 
   return (
@@ -267,7 +267,7 @@ export function MapPage() {
           {allDone ? (
             <button className="mp-cta" onClick={() => nav('/complete')}>Достижения →</button>
           ) : (
-            <button className="mp-cta" onClick={() => nav('/roadmap')}>Продолжить онбординг →</button>
+            <button className="mp-cta" onClick={() => nav('/stages')}>Продолжить онбординг →</button>
           )}
         </footer>
       </main>

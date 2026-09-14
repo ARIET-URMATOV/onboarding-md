@@ -154,7 +154,7 @@ export function ProfilePage() {
           </div>
 
           {/* XP — перенесён из шапки (виден на мобилках) */}
-          <button type="button" className="pf-xpCard" onClick={() => nav('/roadmap')} title="Перейти к этапам">
+          <button type="button" className="pf-xpCard" onClick={() => nav('/stages')} title="Перейти к этапам">
             <span className="pf-xpLvl">Lv.{lvl}</span>
             <span className="pf-xpBar" aria-hidden><i style={{ width: `${progress.pct}%` }} /></span>
             <span className="pf-xpNum">{xp >= 1000 ? `${(xp / 1000).toFixed(1)}k` : xp} XP</span>

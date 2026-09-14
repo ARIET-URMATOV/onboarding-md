@@ -981,3 +981,180 @@ def test_telegram_auto_add_fallback_invites(client, monkeypatch):
     assert "invite_links" in body
     client.patch("/api/admin/settings",
                  json={"key": "telegram.groups_json", "value": "[]", "mode": "replace"})
+
+
+def test_telegram_auto_add_sends_greeting(client, monkeypatch):
+    """Auto-add with greeting sends greet message to each added group."""
+    _reset_limits()
+    import app.routes.integrations as _tg
+    from app import config as _config
+
+    sent: list[dict] = []
+
+    async def _fake_call(token, method, payload):
+        if method == "unbanChatMember":
+            return {}
+        if method == "getChatMember":
+            return {"status": "member"}
+        if method == "sendMessage":
+            sent.append(payload)
+            return {}
+        raise AssertionError(f"unexpected: {method}")
+
+    async def _fake_resolve(db, token, handle):
+        return 777001
+
+    monkeypatch.setattr(_tg, "_tg_call", _fake_call)
+    monkeypatch.setattr(_tg, "_resolve_tg_id", _fake_resolve)
+    monkeypatch.setattr(_config.settings, "telegram_bot_token", "test-token")
+
+    email = _unique_email()
+    client.post("/api/register", json={"email": email, "password": "secret123"})
+    client.post("/api/role", json={"role": "frontend"})
+    _grant_staff(email)
+    client.patch("/api/admin/settings", json={
+        "key": "telegram.groups_json",
+        "value": '[{"title":"FE Team","chat_id":"-100777","roles":["frontend"]}]',
+        "mode": "replace",
+    })
+    client.patch("/api/profile", json={"telegram_username": "@greet_user"})
+
+    r = client.post("/api/integrations/telegram-auto-add",
+                    json={"greeting": "Привет, я новый!"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["added"] == ["FE Team"]
+    assert body["verified"] is True
+    assert "FE Team" in body["greeted"]
+    assert len(sent) == 1
+    assert "greet_user" in sent[0]["text"]
+    assert "Привет, я новый!" in sent[0]["text"]
+    assert sent[0]["chat_id"] == "-100777"
+
+    client.patch("/api/admin/settings",
+                 json={"key": "telegram.groups_json", "value": "[]", "mode": "replace"})
+
+
+def test_telegram_auto_add_greeting_failure_no_break(client, monkeypatch):
+    """Greeting send fails → greeted empty, but add still succeeds + verified."""
+    _reset_limits()
+    import app.routes.integrations as _tg
+    from app import config as _config
+
+    async def _fake_call(token, method, payload):
+        if method == "unbanChatMember":
+            return {}
+        if method == "getChatMember":
+            return {"status": "member"}
+        if method == "sendMessage":
+            raise RuntimeError("bot was kicked from group")
+        raise AssertionError(f"unexpected: {method}")
+
+    async def _fake_resolve(db, token, handle):
+        return 777001
+
+    monkeypatch.setattr(_tg, "_tg_call", _fake_call)
+    monkeypatch.setattr(_tg, "_resolve_tg_id", _fake_resolve)
+    monkeypatch.setattr(_config.settings, "telegram_bot_token", "test-token")
+
+    email = _unique_email()
+    client.post("/api/register", json={"email": email, "password": "secret123"})
+    client.post("/api/role", json={"role": "frontend"})
+    _grant_staff(email)
+    client.patch("/api/admin/settings", json={
+        "key": "telegram.groups_json",
+        "value": '[{"title":"FE X","chat_id":"-100888","roles":["frontend"]}]',
+        "mode": "replace",
+    })
+    client.patch("/api/profile", json={"telegram_username": "@fail_greet"})
+
+    r = client.post("/api/integrations/telegram-auto-add",
+                    json={"greeting": "Hi all"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["added"] == ["FE X"]
+    assert body["greeted"] == []
+    assert body["verified"] is True
+
+    client.patch("/api/admin/settings",
+                 json={"key": "telegram.groups_json", "value": "[]", "mode": "replace"})
+
+
+def test_webhook_register_and_status(client, monkeypatch):
+    """POST /admin/telegram-webhook/register calls setWebhook; GET returns getWebhookInfo."""
+    _reset_limits()
+    import httpx
+
+    from app import config as _config
+
+    monkeypatch.setattr(_config.settings, "telegram_bot_token", "test-tok")
+    monkeypatch.setattr(_config.settings, "telegram_webhook_secret", "test-wh-secret")
+    monkeypatch.setattr(_config.settings, "public_base_url", "https://example.com")
+
+    email = _unique_email()
+    client.post("/api/register", json={"email": email, "password": "secret123"})
+    _grant_staff(email)
+
+    calls: list[dict] = []
+
+    async def _fake_post(url, json=None, **kw):  # type: ignore[no-untyped-def]
+        calls.append({"url": url, "json": json})
+        r = httpx.Response(200, json={"ok": True, "result": True, "description": "Webhook was set"})
+        return r
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", _fake_post)
+
+    # register
+    r = client.post("/api/admin/telegram-webhook/register")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["ok"] is True
+    assert "example.com/api/integrations/telegram-webhook" in body["url"]
+    assert len(calls) == 1
+    assert "setWebhook" in calls[0]["url"]
+    assert calls[0]["json"]["secret_token"] == "test-wh-secret"
+
+    # status
+    async def _fake_post_status(url, json=None, **kw):  # type: ignore[no-untyped-def]
+        return httpx.Response(200, json={
+            "ok": True,
+            "result": {
+                "url": "https://example.com/api/integrations/telegram-webhook",
+                "pending_update_count": 0,
+                "last_error_message": "",
+            },
+        })
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", _fake_post_status)
+    r2 = client.get("/api/admin/telegram-webhook/status")
+    assert r2.status_code == 200
+    info = r2.json()
+    assert info["url"] == "https://example.com/api/integrations/telegram-webhook"
+    assert info["pending_update_count"] == 0
+
+
+def test_webhook_register_requires_staff(client):
+    """Non-staff user gets 401/403 on webhook endpoints."""
+    _reset_limits()
+    r1 = client.post("/api/admin/telegram-webhook/register")
+    assert r1.status_code in (401, 403)
+    r2 = client.get("/api/admin/telegram-webhook/status")
+    assert r2.status_code in (401, 403)
+
+
+def test_webhook_register_missing_env(client, monkeypatch):
+    """Register returns 501 if PUBLIC_BASE_URL is not set."""
+    _reset_limits()
+    from app import config as _config
+
+    monkeypatch.setattr(_config.settings, "telegram_bot_token", "test-tok")
+    monkeypatch.setattr(_config.settings, "telegram_webhook_secret", "test-wh-secret")
+    monkeypatch.setattr(_config.settings, "public_base_url", "")
+
+    email = _unique_email()
+    client.post("/api/register", json={"email": email, "password": "secret123"})
+    _grant_staff(email)
+
+    r = client.post("/api/admin/telegram-webhook/register")
+    assert r.status_code == 501
+    assert "PUBLIC_BASE_URL" in r.json()["detail"]

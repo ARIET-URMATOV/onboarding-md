@@ -254,7 +254,7 @@ export function DashboardPage() {
           </p>
 
           <motion.div className="h-actions" initial={{ opacity: 0, y: 12 }} animate={revealed ? { opacity: 1, y: 0 } : {}} transition={{ delay: 0.54, duration: 0.6 }}>
-            <Link to="/roadmap" className="btn-f primary"><span className="btn-glow" aria-hidden />Начать</Link>
+            <Link to="/stages" className="btn-f primary"><span className="btn-glow" aria-hidden />Начать</Link>
             <Link to="/map" className="btn-f secondary">Карта</Link>
           </motion.div>
 

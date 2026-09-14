@@ -511,3 +511,65 @@ async def update_setting(
     db.add(row)
     await db.commit()
     return await get_settings(request, db, staff)
+
+
+# ── Telegram webhook management ──────────────────────────────────────
+
+
+async def _tg_api(method: str, payload: dict) -> dict:
+    """Call Telegram Bot API (import httpx locally to avoid circular deps)."""
+    import httpx
+
+    from app.config import settings as _cfg
+
+    if not _cfg.telegram_bot_token:
+        raise HTTPException(status_code=501, detail="TELEGRAM_BOT_TOKEN не задан.")
+    url = f"https://api.telegram.org/bot{_cfg.telegram_bot_token}/{method}"
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(url, json=payload)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Telegram API недоступен: {e}")
+    try:
+        data = resp.json()
+    except Exception:
+        data = {}
+    if not data.get("ok"):
+        raise HTTPException(status_code=502, detail=str(data.get("description") or f"HTTP {resp.status_code}"))
+    return data.get("result") or {}
+
+
+@router.post("/admin/telegram-webhook/register")
+@limiter.limit("5/minute")
+async def register_webhook(
+    request: Request,
+    db: AsyncSession = Depends(get_db),  # noqa: ARG001
+    staff: User = Depends(require_staff),
+):
+    """Зарегистрировать / перерегистрировать webhook (вызывает setWebhook)."""
+    from app.config import settings as _cfg
+
+    if not _cfg.telegram_bot_token:
+        raise HTTPException(status_code=501, detail="TELEGRAM_BOT_TOKEN не задан.")
+    if not _cfg.telegram_webhook_secret:
+        raise HTTPException(status_code=501, detail="TELEGRAM_WEBHOOK_SECRET не задан — сгенерируйте (openssl rand -hex 32).")
+    if not _cfg.public_base_url:
+        raise HTTPException(status_code=501, detail="PUBLIC_BASE_URL не задан — укажите https://<backend-url>.")
+    wh_url = f"{_cfg.public_base_url.rstrip('/')}/api/integrations/telegram-webhook"
+    result = await _tg_api("setWebhook", {
+        "url": wh_url,
+        "secret_token": _cfg.telegram_webhook_secret,
+        "allowed_updates": ["message", "edited_message", "my_chat_member"],
+    })
+    return {"ok": True, "url": wh_url, "result": result}
+
+
+@router.get("/admin/telegram-webhook/status")
+@limiter.limit("10/minute")
+async def webhook_status(
+    request: Request,
+    db: AsyncSession = Depends(get_db),  # noqa: ARG001
+    staff: User = Depends(require_staff),
+):
+    """Текущий статус webhook (getWebhookInfo)."""
+    return await _tg_api("getWebhookInfo", {})
