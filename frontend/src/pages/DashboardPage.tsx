@@ -254,21 +254,20 @@ export function DashboardPage() {
             Где рождаются инновационные решения
           </p>
 
-          <motion.div initial={{ opacity: 0, y: 8 }} animate={revealed ? { opacity: 1, y: 0 } : {}} transition={{ delay: 0.46, duration: 0.5 }}>
-            <SlaBanner />
-          </motion.div>
-
-          <motion.div className="h-actions" initial={{ opacity: 0, y: 12 }} animate={revealed ? { opacity: 1, y: 0 } : {}} transition={{ delay: 0.54, duration: 0.6 }}>
+          <motion.div className="h-actions" initial={{ opacity: 0, y: 12 }} animate={revealed ? { opacity: 1, y: 0 } : {}} transition={{ delay: 0.46, duration: 0.6 }}>
             <Link to="/stages" className="btn-f primary"><span className="btn-glow" aria-hidden />Начать</Link>
             <Link to="/map" className="btn-f secondary">Карта</Link>
           </motion.div>
 
-          <motion.div className="h-progress" initial={{ opacity: 0 }} animate={revealed ? { opacity: 1 } : {}} transition={{ delay: 0.67, duration: 0.6 }}>
+          <motion.div className="h-progress" initial={{ opacity: 0 }} animate={revealed ? { opacity: 1 } : {}} transition={{ delay: 0.54, duration: 0.6 }}>
             <div className="hp-head font-mono">
               <span>Прогресс онбординга · Уровень {lvl}</span>
               <span>{progress.done}/5{current ? ` · Этап 0${current.id}` : ''}</span>
             </div>
             <div className="hp-bar"><i style={{ width: `${progress.pct}%` }}><span className="hp-shine" aria-hidden /></i></div>
+            <div className="hp-sla">
+              <SlaBanner compact />
+            </div>
           </motion.div>
         </div>
 
@@ -512,6 +511,8 @@ export function DashboardPage() {
           transform: translateX(-100%); animation: hpShine 2.8s ease 1s infinite;
         }
         @keyframes hpShine{ 60%{ transform:translateX(100%) } 100%{ transform:translateX(100%) } }
+
+        .hp-sla{ display:flex; justify-content:center; margin-top:12px; }
 
         .hero-tools{
           position:absolute; right:16px; bottom:16px; z-index:3;

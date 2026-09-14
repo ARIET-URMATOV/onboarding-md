@@ -22,7 +22,7 @@ function slaLabel(sla: SlaStatus): string {
   }
 }
 
-export function SlaBanner() {
+export function SlaBanner({ compact }: { compact?: boolean }) {
   const sla = useOnboarding((s) => s.sla);
   if (!sla) return null;
 
@@ -30,16 +30,42 @@ export function SlaBanner() {
   const isOverdue = sla.status === 'overdue';
   const isDone = sla.status === 'done' || sla.status === 'done_late';
 
+  if (compact) {
+    const label = sla.status === 'overdue'
+      ? `Просрочено ${Math.floor((Date.now() - new Date(sla.deadline).getTime()) / 86400000)}дн`
+      : sla.status === 'due_today'
+      ? 'Последний день'
+      : isDone
+      ? 'Завершено'
+      : `${sla.days_left}дн из ${sla.total_days}`;
+    return (
+      <span className="sla-compact" style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6,
+        padding: '4px 10px', borderRadius: 999,
+        background: c.bg, border: `1px solid ${c.border}`,
+        fontSize: 11, color: c.text, lineHeight: 1,
+        whiteSpace: 'nowrap', flexShrink: 0,
+      }}>
+        <span style={{ display: 'grid', placeItems: 'center', width: 13, height: 13, lineHeight: 0, flexShrink: 0 }}>
+          {isDone ? <CheckCircle size={12} style={{ color: c.icon, display: 'block' }} />
+            : isOverdue ? <XCircle size={12} style={{ color: c.icon, display: 'block' }} />
+            : <Clock size={12} style={{ color: c.icon, display: 'block' }} />}
+        </span>
+        <span>{label}</span>
+      </span>
+    );
+  }
+
   return (
     <div className="sla-banner" style={{
       display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px',
       borderRadius: 10, background: c.bg, border: `1px solid ${c.border}`,
       fontSize: 12.5, color: c.text, lineHeight: 1.5,
     }}>
-      <span style={{ flexShrink: 0 }}>
-        {isDone ? <CheckCircle size={15} style={{ color: c.icon }} />
-          : isOverdue ? <XCircle size={15} style={{ color: c.icon }} />
-          : <Clock size={15} style={{ color: c.icon }} />}
+      <span style={{ display: 'grid', placeItems: 'center', width: 16, height: 16, lineHeight: 0, flexShrink: 0 }}>
+        {isDone ? <CheckCircle size={15} style={{ color: c.icon, display: 'block' }} />
+          : isOverdue ? <XCircle size={15} style={{ color: c.icon, display: 'block' }} />
+          : <Clock size={15} style={{ color: c.icon, display: 'block' }} />}
       </span>
       <span style={{ flex: 1 }}>{slaLabel(sla)}</span>
       {!isDone && (
