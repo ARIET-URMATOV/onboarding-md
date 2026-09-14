@@ -105,7 +105,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from app.routes import admin, auth, integrations, progress, services, stages  # noqa: E402
+from app.routes import admin, auth, integrations, notifications, progress, services, stages  # noqa: E402
 
 app.include_router(auth.router, prefix="/api", tags=["auth"])
 app.include_router(progress.router, prefix="/api", tags=["progress"])
@@ -113,6 +113,7 @@ app.include_router(stages.router, prefix="/api", tags=["stages"])
 app.include_router(admin.router, prefix="/api", tags=["admin"])
 app.include_router(integrations.router, prefix="/api", tags=["integrations"])
 app.include_router(services.router, prefix="/api", tags=["services"])
+app.include_router(notifications.router, prefix="/api", tags=["notifications"])
 
 
 @app.websocket("/ws/admin")
@@ -142,7 +143,7 @@ async def ws_admin(websocket: WebSocket):
 
 @app.websocket("/ws/me")
 async def ws_me(websocket: WebSocket):
-    """Live-лента сотрудника: verified (его задачи) — фронт делает refreshMe."""
+    """Live-лента сотрудника: verified/verified_batch/rejected/wifi_password + notification."""
     from app.database import SessionLocal
     from app.notify import subscribe, unsubscribe
     from app.routes.auth import user_from_token
@@ -154,18 +155,21 @@ async def ws_me(websocket: WebSocket):
         await websocket.close(code=4401)
         return
     email = user.email
+    user_id = user.id
     q = subscribe()
     try:
         while True:
             msg = await q.get()
             try:
                 import json
-
                 evt = json.loads(msg)
             except Exception:
                 continue
-            # сотруднику — только его verified/verified_batch/rejected/wifi_password
-            if evt.get("type") in ("verified", "verified_batch", "rejected", "wifi_password") and evt.get("email") == email:
+            evt_type = evt.get("type")
+            # сотруднику — только его события
+            if evt_type in ("verified", "verified_batch", "rejected", "wifi_password") and evt.get("email") == email:
+                await websocket.send_text(msg)
+            elif evt_type == "notification" and evt.get("to_user_id") == user_id:
                 await websocket.send_text(msg)
     except Exception:
         pass

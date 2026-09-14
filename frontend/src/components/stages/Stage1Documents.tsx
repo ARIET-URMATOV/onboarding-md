@@ -8,6 +8,7 @@ import {
 import confetti from 'canvas-confetti';
 import type { StageId } from '../../data/stages';
 import { useOnboarding } from '../../store/useOnboarding';
+import { SlaBanner } from '../ui/SlaBanner';
 import { DocumentModal, type DocKind } from './DocumentModal';
 import { useToast } from '../ui/ToastProvider';
 import { api } from '../../api/client';
@@ -54,10 +55,8 @@ export function Stage1Documents({ stageId }: Props) {
   const requestTask = useOnboarding((s) => s.requestTask);
   const refreshMe = useOnboarding((s) => s.refreshMe);
   const connectLive = useOnboarding((s) => s.connectLive);
-  const createdAt = useOnboarding((s) => s.createdAt);
   const user = useOnboarding((s) => s.user);
   const myRole = useOnboarding((s) => s.role);
-  const resolvedCreatedAt = (user as unknown as { createdAt?: string | null })?.createdAt ?? createdAt ?? null;
   const toast = useToast();
 
   const [open, setOpen] = useState<DocKind | null>(null);
@@ -172,18 +171,6 @@ export function Stage1Documents({ stageId }: Props) {
       setReqMsg(e instanceof Error ? e.message : 'Не удалось отправить запрос');
     });
   };
-
-  // SLA
-  const sla = useMemo(() => {
-    if (!resolvedCreatedAt) return { overdue: false, daysLeft: null as number | null, label: 'SLA: 1 неделя с момента старта' };
-    const start = new Date(resolvedCreatedAt).getTime();
-    if (Number.isNaN(start)) return { overdue: false, daysLeft: null, label: 'SLA: 1 неделя с момента старта' };
-    const now = Date.now();
-    const diffDays = (now - start) / (1000 * 60 * 60 * 24);
-    const overdue = diffDays > 7;
-    const daysLeft = Math.max(0, Math.ceil(7 - diffDays));
-    return { overdue, daysLeft, label: overdue ? `Просрочено: ${Math.floor(diffDays)} дн. с регистрации` : `Осталось ${daysLeft} дн. из 7` };
-  }, [resolvedCreatedAt]);
 
   const step1Done = ['1-dogovor','1-nda','1-pdp','1-ip','1-sn'].every(id => done.includes(id));
   const STEP2_IDS = ['1-mbusiness','1-accountant','1-wifi','1-proxy','1-telegram','1-jira','1-figma','1-gitlab'];
@@ -453,15 +440,7 @@ export function Stage1Documents({ stageId }: Props) {
 
   return (
     <div className="stage-content s1-steps">
-      <div className={`sla-banner ${sla.overdue && !step1Done && !step2Done ? 'overdue' : ''}`}>
-        <span className="sla-icon">{sla.overdue ? <XCircle size={15} /> : <Clock size={15} />}</span>
-        <span className="sla-text">
-          {sla.overdue && (!step1Done || !step2Done || !step3Done || !step4ExplicitDone)
-            ? 'SLA превышен: этап не выполнен в течение 1 недели с момента регистрации'
-            : `SLA: 1 неделя с момента старта онбординга — ${sla.label}`}
-        </span>
-        {resolvedCreatedAt && <span className="sla-date">Старт: {new Date(resolvedCreatedAt).toLocaleDateString('ru-RU')}</span>}
-      </div>
+      <SlaBanner />
 
       {/* ── Шаг 1 ── */}
       <section className={`s1-step ${effectiveOpen === 1 ? 'open' : ''}`}>
@@ -788,58 +767,8 @@ export function Stage1Documents({ stageId }: Props) {
   }
 
   /* ═══════════════════════════════════════════════════════════════
-     SLA
+     SLA — SlaBanner component handles its own inline styles
   ═══════════════════════════════════════════════════════════════ */
-  .sla-banner {
-    position: relative;
-    display: flex; align-items: center; gap: 10px;
-    padding: 10px 14px;
-    border-radius: var(--r-md);
-    font-size: 11.5px; font-weight: 500;
-    line-height: 1.45;
-    color: #BFDBFE;
-    background: rgba(59, 130, 246, 0.04);
-    border: 1px solid var(--blue-line);
-    flex-wrap: wrap; overflow: hidden;
-  }
-  .sla-banner::after {
-    content: '';
-    position: absolute;
-    left: 0; right: 0; bottom: 0;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, var(--blue-hi) 50%, transparent);
-    background-size: 40% 100%;
-    background-repeat: no-repeat;
-    animation: slaSweep 5s ease-in-out infinite;
-    opacity: 0.6;
-  }
-  @keyframes slaSweep {
-    0%   { background-position: -40% 0; }
-    100% { background-position: 140% 0; }
-  }
-  .sla-banner.overdue {
-    background: rgba(248, 113, 113, 0.05);
-    border-color: var(--err-line);
-    color: #FECACA;
-  }
-  .sla-banner.overdue::after {
-    background: linear-gradient(90deg, transparent, #F87171 50%, transparent);
-    animation-duration: 3s;
-  }
-  .sla-icon {
-    display: grid; place-items: center;
-    width: 20px; height: 20px; flex-shrink: 0;
-    color: #93C5FD;
-  }
-  .sla-banner.overdue .sla-icon { color: #FCA5A5; }
-  .sla-text { flex: 1; min-width: 0; }
-  .sla-date {
-    margin-left: auto;
-    font-size: 10.5px; font-weight: 500;
-    color: var(--ink-3);
-    font-variant-numeric: tabular-nums;
-    letter-spacing: 0.02em;
-  }
 
   /* ═══════════════════════════════════════════════════════════════
      STEP
@@ -1633,9 +1562,7 @@ export function Stage1Documents({ stageId }: Props) {
     .mpulse-verify { padding: 12px; }
     .mpulse-verify-title { font-size: 11.5px; }
     .doc-hint { font-size: 10px; padding: 7px 10px; }
-    .sla-banner { font-size: 11px; padding: 9px 11px; }
-    .sla-date { font-size: 10px; }
-    .sla-banner::after { display: none; }
+    /* SlaBanner uses inline styles — no mobile overrides needed */
     .mpulse-icon-img { width: 52px; height: 52px; padding: 7px; }
     .dc-icon { width: 38px; height: 38px; padding: 6px; }
     .mpulse-input, .mpulse-btn { height: 30px; font-size: 12.5px; }

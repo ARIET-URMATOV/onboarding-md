@@ -281,9 +281,29 @@ class ServicePatchIn(BaseModel):
     details: str | None = Field(default=None, max_length=5000)
 
 
+class SlaStatusOut(BaseModel):
+    deadline: str
+    days_left: int
+    total_days: int = 7
+    status: str  # active | due_today | overdue | done | done_late
+    started_at: str
+
+
+class NotificationOut(BaseModel):
+    id: int
+    kind: str
+    title: str
+    body: str
+    meta: dict = {}
+    created_at: str | None = None
+    read: bool = False
+
+
 class MeOut(BaseModel):
     user: UserOut
     progress: ProgressOut
+    sla: SlaStatusOut | None = None
+    unread_count: int = 0
 
 
 class OkOut(BaseModel):

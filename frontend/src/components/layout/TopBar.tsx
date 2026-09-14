@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Bell, User as UserIcon, Sparkles } from 'lucide-react';
+import { Bell, User as UserIcon, Sparkles, BellDot } from 'lucide-react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useOnboarding, getProgress } from '../../store/useOnboarding';
 import { api } from '../../api/client';
@@ -20,6 +20,11 @@ export function TopBar() {
   const isDashboard = pathname === '/dashboard';
   const isStaff = user?.isStaff ?? false;
   const [pendingCount, setPendingCount] = useState(0);
+  const unreadCount = useOnboarding((s) => s.unreadCount);
+  const fetchNotifications = useOnboarding((s) => s.fetchNotifications);
+  const markAllNotificationsRead = useOnboarding((s) => s.markAllNotificationsRead);
+  const [showNotifPanel, setShowNotifPanel] = useState(false);
+  const notifications = useOnboarding((s) => s.notifications);
 
   // HR Notification Count Polling (30s)
   useEffect(() => {
@@ -43,6 +48,15 @@ export function TopBar() {
       clearInterval(id);
     };
   }, [isStaff]);
+
+  // Employee notifications: fetch on mount
+  useEffect(() => {
+    if (!isStaff) {
+      fetchNotifications();
+      const id = setInterval(fetchNotifications, 60000);
+      return () => clearInterval(id);
+    }
+  }, [isStaff, fetchNotifications]);
 
   return (
     <header className={`topbar-wrapper ${isDashboard ? 'mode-overlay' : 'mode-sticky'}`}>
@@ -76,6 +90,54 @@ export function TopBar() {
               </span>
             )}
           </button>
+        )}
+
+        {/* Employee Notification Bell */}
+        {!isStaff && (
+          <button
+            type="button"
+            className="t-icon-btn t-bell"
+            onClick={() => setShowNotifPanel(!showNotifPanel)}
+            title="Уведомления"
+            aria-label="Уведомления"
+          >
+            {unreadCount > 0 ? <BellDot size={18} className="notif-active" /> : <Bell size={18} />}
+            {unreadCount > 0 && (
+              <span className="t-bell-badge">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
+          </button>
+        )}
+
+        {/* Employee Notification Panel */}
+        {!isStaff && showNotifPanel && (
+          <div className="notif-panel">
+            <div className="notif-panel-head">
+              <span>Уведомления</span>
+              {unreadCount > 0 && (
+                <button type="button" className="notif-mark-all" onClick={() => markAllNotificationsRead()}>
+                  Прочитать все
+                </button>
+              )}
+            </div>
+            <div className="notif-panel-list">
+              {notifications.length === 0 && (
+                <div className="notif-empty">Нет уведомлений</div>
+              )}
+              {notifications.slice(0, 20).map((n) => (
+                <div
+                  key={n.id}
+                  className={`notif-item ${n.read ? '' : 'unread'}`}
+                  onClick={() => { if (!n.read) useOnboarding.getState().markNotificationRead(n.id); }}
+                >
+                  <div className="notif-item-title">{n.title}</div>
+                  {n.body && <div className="notif-item-body">{n.body}</div>}
+                  {n.created_at && <div className="notif-item-time">{new Date(n.created_at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>}
+                </div>
+              ))}
+            </div>
+          </div>
         )}
 
         {/* Level & XP Widget */}
@@ -420,6 +482,94 @@ export function TopBar() {
             opacity: 1;
             transform: translateY(0);
           }
+        }
+
+        .notif-active { color: #FBBF24; }
+
+        .notif-panel {
+          position: absolute;
+          top: 100%;
+          right: 16px;
+          width: 340px;
+          max-height: 420px;
+          background: rgba(13, 16, 27, 0.95);
+          backdrop-filter: blur(20px);
+          border: 1px solid rgba(255,255,255,0.1);
+          border-radius: 12px;
+          box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+          z-index: 50;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          animation: notifIn 0.18s ease;
+        }
+        @keyframes notifIn {
+          from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+          to { opacity: 1; transform: none; }
+        }
+        .notif-panel-head {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 12px 14px;
+          border-bottom: 1px solid rgba(255,255,255,0.07);
+          font-size: 13px;
+          font-weight: 700;
+          color: rgba(255,255,255,0.85);
+        }
+        .notif-mark-all {
+          font-size: 11px;
+          color: #60A5FA;
+          background: none;
+          border: none;
+          cursor: pointer;
+          padding: 2px 6px;
+          border-radius: 6px;
+        }
+        .notif-mark-all:hover { background: rgba(59,130,246,0.12); }
+        .notif-panel-list {
+          overflow-y: auto;
+          flex: 1;
+          max-height: 360px;
+          scrollbar-width: thin;
+        }
+        .notif-empty {
+          padding: 28px 14px;
+          text-align: center;
+          font-size: 12px;
+          color: rgba(255,255,255,0.35);
+        }
+        .notif-item {
+          padding: 10px 14px;
+          border-bottom: 1px solid rgba(255,255,255,0.04);
+          cursor: pointer;
+          transition: background 0.12s;
+        }
+        .notif-item:hover { background: rgba(255,255,255,0.03); }
+        .notif-item.unread {
+          background: rgba(59,130,246,0.04);
+          border-left: 3px solid #3B82F6;
+        }
+        .notif-item-title {
+          font-size: 12.5px;
+          font-weight: 600;
+          color: rgba(255,255,255,0.85);
+          margin-bottom: 2px;
+        }
+        .notif-item-body {
+          font-size: 11.5px;
+          color: rgba(255,255,255,0.5);
+          line-height: 1.45;
+        }
+        .notif-item-time {
+          font-size: 10px;
+          color: rgba(255,255,255,0.25);
+          margin-top: 4px;
+          font-variant-numeric: tabular-nums;
+        }
+
+        @media (max-width: 480px) {
+          .notif-panel { width: calc(100vw - 20px); right: 10px; }
         }
       `}</style>
     </header>

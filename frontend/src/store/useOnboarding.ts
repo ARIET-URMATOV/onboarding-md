@@ -5,6 +5,24 @@ import type { StageId, Role } from '../data/stages';
 
 export type StageStatus = 'locked' | 'current' | 'done';
 
+export interface SlaStatus {
+  deadline: string;
+  days_left: number;
+  total_days: number;
+  status: 'active' | 'due_today' | 'overdue' | 'done' | 'done_late';
+  started_at: string;
+}
+
+export interface NotificationItem {
+  id: number;
+  kind: string;
+  title: string;
+  body: string;
+  meta: Record<string, unknown>;
+  created_at: string | null;
+  read: boolean;
+}
+
 interface User {
   email: string;
   name: string;
@@ -29,6 +47,9 @@ interface OnboardingState {
   rejected: { task_id: string; note: string }[];
   lastVerifiedAt: number | null;
   lastVerifiedTask: string | null;
+  sla: SlaStatus | null;
+  unreadCount: number;
+  notifications: NotificationItem[];
   // actions
   hydrate: (me: MeResponse) => void;
   refreshMe: () => Promise<void>;
@@ -45,6 +66,9 @@ interface OnboardingState {
   setVoiceEnabled: (enabled: boolean) => Promise<void>;
   connectLive: () => () => void;
   consumeVerified: () => void;
+  fetchNotifications: () => Promise<void>;
+  markNotificationRead: (id: number) => Promise<void>;
+  markAllNotificationsRead: () => Promise<void>;
 }
 
 let liveSocket: WebSocket | null = null;
@@ -86,6 +110,9 @@ export const useOnboarding = create<OnboardingState>()((set, get) => ({
   rejected: [],
   lastVerifiedAt: null,
   lastVerifiedTask: null,
+  sla: null,
+  unreadCount: 0,
+  notifications: [],
 
   hydrate: (me) =>
     set({
@@ -99,6 +126,8 @@ export const useOnboarding = create<OnboardingState>()((set, get) => ({
       completedAt: me.progress.completed_at ?? null,
       createdAt: me.user.created_at ?? null,
       hydrated: true,
+      sla: (me as any).sla ?? null,
+      unreadCount: (me as any).unread_count ?? 0,
     }),
 
   refreshMe: async () => {
@@ -117,6 +146,8 @@ export const useOnboarding = create<OnboardingState>()((set, get) => ({
   login: (me) => {
     get().hydrate(me);
     void get().fetchPending();
+    // Fetch full /me to get SLA + notifications (demo_login/me_out doesn't include them)
+    void get().refreshMe();
   },
 
   logout: async () => {
@@ -179,7 +210,7 @@ export const useOnboarding = create<OnboardingState>()((set, get) => ({
   },
 
   connectLive: () => {
-    // Live-лента сотрудника: HR подтвердил → обновить прогресс без рефреша.
+    // Live-лента сотрудника: HR подтвердил → обновить прогресс без рефреша + уведомления.
     if (liveSocket) return () => undefined;
     try {
       const ws = new WebSocket(wsUrl('/ws/me'));
@@ -194,6 +225,15 @@ export const useOnboarding = create<OnboardingState>()((set, get) => ({
               set({ lastVerifiedAt: Date.now(), lastVerifiedTask: String(data.task_ids[0]) });
             }
             void get().refreshMe();
+          } else if (data && data.type === 'notification' && data.notification) {
+            // WS уведомление: обновить unreadCount и список
+            set((s) => ({
+              unreadCount: s.unreadCount + 1,
+              notifications: [
+                { ...data.notification, read: false } as NotificationItem,
+                ...s.notifications,
+              ].slice(0, 50),
+            }));
           }
         } catch { /* ignore */ }
       };
@@ -290,6 +330,29 @@ export const useOnboarding = create<OnboardingState>()((set, get) => ({
     const prev = get().voiceEnabled;
     set({ voiceEnabled: enabled });
     try { await api.post('/api/voice', { enabled }); } catch { set({ voiceEnabled: prev }); }
+  },
+
+  fetchNotifications: async () => {
+    try {
+      const rows = await api.get<NotificationItem[]>('/api/notifications');
+      set({ notifications: rows, unreadCount: rows.filter((n) => !n.read).length });
+    } catch { /* не критично */ }
+  },
+
+  markNotificationRead: async (id) => {
+    set((s) => ({
+      notifications: s.notifications.map((n) => n.id === id ? { ...n, read: true } : n),
+      unreadCount: Math.max(0, s.unreadCount - 1),
+    }));
+    try { await api.post(`/api/notifications/${id}/read`); } catch { /* ignore */ }
+  },
+
+  markAllNotificationsRead: async () => {
+    set((s) => ({
+      notifications: s.notifications.map((n) => ({ ...n, read: true })),
+      unreadCount: 0,
+    }));
+    try { await api.post('/api/notifications/read-all'); } catch { /* ignore */ }
   },
 }));
 

@@ -60,6 +60,14 @@ export interface MeResponse {
     level: number;
     completed_at: string | null;
   };
+  sla?: {
+    deadline: string;
+    days_left: number;
+    total_days: number;
+    status: 'active' | 'due_today' | 'overdue' | 'done' | 'done_late';
+    started_at: string;
+  } | null;
+  unread_count?: number;
 }
 
 export interface UserResponse {

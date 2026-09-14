@@ -4,13 +4,13 @@ from datetime import datetime, timedelta, timezone
 import jwt
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response
 from passlib.context import CryptContext
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import get_db
 from app.limiter import limiter
-from app.models import PendingRequest, Progress, User, VerificationLog, WifiMac
+from app.models import Notification, PendingRequest, Progress, User, VerificationLog, WifiMac, utcnow
 from app.schemas import (
     LoginIn,
     MeOut,
@@ -253,7 +253,21 @@ async def logout(response: Response):
 @router.get("/me", response_model=MeOut)
 async def me(db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
     prog = await ensure_progress(db, user)
-    return me_out(user, prog)
+    out = me_out(user, prog)
+
+    # SLA status
+    from app.sla import sla_status
+    out.sla = sla_status(user.created_at, prog.completed_at)
+
+    # Unread notifications count
+    out.unread_count = (await db.execute(
+        select(func.count(Notification.id)).where(
+            Notification.user_id == user.id,
+            Notification.read_at.is_(None),
+        )
+    )).scalar() or 0
+
+    return out
 
 
 @router.post("/role", response_model=UserOut)
@@ -386,7 +400,8 @@ async def demo_reset(
         await db.refresh(demo)
     else:
         # Связанные строки демо-пользователя — полный wipe.
-        for table in (PendingRequest, WifiMac, VerificationLog):
+        from app.models import Notification
+        for table in (PendingRequest, WifiMac, VerificationLog, Notification):
             rows = (await db.execute(select(table).where(table.user_id == demo.id))).scalars().all()
             for row in rows:
                 await db.delete(row)
@@ -398,6 +413,7 @@ async def demo_reset(
         demo.intro_seen = False
         demo.voice_enabled = True
         demo.avatar = None
+        demo.created_at = utcnow()
         db.add(demo)
         await db.flush()
         # Сразу создаём пустой прогресс, чтобы /me после reset отдавал xp=0

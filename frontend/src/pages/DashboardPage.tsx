@@ -5,6 +5,7 @@ import { TopBar } from '../components/layout/TopBar';
 import { useOnboarding, getAllStatuses, getProgress } from '../store/useOnboarding';
 import { STAGES } from '../data/stages';
 import { usePageMeta } from '../hooks/usePageMeta';
+import { SlaBanner } from '../components/ui/SlaBanner';
 
 type Phase = 'dark' | 'flight' | 'done';
 const DUR = 1400;
@@ -252,6 +253,10 @@ export function DashboardPage() {
           <p className="h-sub">
             Где рождаются инновационные решения
           </p>
+
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={revealed ? { opacity: 1, y: 0 } : {}} transition={{ delay: 0.46, duration: 0.5 }}>
+            <SlaBanner />
+          </motion.div>
 
           <motion.div className="h-actions" initial={{ opacity: 0, y: 12 }} animate={revealed ? { opacity: 1, y: 0 } : {}} transition={{ delay: 0.54, duration: 0.6 }}>
             <Link to="/stages" className="btn-f primary"><span className="btn-glow" aria-hidden />Начать</Link>
