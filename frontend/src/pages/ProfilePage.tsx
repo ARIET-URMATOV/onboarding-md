@@ -44,6 +44,11 @@ export function ProfilePage() {
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
 
+  // AD / OIDC profile fields
+  const [department, setDepartment] = useState(user?.department ?? '');
+  const [position, setPosition] = useState(user?.position ?? '');
+  const [office, setOffice] = useState(user?.office ?? '');
+
   const [pwCurrent, setPwCurrent] = useState('');
   const [pwNew, setPwNew] = useState('');
   const [pwConfirm, setPwConfirm] = useState('');
@@ -81,8 +86,13 @@ export function ProfilePage() {
     setProfileLoading(true);
     setProfileError(null);
     try {
-      const patch: { name?: string; avatar?: string | null } = { name: name.trim() };
+      const patch: { name?: string; avatar?: string | null; department?: string | null; position?: string | null; office?: string | null } = { name: name.trim() };
       if (avatar !== undefined) patch.avatar = avatar;
+      if (user.oidc_sub) {
+        if (department.trim()) patch.department = department.trim();
+        if (position.trim()) patch.position = position.trim();
+        if (office.trim()) patch.office = office.trim();
+      }
       await updateProfile(patch);
       setProfileSaved(true);
       window.setTimeout(() => setProfileSaved(false), 2200);
@@ -172,6 +182,65 @@ export function ProfilePage() {
             <button type="button" className="pf-save" disabled={profileLoading} onClick={() => saveProfile()}>
               {profileLoading ? 'Сохраняем…' : profileSaved ? 'Сохранено ✓' : 'Сохранить изменения'}
             </button>
+          </section>
+
+          {/* Рабочая информация */}
+          <section className="pf-section">
+            <div className="pf-label">Рабочая информация</div>
+            {user.oidc_sub ? (
+              // OIDC user — editable fields
+              <>
+                <label className="pf-field">
+                  <span>Департамент</span>
+                  <input value={department} onChange={(e) => setDepartment(e.target.value)} maxLength={120} placeholder="Например: IT" />
+                </label>
+                <label className="pf-field">
+                  <span>Должность</span>
+                  <input value={position} onChange={(e) => setPosition(e.target.value)} maxLength={120} placeholder="Например: Senior Developer" />
+                </label>
+                <label className="pf-field">
+                  <span>Офис</span>
+                  <input value={office} onChange={(e) => setOffice(e.target.value)} maxLength={120} placeholder="Например: Bishkek" />
+                </label>
+              </>
+            ) : (
+              // AD user — read-only display
+              <>
+                {user.department && (
+                  <div className="pf-field-readonly">
+                    <span>Департамент</span>
+                    <span className="pf-value">{user.department}</span>
+                  </div>
+                )}
+                {user.position && (
+                  <div className="pf-field-readonly">
+                    <span>Должность</span>
+                    <span className="pf-value">{user.position}</span>
+                  </div>
+                )}
+                {user.office && (
+                  <div className="pf-field-readonly">
+                    <span>Офис</span>
+                    <span className="pf-value">{user.office}</span>
+                  </div>
+                )}
+                {user.ad_login && (
+                  <div className="pf-field-readonly">
+                    <span>AD логин</span>
+                    <span className="pf-value">{user.ad_login}</span>
+                  </div>
+                )}
+                {!user.department && !user.position && !user.office && !user.ad_login && (
+                  <div className="pf-empty">Данные не загружены</div>
+                )}
+              </>
+            )}
+            {user.oidc_sub && profileError && <div className="pf-error">{profileError}</div>}
+            {user.oidc_sub && (
+              <button type="button" className="pf-save" disabled={profileLoading} onClick={() => saveProfile()}>
+                {profileLoading ? 'Сохраняем…' : profileSaved ? 'Сохранено ✓' : 'Сохранить изменения'}
+              </button>
+            )}
           </section>
 
           {/* Смена пароля */}
@@ -372,6 +441,31 @@ export function ProfilePage() {
         .pf-save.ghost:hover:not(:disabled) { background: rgba(37, 99, 235, 0.1); color: #fff; box-shadow: none; }
 
         .pf-section.danger { border-top: 1px dashed rgba(255, 255, 255, 0.08); padding-top: 18px; }
+
+        /* --- readonly fields for AD users --- */
+        .pf-field-readonly {
+          display: flex; align-items: center; justify-content: space-between;
+          padding: 10px 12px; margin-bottom: 8px;
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(37, 99, 235, 0.12);
+          border-radius: 9px;
+        }
+        .pf-field-readonly span:first-child {
+          font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+          color: #64748B;
+        }
+        .pf-value {
+          font-size: 13.5px; font-weight: 500; color: #E2E8F0;
+          font-family: 'Inter', sans-serif;
+        }
+        .pf-empty {
+          padding: 16px; text-align: center;
+          color: #64748B; font-size: 13px;
+          background: rgba(255, 255, 255, 0.02);
+          border: 1px dashed rgba(37, 99, 235, 0.2);
+          border-radius: 10px;
+        }
+
         .pf-logout {
           width: 100%; padding: 11px 16px;
           display: flex; align-items: center; justify-content: center; gap: 9px;

@@ -30,6 +30,12 @@ interface User {
   createdAt?: string | null;
   isStaff?: boolean;
   telegramUsername?: string;
+  department?: string | null;
+  position?: string | null;
+  office?: string | null;
+  ad_login?: string | null;
+  oidc_sub?: string | null;
+  employee_uuid?: string | null;
 }
 
 interface OnboardingState {

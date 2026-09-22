@@ -377,6 +377,13 @@ async def update_profile(
                 )
             user.telegram_username = handle if handle.startswith("@") else f"@{handle}"
 
+    if payload.department is not None:
+        user.department = payload.department.strip() or None
+    if payload.position is not None:
+        user.position = payload.position.strip() or None
+    if payload.office is not None:
+        user.office = payload.office.strip() or None
+
     db.add(user)
     await db.commit()
     await db.refresh(user)

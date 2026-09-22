@@ -166,6 +166,10 @@ class LDAPService:
                     email=email_lower,
                     password_hash=pwd.hash(secrets.token_urlsafe(24)),
                     name=self._build_name(attrs),
+                    ad_login=attrs.sAMAccountName,
+                    department=attrs.department,
+                    position=attrs.title,
+                    office=attrs.office,
                 )
                 db.add(user)
                 db.flush()
@@ -177,6 +181,10 @@ class LDAPService:
             else:
                 # Обновляем существующего
                 user.name = self._build_name(attrs)
+                user.ad_login = attrs.sAMAccountName
+                user.department = attrs.department
+                user.position = attrs.title
+                user.office = attrs.office
                 db.add(user)
                 db.commit()
                 db.refresh(user)

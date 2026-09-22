@@ -20,6 +20,9 @@ class ProfileIn(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=80)
     avatar: str | None = None
     telegram_username: str | None = Field(default=None, min_length=2, max_length=33)
+    department: str | None = Field(default=None, max_length=120)
+    position: str | None = Field(default=None, max_length=120)
+    office: str | None = Field(default=None, max_length=120)
 
 
 class TelegramUsernameIn(BaseModel):

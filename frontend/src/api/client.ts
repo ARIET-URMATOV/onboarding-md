@@ -79,6 +79,12 @@ export interface UserResponse {
   voice_enabled: boolean;
   created_at?: string | null;
   is_staff?: boolean;
+  department?: string | null;
+  position?: string | null;
+  office?: string | null;
+  ad_login?: string | null;
+  oidc_sub?: string | null;
+  employee_uuid?: string | null;
 }
 
 export interface ProgressResponse {
