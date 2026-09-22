@@ -110,7 +110,7 @@ export function MapPage() {
 
   const openStage = (id: StageId) => {
     if (statuses[id] === 'locked') return;
-    nav('/stages');
+    nav(`/stages?stage=${id}`);
   };
 
   return (
@@ -225,16 +225,20 @@ export function MapPage() {
           {/* Карточки на карте (Только для экранов >= 480px) */}
           {pts.map((pt, i) => {
             const st = steps[i];
+            const clickable = st.status !== 'locked';
             return (
-              <div
+              <button
                 key={`t-${st.id}`}
-                className={`mp-text mp-text--${st.side}`}
+                type="button"
+                className={`mp-text mp-text--${st.side} ${st.status}`}
                 style={{ left: pt.x, top: pt.y }}
+                onClick={() => openStage(st.id)}
+                disabled={!clickable}
               >
                 <div className="mp-num">0{st.id}</div>
                 <h3 className="mp-name">{st.title}</h3>
                 <p className="mp-desc">{st.short}</p>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -520,9 +524,12 @@ export function MapPage() {
         .mp-node-lock { background: #4A6075; color: #fff; }
 
         /* ===== ТЕКСТОВЫЕ МЕТКИ НА КАРТЕ ===== */
-        .mp-text {
-          display: none; /* Скрыто на экранах < 480px */
-        }
+          .mp-text {
+            display: none; /* Скрыто на экранах < 480px */
+            cursor: pointer;
+            text-align: left;
+          }
+          .mp-text:disabled { cursor: not-allowed; opacity: 0.6; }
 
         /* ===== МОБИЛЬНЫЙ СПИСОК (< 480px) ===== */
         .mp-mobile-list {
@@ -612,7 +619,7 @@ export function MapPage() {
             background: rgba(10, 22, 34, 0.8);
             border: 1px solid rgba(0, 242, 254, 0.22);
             backdrop-filter: blur(12px);
-            pointer-events: none;
+            pointer-events: auto;
           }
 
           .mp-text--right { transform: translate(24px, -50%); }

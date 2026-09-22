@@ -38,7 +38,10 @@ services:
       start_period: 15s
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        VITE_DEMO_ENABLED: "true"
     container_name: mdigital-frontend
     ports:
       - "5173:80"

@@ -118,6 +118,40 @@ class Settings(BaseSettings):
     smtp_from: str = Field(default="onboarding@mdigital.kg", alias="SMTP_FROM")
     hr_notify_email: str = Field(default="", alias="HR_NOTIFY_EMAIL")
 
+    # Active Directory / LDAP
+    ldap_server_uri: str = Field(default="", alias="LDAP_SERVER_URI")
+    ldap_bind_dn: str = Field(default="", alias="LDAP_BIND_DN")
+    ldap_bind_password: str = Field(default="", alias="LDAP_BIND_PASSWORD")
+    ldap_user_search_base: str = Field(default="", alias="LDAP_USER_SEARCH_BASE")
+    ldap_group_search_base: str = Field(default="", alias="LDAP_GROUP_SEARCH_BASE")
+
+    # OIDC (MDigital Portal)
+    oidc_issuer: str = Field(default="https://portal.mdigital.kg", alias="OIDC_ISSUER")
+    oidc_client_id: str = Field(default="Na16ADLupt4HsZlr9Rlf0M4WHUieigjuAac5zPQq", alias="OIDC_CLIENT_ID")
+    oidc_client_secret: str = Field(default="", alias="OIDC_CLIENT_SECRET")
+    oidc_redirect_uri: str = Field(
+        default="https://onboarding-mdigital.vercel.app/auth/callback",
+        alias="OIDC_REDIRECT_URI",
+    )
+
+    @property
+    def oidc_configured(self) -> bool:
+        return bool(
+            self.oidc_issuer
+            and self.oidc_client_id
+            and self.oidc_client_secret
+            and self.oidc_redirect_uri
+        )
+
+    @property
+    def ldap_configured(self) -> bool:
+        return bool(
+            self.ldap_server_uri
+            and self.ldap_bind_dn
+            and self.ldap_bind_password
+            and self.ldap_user_search_base
+        )
+
     @property
     def smtp_configured(self) -> bool:
         return bool(self.smtp_host and self.smtp_user and self.smtp_password)

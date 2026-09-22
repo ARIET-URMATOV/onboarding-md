@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Check, LayoutDashboard, Lock, Map as MapIcon, Sparkles, FileText, Users, Video, ListChecks, ClipboardCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
@@ -33,12 +33,19 @@ export function IsometricRoadmap({ statuses, done }: Props) {
   const toggleTask = useOnboarding((s) => s.toggleTask);
   const completeStage = useOnboarding((s) => s.completeStage);
 
+  const [searchParams] = useSearchParams();
   const [selected, setSelected] = useState<StageId>(() => {
+    const q = Number(searchParams.get('stage')) as StageId;
+    if (q >= 1 && q <= 5 && statuses[q] !== 'locked') return q;
     for (let i = 1 as StageId; i <= 5; i = (i + 1) as StageId) {
       if (statuses[i] === 'current') return i;
     }
     return 1;
   });
+  useEffect(() => {
+    const q = Number(searchParams.get('stage')) as StageId;
+    if (q >= 1 && q <= 5 && statuses[q] !== 'locked') setSelected(q);
+  }, [searchParams, statuses]);
   // keep selected in sync when status changes (e.g. after completion)
   useEffect(() => {
     if (statuses[selected] === 'locked') {

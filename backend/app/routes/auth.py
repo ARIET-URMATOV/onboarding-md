@@ -1,16 +1,20 @@
 import re
 from datetime import datetime, timedelta, timezone
+from logging import getLogger
 
 import jwt
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response
 from passlib.context import CryptContext
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text as sa_text
 from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = getLogger(__name__)
 
 from app.config import settings
 from app.database import get_db
 from app.limiter import limiter
 from app.models import Notification, PendingRequest, Progress, User, VerificationLog, WifiMac, utcnow
+from app.auth import LDAPAuthError, ldap_service
 from app.schemas import (
     LoginIn,
     MeOut,
@@ -18,8 +22,6 @@ from app.schemas import (
     PasswordChangeIn,
     ProfileIn,
     ProgressOut,
-    RegisterIn,
-    RoleIn,
     UserOut,
 )
 
@@ -27,6 +29,107 @@ router = APIRouter()
 
 pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
 COOKIE_NAME = "md_token"
+
+
+@router.get("/auth/ldap-status")
+async def ldap_status():
+    """Проверить настроен ли LDAP."""
+    return {"ldap_configured": settings.ldap_configured}
+
+
+@router.get("/auth/oidc-status")
+async def oidc_status():
+    """Проверить настроен ли OIDC (Портал MDigital)."""
+    return {"oidc_configured": settings.oidc_configured}
+
+
+@router.get("/auth/oidc/start")
+@limiter.limit("20/minute")
+async def oidc_start(request: Request):
+    """Generate PKCE/state/nonce, store in DB, return authorization URL."""
+    from app.auth.oidc_service import OIDCState, save_state, _discovery
+
+    if not settings.oidc_configured:
+        raise HTTPException(status_code=503, detail="OIDC не настроен на сервере")
+
+    oidc_state = OIDCState.generate()
+
+    # Store in DB (async)
+    from app.database import SessionLocal
+    async with SessionLocal() as db:
+        await save_state(db, oidc_state)
+
+    disc = await _discovery()
+    auth_url = (
+        f"{disc['authorization_endpoint']}"
+        f"?response_type=code"
+        f"&client_id={settings.oidc_client_id}"
+        f"&redirect_uri={settings.oidc_redirect_uri}"
+        f"&scope=openid profile email"
+        f"&state={oidc_state.state}"
+        f"&nonce={oidc_state.nonce}"
+        f"&code_challenge={oidc_state.code_challenge}"
+        f"&code_challenge_method=S256"
+    )
+    return {"authorization_url": auth_url}
+
+
+@router.post("/auth/oidc/callback")
+@limiter.limit("20/minute")
+async def oidc_callback(
+    request: Request,
+    code: str,
+    state: str,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+):
+    """Exchange authorization code for tokens, upsert user, set session."""
+    from app.auth.oidc_service import consume_state, exchange_code, validate_id_token, upsert_user, fetch_userinfo
+
+    if not settings.oidc_configured:
+        raise HTTPException(status_code=503, detail="OIDC не настроен на сервере")
+
+    # 1. Validate state
+    state_data = await consume_state(db, state)
+    if state_data is None:
+        raise HTTPException(status_code=400, detail="Неверный или использованный state — повторите вход")
+
+    # 2. Exchange code for tokens
+    try:
+        tokens = await exchange_code(code, state_data["code_verifier"])
+    except Exception as e:
+        logger.warning(f"OIDC token exchange failed: {e}")
+        raise HTTPException(status_code=401, detail="Не удалось обменять код на токены")
+
+    # 3. Validate ID token
+    try:
+        claims = await validate_id_token(tokens.id_token, state_data["nonce"])
+    except Exception as e:
+        logger.warning(f"OIDC ID token validation failed: {e}")
+        raise HTTPException(status_code=401, detail=f"ID token не прошёл валидацию: {e}")
+
+    # 3b. Fetch userinfo (Portal claims_supported=["sub"] only)
+    try:
+        userinfo = await fetch_userinfo(tokens.access_token)
+        if userinfo:
+            if not claims.email and userinfo.get("email"):
+                claims.email = str(userinfo["email"]).lower().strip()
+            if not claims.name and userinfo.get("name"):
+                claims.name = str(userinfo["name"]).strip()
+            if not claims.preferred_username and userinfo.get("preferred_username"):
+                claims.preferred_username = str(userinfo["preferred_username"]).strip()
+            if userinfo.get("employee_uuid"):
+                claims.employee_uuid = str(userinfo["employee_uuid"])
+    except Exception as e:
+        logger.warning(f"OIDC userinfo fetch failed (non-fatal): {e}")
+
+    # 4. Upsert user
+    user, _is_new = await upsert_user(db, claims, tokens.refresh_token)
+
+    # 5. Set session cookie
+    prog = await ensure_progress(db, user)
+    set_auth_cookie(response, create_token(user.id))
+    return me_out(user, prog)
 
 
 def get_token_ttl() -> timedelta:
@@ -147,49 +250,16 @@ def me_out(user: User, prog: Progress) -> MeOut:
     )
 
 
-@router.post("/register", response_model=MeOut)
-@limiter.limit("20/minute")
-async def register(
-    request: Request, payload: RegisterIn, response: Response, db: AsyncSession = Depends(get_db)
-):
-    email = payload.email.lower().strip()
-    res = await db.execute(select(User).where(User.email == email))
-    if res.scalar_one_or_none() is not None:
-        raise HTTPException(status_code=409, detail="Пользователь с такой почтой уже существует")
-
-    user = User(
-        email=email,
-        password_hash=pwd.hash(payload.password),
-        name=(payload.name or email.split("@")[0]).strip(),
-    )
-    db.add(user)
-    try:
-        await db.flush()
-        prog = Progress(user_id=user.id)
-        db.add(prog)
-        await db.commit()
-    except Exception as e:
-        await db.rollback()
-        if "unique" in str(e).lower() or "duplicate" in str(e).lower():
-            raise HTTPException(status_code=409, detail="Пользователь с такой почтой уже существует")
-        raise
-    await db.refresh(user)
-    await db.refresh(prog)
-
-    set_auth_cookie(response, create_token(user.id))
-    return me_out(user, prog)
-
-
 @router.post("/login", response_model=MeOut)
 @limiter.limit("20/minute")
 async def login(
     request: Request, payload: LoginIn, response: Response, db: AsyncSession = Depends(get_db)
 ):
-    email = payload.email.lower().strip()
-    res = await db.execute(select(User).where(User.email == email))
-    user = res.scalar_one_or_none()
-    if user is None or not pwd.verify(payload.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Неверная почта или пароль")
+    """Вход через Active Directory (LDAP)."""
+    try:
+        user = ldap_service.authenticate(payload.email, payload.password)
+    except LDAPAuthError as e:
+        raise HTTPException(status_code=401, detail=str(e))
 
     prog = await ensure_progress(db, user)
     set_auth_cookie(response, create_token(user.id))
@@ -270,20 +340,6 @@ async def me(db: AsyncSession = Depends(get_db), user: User = Depends(get_curren
     return out
 
 
-@router.post("/role", response_model=UserOut)
-@limiter.limit("20/minute")
-async def set_role(
-    request: Request,
-    payload: RoleIn,
-    db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
-):
-    user.role = payload.role
-    await db.commit()
-    await db.refresh(user)
-    return user_out(user)
-
-
 @router.patch("/profile", response_model=UserOut)
 @limiter.limit("20/minute")
 async def update_profile(
@@ -351,8 +407,13 @@ async def get_demo_user(db: AsyncSession) -> User | None:
 
 @router.post("/demo/login", response_model=MeOut)
 @limiter.limit("20/minute")
-async def demo_login(request: Request, response: Response, db: AsyncSession = Depends(get_db)):
-    """Идемпотентный вход в демо-аккаунт: создаёт его при первом заходе."""
+async def demo_login(request: Request, response: Response, db: AsyncSession = Depends(get_db), stage: int | None = None):
+    """Идемпотентный вход в демо-аккаунт: создаёт его при первом заходе.
+
+    Параметры:
+    - stage: если передан (1-5), прогресс будет настроен так, чтобы этот этап был current.
+      Все предыдущие этапы считаются пройденными.
+    """
     user = await get_demo_user(db)
     if user is None:
         user = User(
@@ -365,6 +426,27 @@ async def demo_login(request: Request, response: Response, db: AsyncSession = De
         await db.refresh(user)
 
     prog = await ensure_progress(db, user)
+
+    if stage and 1 <= stage <= 5:
+        from app.stages_data import normalize_tasks, compute_xp
+        done = normalize_tasks(prog.done_tasks)
+        # Fetch all tasks from DB for stages before the target stage
+        result = await db.execute(
+            sa_text("SELECT id FROM stage_tasks WHERE stage_id < :stage"),
+            {"stage": stage}
+        )
+        rows = result.fetchall()
+        for row in rows:
+            sid = row.id.split("-")[0]
+            if sid not in done:
+                done[sid] = []
+            if row.id not in done[sid]:
+                done[sid].append(row.id)
+        prog.done_tasks = done
+        prog.xp = compute_xp(done)
+        await db.commit()
+        await db.refresh(prog)
+
     set_auth_cookie(response, create_token(user.id))
     return me_out(user, prog)
 

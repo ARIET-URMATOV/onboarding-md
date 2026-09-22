@@ -36,6 +36,12 @@ class User(Base):
     lead_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
+    # AD/LDAP fields
+    ad_login: Mapped[str | None] = mapped_column(Text, nullable=True, index=True)
+    department: Mapped[str | None] = mapped_column(Text, nullable=True)
+    position: Mapped[str | None] = mapped_column(Text, nullable=True)
+    office: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     progress: Mapped["Progress"] = relationship(
         back_populates="user", uselist=False, cascade="all, delete-orphan"
     )

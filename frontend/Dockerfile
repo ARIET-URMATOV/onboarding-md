@@ -8,6 +8,10 @@ COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
 COPY . .
+
+ARG VITE_DEMO_ENABLED
+ENV VITE_DEMO_ENABLED=$VITE_DEMO_ENABLED
+
 RUN pnpm run build
 
 FROM nginx:alpine

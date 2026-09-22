@@ -87,7 +87,7 @@ except ImportError:
 async def csrf_origin_check(request: _Request, call_next):
     if request.method in ("POST", "PATCH", "PUT", "DELETE") and request.url.path.startswith("/api/"):
         # skip public auth endpoints and health
-        public = ("/api/register", "/api/login", "/api/demo/login", "/api/health", "/api/logout")
+        public = ("/api/register", "/api/login", "/api/demo/login", "/api/health", "/api/logout", "/api/auth/oidc/callback")
         if not any(request.url.path.startswith(p) for p in public):
             origin = request.headers.get("origin")
             if origin and origin not in settings.cors_origins:

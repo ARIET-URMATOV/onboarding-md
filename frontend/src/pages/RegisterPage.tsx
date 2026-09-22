@@ -23,7 +23,7 @@ export function RegisterPage() {
     try {
       const me = await api.post<MeResponse>('/api/register', { name, email, password });
       login(me);
-      nav('/role');
+      nav('/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка регистрации');
     } finally {

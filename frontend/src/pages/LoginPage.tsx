@@ -1,8 +1,10 @@
-import { useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect, type FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api, type MeResponse } from '../api/client';
 import { useOnboarding } from '../store/useOnboarding';
 import { usePageMeta } from '../hooks/usePageMeta';
+
+const DEMO_ENABLED = import.meta.env.VITE_DEMO_ENABLED === 'true';
 
 export function LoginPage() {
   usePageMeta("Вход — MDIGITAL Онбординг", "Войди в портал онбординга MDIGITAL, чтобы продолжить адаптацию и отслеживать прогресс этапов.");
@@ -11,73 +13,19 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [demoLoading, setDemoLoading] = useState(false);
-  const [demoResetting, setDemoResetting] = useState(false);
-  const [demoResetDone, setDemoResetDone] = useState(false);
+  const [ldapConfigured, setLdapConfigured] = useState(true);
+  const [oidcConfigured, setOidcConfigured] = useState(false);
   const login = useOnboarding((s) => s.login);
   const nav = useNavigate();
 
-  const onDemoLogin = async () => {
-    setError(null);
-    setDemoLoading(true);
-    try {
-      const me = await api.post<MeResponse>('/api/demo/login');
-      login(me);
-      nav(me.user.role ? '/dashboard' : '/role');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ошибка демо-входа');
-    } finally {
-      setDemoLoading(false);
-    }
-  };
-
-  const onDemoReset = async () => {
-    setDemoResetting(true);
-    setError(null);
-    try {
-      // demo/reset требует активной демо-сессии → при 401/403 сначала
-      // логинимся в демо, затем повторяем сброс ровно один раз.
-      const needsDemoLogin = (e: unknown) => {
-        const status = (e as { status?: number })?.status;
-        const msg = e instanceof Error ? e.message : '';
-        return (
-          status === 401 ||
-          status === 403 ||
-          msg.includes('Только демо') ||
-          msg.includes('Не авторизован') ||
-          msg.includes('Сессия истекла')
-        );
-      };
-      try {
-        await api.post('/api/demo/reset');
-      } catch (e) {
-        if (!needsDemoLogin(e)) throw e;
-        const me = await api.post<MeResponse>('/api/demo/login');
-        login(me);
-        await api.post('/api/demo/reset');
-      }
-      // Подтягиваем свежее состояние, чтобы UI сразу показал xp=0.
-      try {
-        const me = await api.get<MeResponse>('/api/me');
-        login(me);
-      } catch {
-        /* offline после сброса — не критично */
-      }
-      setDemoResetDone(true);
-      window.setTimeout(() => setDemoResetDone(false), 2500);
-    } catch (err) {
-      const status = (err as { status?: number })?.status;
-      const msg = err instanceof Error ? err.message : 'Ошибка сброса демо';
-      if (status === 429) {
-        setError('Слишком много попыток — подождите минуту и повторите');
-      } else if (msg.includes('CSRF')) {
-        setError('Демо-сброс заблокирован браузером (CSRF). Проверьте FRONTEND_URL на бэкенде.');
-      } else {
-        setError(msg);
-      }
-    } finally {
-      setDemoResetting(false);
-    }
-  };
+  useEffect(() => {
+    api.get<{ ldap_configured: boolean }>('/api/auth/ldap-status')
+      .then((r) => setLdapConfigured(r.ldap_configured))
+      .catch(() => setLdapConfigured(false));
+    api.get<{ oidc_configured: boolean }>('/api/auth/oidc-status')
+      .then((r) => setOidcConfigured(r.oidc_configured))
+      .catch(() => setOidcConfigured(false));
+  }, []);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -90,12 +38,40 @@ export function LoginPage() {
     try {
       const me = await api.post<MeResponse>('/api/login', { email, password });
       login(me);
-      nav(me.user.role ? '/dashboard' : '/role');
+      nav('/dashboard');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ошибка входа');
+      const msg = err instanceof Error ? err.message : 'Ошибка входа';
+      if (msg.includes('LDAP') || msg.includes('AD')) {
+        setError('Ошибка подключения к корпоративной сети');
+      } else {
+        setError('Неверный email или пароль');
+      }
     } finally {
       setLoading(false);
     }
+  };
+
+  const onDemo = async (stage?: number) => {
+    setDemoLoading(true);
+    setError(null);
+    try {
+      const url = stage ? `/api/demo/login?stage=${stage}` : '/api/demo/login';
+      const me = await api.post<MeResponse>(url);
+      login(me);
+      nav('/dashboard');
+    } catch {
+      setError('Не удалось войти в демо');
+    } finally {
+      setDemoLoading(false);
+    }
+  };
+
+  const STAGE_LABELS: Record<number, string> = {
+    1: 'Этап 1',
+    2: 'Этап 2',
+    3: 'Этап 3',
+    4: 'Этап 4',
+    5: 'Этап 5',
   };
 
   return (
@@ -114,10 +90,26 @@ export function LoginPage() {
           <p>Войди, чтобы продолжить путь</p>
         </div>
 
+        {!ldapConfigured && !oidcConfigured && (
+          <div className="ldap-warning">
+            ⚠️ Ни LDAP, ни OIDC не настроены — доступен только демо-режим
+          </div>
+        )}
+
+        {oidcConfigured && (
+          <a href="/auth/start" className="btn-oidc">
+            ВОЙТИ ЧЕРЕЗ ПОРТАЛ ↗
+          </a>
+        )}
+
+        {oidcConfigured && (
+          <div className="oidc-divider"><span>или</span></div>
+        )}
+
         <form onSubmit={onSubmit}>
           <label className="field">
             <span>Email</span>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@mdigital.io" required />
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@mdigital.kg" required />
           </label>
           <label className="field">
             <span>Пароль</span>
@@ -129,29 +121,30 @@ export function LoginPage() {
           </button>
         </form>
 
-        <div className="auth-foot">
-          Нет аккаунта? <Link to="/register">Зарегистрироваться</Link>
-        </div>
-
-        <div className="demo-block">
-          <div className="demo-label">Демо-режим</div>
-          <button
-            type="button"
-            className="demo-creds"
-            onClick={() => { setEmail('demo@mdigital.kg'); setPassword('demo1234'); }}
-            title="Нажми, чтобы подставить в форму"
-          >
-            demo@mdigital.kg · demo1234
-          </button>
-          <div className="demo-actions">
-            <button type="button" className="demo-btn" disabled={demoLoading} onClick={onDemoLogin}>
-              {demoLoading ? 'Входим…' : 'Войти в демо'}
+        {DEMO_ENABLED && (
+          <>
+            <div className="demo-divider"><span>или</span></div>
+            <button type="button" className="btn-demo" onClick={() => onDemo()} disabled={demoLoading}>
+              {demoLoading ? 'Входим…' : 'ДЕМО-С НАЧАЛА'}
             </button>
-            <button type="button" className="demo-btn ghost" disabled={demoResetting} onClick={onDemoReset}>
-              {demoResetting ? 'Сброс…' : demoResetDone ? 'Сброшен ✓' : 'Сбросить демо'}
-            </button>
-          </div>
-        </div>
+            <div className="demo-stage-grid">
+              <div className="demo-stage-label">Быстрый старт:</div>
+              <div className="demo-stage-btns">
+                {[2, 3, 4, 5].map((stage) => (
+                  <button
+                    key={stage}
+                    type="button"
+                    className="btn-demo-stage"
+                    onClick={() => onDemo(stage)}
+                    disabled={demoLoading}
+                  >
+                    → {STAGE_LABELS[stage]}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       <style>{`
@@ -194,45 +187,72 @@ export function LoginPage() {
         }
         .btn-primary{ width:100%; margin-top:8px }
 
-        .demo-block{
-          margin-top:22px; padding-top:18px;
-          border-top:1px dashed rgba(255,255,255,.1);
+        .ldap-warning{
+          margin-bottom:16px; padding:10px 14px;
+          border:1px solid rgba(251,191,36,.4);
+          background:rgba(251,191,36,.08);
+          color:#FCD34D; font-size:12px; border-radius:10px;
           text-align:center;
         }
-        .demo-label{
-          font-size:9.5px; font-weight:700; letter-spacing:.22em; text-transform:uppercase;
-          color:rgba(96,165,250,.75); margin-bottom:8px;
-        }
-        .demo-creds{
-          display:inline-block; padding:6px 14px; margin-bottom:12px;
-          font-family:'JetBrains Mono',monospace; font-size:11.5px;
-          color:#93C5FD; background:rgba(37,99,235,.08);
-          border:1px solid rgba(37,99,235,.22); border-radius:8px;
-          cursor:pointer; transition:all .15s ease;
-        }
-        .demo-creds:hover{ background:rgba(37,99,235,.16); border-color:rgba(37,99,235,.4); color:#DBEAFE }
-        .demo-actions{ display:flex; gap:10px; justify-content:center; flex-wrap:wrap }
-        .demo-btn{
-          padding:8px 16px; border-radius:9px; cursor:pointer;
-          font-size:11.5px; font-weight:600; letter-spacing:.04em;
-          color:#fff; background:linear-gradient(135deg,#3B82F6,#2563EB);
-          border:1px solid rgba(59,130,246,.5);
-          box-shadow:0 0 14px rgba(37,99,235,.25);
-          transition:all .15s ease;
-        }
-        .demo-btn:hover:not(:disabled){ transform:translateY(-1px); box-shadow:0 0 20px rgba(37,99,235,.4) }
-        .demo-btn:disabled{ opacity:.6; cursor:wait }
-        .demo-btn.ghost{
-          background:transparent; color:#93C5FD;
-          border:1px solid rgba(37,99,235,.3); box-shadow:none;
-        }
-        .demo-btn.ghost:hover:not(:disabled){ background:rgba(37,99,235,.1); color:#fff }
 
-        .auth-foot{
-          text-align:center; margin-top:22px; font-size:12.5px; color:var(--muted);
+        .demo-divider{
+          display:flex; align-items:center; gap:12px;
+          margin:20px 0 16px; color:var(--muted); font-size:11px;
+          letter-spacing:.12em; text-transform:uppercase;
         }
-        .auth-foot a{ color:var(--cyan-l); font-weight:600 }
-        .auth-foot a:hover{ text-decoration:underline }
+        .demo-divider::before,.demo-divider::after{
+          content:''; flex:1; height:1px; background:var(--border);
+        }
+
+        .btn-demo{
+          width:100%; padding:13px 16px;
+          background:transparent;
+          border:1px solid var(--cyan-l);
+          border-radius:12px; color:var(--cyan-l);
+          font-size:12px; font-weight:700; letter-spacing:.14em;
+          cursor:pointer; transition:all .18s ease;
+          font-family:'Orbitron',sans-serif;
+        }
+        .btn-demo:hover:not(:disabled){
+          background:rgba(0,242,254,.08);
+          box-shadow:0 0 20px rgba(0,242,254,.2);
+        }
+        .btn-demo:disabled{opacity:.5;cursor:not-allowed}
+
+        .btn-oidc{
+          display:block; width:100%; padding:14px 16px; margin-bottom:8px;
+          background:linear-gradient(135deg, rgba(37,99,235,.15), rgba(59,130,246,.1));
+          border:1px solid rgba(37,99,235,.5); border-radius:12px;
+          color:#93C5FD; font-size:12px; font-weight:700; letter-spacing:.14em;
+          text-align:center; text-decoration:none;
+          cursor:pointer; transition:all .18s ease;
+          font-family:'Orbitron',sans-serif;
+        }
+        .btn-oidc:hover{
+          background:linear-gradient(135deg, rgba(37,99,235,.25), rgba(59,130,246,.15));
+          border-color:#3B82F6; box-shadow:0 0 20px rgba(59,130,246,.3);
+        }
+
+        .oidc-divider{
+          display:flex; align-items:center; gap:12px;
+          margin:14px 0; color:var(--muted); font-size:11px;
+          letter-spacing:.12em; text-transform:uppercase;
+        }
+        .oidc-divider::before,.oidc-divider::after{
+          content:''; flex:1; height:1px; background:var(--border);
+        }
+
+        .demo-stage-grid{margin-top:14px}
+        .demo-stage-label{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;text-align:center}
+        .demo-stage-btns{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+        .btn-demo-stage{
+          padding:8px 12px;background:rgba(0,242,254,.06);
+          border:1px solid rgba(0,242,254,.2);border-radius:8px;
+          color:var(--cyan-l);font-size:11px;font-weight:600;cursor:pointer;
+          transition:all .15s ease;font-family:'Open Sans',sans-serif;
+        }
+        .btn-demo-stage:hover:not(:disabled){background:rgba(0,242,254,.12);border-color:var(--cyan-l)}
+        .btn-demo-stage:disabled{opacity:.5;cursor:not-allowed}
       `}</style>
     </div>
   );

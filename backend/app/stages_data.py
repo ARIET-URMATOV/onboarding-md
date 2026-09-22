@@ -18,9 +18,9 @@ _FALLBACK_STAGES: dict[int, dict] = {
         # Step 4: База знаний Confluence (10 баллов, один тогглер; 5 ссылок + видимый таймер 120с)
         "1-confluence-read": 10,
     }},
-    2: {"xp_reward": 150, "tasks": {"2-studio": 40, "2-profiles": 40, "2-lead": 40, "2-chat": 30}},
-    3: {"xp_reward": 100, "tasks": {"3-watch": 100}},
-    4: {"xp_reward": 150, "tasks": {"4-workspace": 25, "4-repo": 25, "4-figma": 25, "4-mail": 25, "4-messenger": 25, "4-style": 25}},
+    2: {"xp_reward": 0, "tasks": {"2-team-read": 5}},
+    3: {"xp_reward": 0, "tasks": {"3-watch": 5}},
+    4: {"xp_reward": 0, "tasks": {"4-ready": 5}},
     5: {"xp_reward": 200, "tasks": {"5-take": 100, "5-confirm": 100}},
 }
 STAGES: dict[int, dict] = _FALLBACK_STAGES

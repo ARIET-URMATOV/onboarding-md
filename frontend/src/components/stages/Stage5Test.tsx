@@ -16,7 +16,7 @@ export function Stage5Test({ }: Props) {
       </div>
       <div className="test-actions">
         <a
-          href="https://example.com/mdigital-frontend-test"
+          href="http://10.0.70.46/courses/23ab4226-44ce-406a-95c8-98a56be2e239"
           target="_blank"
           rel="noopener noreferrer"
           className="btn-primary"

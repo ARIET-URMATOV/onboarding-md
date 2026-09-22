@@ -1,15 +1,16 @@
 import { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthGate, GuestOnly, RequireRole } from './components/auth/AuthGate';
+import { AuthGate, GuestOnly } from './components/auth/AuthGate';
 import { ToastProvider } from './components/ui/ToastProvider';
 import './styles/global.css';
 
 // Eager: auth pages (small, needed before hydration)
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
+import { AuthStartPage } from './pages/AuthStartPage';
+import { AuthCallbackPage } from './pages/AuthCallbackPage';
 
 // Lazy: heavy / authenticated pages — code-split per route
-const RoleSelectPage = lazy(() => import('./pages/RoleSelectPage').then((m) => ({ default: m.RoleSelectPage })));
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
 const StagesPage = lazy(() => import('./pages/StagesPage').then((m) => ({ default: m.StagesPage })));
 const MapPage = lazy(() => import('./pages/MapPage').then((m) => ({ default: m.MapPage })));
@@ -32,14 +33,15 @@ export default function App() {
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/login" element={<GuestOnly><LoginPage /></GuestOnly>} />
               <Route path="/register" element={<GuestOnly><RegisterPage /></GuestOnly>} />
-              <Route path="/role" element={<AuthGate><RoleSelectPage /></AuthGate>} />
-              <Route path="/dashboard" element={<AuthGate><RequireRole><DashboardPage /></RequireRole></AuthGate>} />
-              <Route path="/stages" element={<AuthGate><RequireRole><StagesPage /></RequireRole></AuthGate>} />
+              <Route path="/auth/start" element={<AuthStartPage />} />
+              <Route path="/auth/callback" element={<AuthCallbackPage />} />
+              <Route path="/dashboard" element={<AuthGate><DashboardPage /></AuthGate>} />
+              <Route path="/stages" element={<AuthGate><StagesPage /></AuthGate>} />
               <Route path="/roadmap" element={<Navigate to="/stages" replace />} />
-              <Route path="/map" element={<AuthGate><RequireRole><MapPage /></RequireRole></AuthGate>} />
-              <Route path="/profile" element={<AuthGate><RequireRole><ProfilePage /></RequireRole></AuthGate>} />
-              <Route path="/complete" element={<AuthGate><RequireRole><CompletePage /></RequireRole></AuthGate>} />
-              <Route path="/admin" element={<AuthGate><RequireRole><AdminPage /></RequireRole></AuthGate>} />
+              <Route path="/map" element={<AuthGate><MapPage /></AuthGate>} />
+              <Route path="/profile" element={<AuthGate><ProfilePage /></AuthGate>} />
+              <Route path="/complete" element={<AuthGate><CompletePage /></AuthGate>} />
+              <Route path="/admin" element={<AuthGate><AdminPage /></AuthGate>} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </Suspense>
