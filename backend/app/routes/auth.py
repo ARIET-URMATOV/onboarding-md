@@ -18,6 +18,7 @@ from app.auth import LDAPAuthError, ldap_service
 from app.schemas import (
     LoginIn,
     MeOut,
+    OidcCallbackIn,
     OkOut,
     PasswordChangeIn,
     ProfileIn,
@@ -78,8 +79,7 @@ async def oidc_start(request: Request):
 @limiter.limit("20/minute")
 async def oidc_callback(
     request: Request,
-    code: str,
-    state: str,
+    payload: OidcCallbackIn,
     response: Response,
     db: AsyncSession = Depends(get_db),
 ):
@@ -90,13 +90,13 @@ async def oidc_callback(
         raise HTTPException(status_code=503, detail="OIDC не настроен на сервере")
 
     # 1. Validate state
-    state_data = await consume_state(db, state)
+    state_data = await consume_state(db, payload.state)
     if state_data is None:
         raise HTTPException(status_code=400, detail="Неверный или использованный state — повторите вход")
 
     # 2. Exchange code for tokens
     try:
-        tokens = await exchange_code(code, state_data["code_verifier"])
+        tokens = await exchange_code(payload.code, state_data["code_verifier"])
     except Exception as e:
         logger.warning(f"OIDC token exchange failed: {e}")
         raise HTTPException(status_code=401, detail="Не удалось обменять код на токены")

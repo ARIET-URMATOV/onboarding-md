@@ -306,5 +306,10 @@ class MeOut(BaseModel):
     unread_count: int = 0
 
 
+class OidcCallbackIn(BaseModel):
+    code: str
+    state: str
+
+
 class OkOut(BaseModel):
     ok: bool = True
