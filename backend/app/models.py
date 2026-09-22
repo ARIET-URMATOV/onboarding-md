@@ -42,6 +42,11 @@ class User(Base):
     position: Mapped[str | None] = mapped_column(Text, nullable=True)
     office: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # OIDC (Portal MDigital) fields
+    oidc_sub: Mapped[str | None] = mapped_column(Text, nullable=True, index=True, unique=True)
+    employee_uuid: Mapped[str | None] = mapped_column(Text, nullable=True)
+    oidc_refresh_token: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     progress: Mapped["Progress"] = relationship(
         back_populates="user", uselist=False, cascade="all, delete-orphan"
     )
@@ -101,6 +106,16 @@ class AppSetting(Base):
     key: Mapped[str] = mapped_column(Text, primary_key=True)
     value: Mapped[str] = mapped_column(Text, nullable=False, default="")
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class OIDCState(Base):
+    __tablename__ = "oidc_states"
+
+    state: Mapped[str] = mapped_column(Text, primary_key=True)
+    nonce: Mapped[str] = mapped_column(Text, nullable=False)
+    code_verifier: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    used: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
 
 class WifiPassword(Base):
