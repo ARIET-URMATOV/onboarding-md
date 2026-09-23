@@ -111,15 +111,32 @@ async def oidc_callback(
     # 3b. Fetch userinfo (Portal claims_supported=["sub"] only)
     try:
         userinfo = await fetch_userinfo(tokens.access_token)
+        # --- DEBUG ---
+        logger.warning(f"OIDC-DEBUG userinfo full: {userinfo}")
+        try:
+            import jwt as _jwt_dbg
+            unverified = _jwt_dbg.decode(tokens.id_token, options={"verify_signature": False})
+            logger.warning(f"OIDC-DEBUG id_token full: {unverified}")
+        except Exception: pass
+        # --- END DEBUG ---
+        
         if userinfo:
-            if not claims.email and userinfo.get("email"):
-                claims.email = str(userinfo["email"]).lower().strip()
-            if not claims.name and userinfo.get("name"):
-                claims.name = str(userinfo["name"]).strip()
-            if not claims.preferred_username and userinfo.get("preferred_username"):
-                claims.preferred_username = str(userinfo["preferred_username"]).strip()
-            if userinfo.get("employee_uuid"):
-                claims.employee_uuid = str(userinfo["employee_uuid"])
+            # Flexible merge
+            if not claims.email and userinfo.get("email"): claims.email = str(userinfo["email"]).lower().strip()
+            if not claims.name and userinfo.get("name"): claims.name = str(userinfo["name"]).strip()
+            if not claims.preferred_username and userinfo.get("preferred_username"): claims.preferred_username = str(userinfo["preferred_username"]).strip()
+            if userinfo.get("employee_uuid"): claims.employee_uuid = str(userinfo["employee_uuid"])
+            
+            # New fields
+            role_val = userinfo.get("role") or userinfo.get("user_role") or userinfo.get("roles")
+            if isinstance(role_val, list): role_val = role_val[0] if role_val else None
+            if role_val: claims.role = str(role_val)
+            
+            claims.department = str(userinfo.get("department") or userinfo.get("dept") or claims.department or "") or None
+            claims.position = str(userinfo.get("position") or userinfo.get("title") or claims.position or "") or None
+            claims.office = str(userinfo.get("office") or userinfo.get("location") or claims.office or "") or None
+            claims.ad_login = str(userinfo.get("ad_login") or userinfo.get("sAMAccountName") or userinfo.get("username") or claims.ad_login or "") or None
+
     except Exception as e:
         logger.warning(f"OIDC userinfo fetch failed (non-fatal): {e}")
 
@@ -235,6 +252,10 @@ def user_out(user: User) -> UserOut:
         created_at=user.created_at.isoformat() if user.created_at else None,
         is_staff=user.is_staff,
         telegram_username=user.telegram_username or "",
+        department=user.department,
+        position=user.position,
+        office=user.office,
+        ad_login=user.ad_login,
     )
 
 
