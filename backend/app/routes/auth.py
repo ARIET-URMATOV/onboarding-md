@@ -111,17 +111,6 @@ async def oidc_callback(
     # 3b. Fetch userinfo (Portal claims_supported=["sub"] only)
     try:
         userinfo = await fetch_userinfo(tokens.access_token)
-
-        # --- TEMP DEBUG: log claim KEYS only (no values, no PII) ---
-        try:
-            import jwt as _jwt_dbg
-            unverified = _jwt_dbg.decode(tokens.id_token, options={"verify_signature": False})
-            logger.warning(f"OIDC-DEBUG id_token keys: {sorted(unverified.keys())}")
-            logger.warning(f"OIDC-DEBUG userinfo keys: {sorted(userinfo.keys())}")
-        except Exception:
-            logger.warning(f"OIDC-DEBUG userinfo keys: {sorted(userinfo.keys()) if userinfo else '(empty)'}")
-        # --- END TEMP DEBUG ---
-
         if userinfo:
             if not claims.email and userinfo.get("email"):
                 claims.email = str(userinfo["email"]).lower().strip()
