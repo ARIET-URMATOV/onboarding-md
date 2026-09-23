@@ -12,6 +12,7 @@ from app.routes.auth import get_current_user, require_role, require_staff
 from app.schemas import (
     BatchRequestIn,
     ConfluenceConfirmIn,
+    InfoReadIn,
     MpulseCodeIn,
     OkOut,
     ProgressOut,
@@ -33,6 +34,8 @@ ACCESS_TASKS = {"1-mbusiness", "1-accountant", "1-wifi", "1-proxy", "1-telegram"
 MPULSE_TASKS = ["1-mpulse", "1-mpulse-schedule", "1-mpulse-checkin", "1-mpulse-code", "1-mpulse-news"]
 # Step 4: Confluence (10 баллов, один тогглер; 5 обязательных ссылок + видимый таймер 120с)
 CONFLUENCE_READ = "1-confluence-read"
+# Info-read tasks: модалки со скролл-чекером (документы + доступы + mpulse)
+INFO_READ_TASKS: set[str] = DOC_TASKS | ACCESS_TASKS | set(MPULSE_TASKS) - {"1-telegram"}
 
 router = APIRouter()
 
@@ -557,6 +560,46 @@ async def self_link_task(
         tasks[sid] = [*tasks[sid], payload.task_id]
         await log_verification(db, user.id, payload.task_id, "self_link",
                                details={"via": "_blank_redirect"})
+    return await save_progress(db, prog, tasks)
+
+
+@router.post("/progress/info-read", response_model=ProgressOut)
+@limiter.limit("30/minute")
+async def info_read_task(
+    request: Request,
+    payload: InfoReadIn,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Сотрудник подтвердил прочтение инфо-модалки (скролл-чекер → авто-зачёт).
+
+    Идемпотентно: повторный вызов возвращает текущий прогресс.
+    Для MPulse: зачёт одной задачи зачёtyает все 5 mpulse-задач.
+    """
+    stage = STAGES.get(payload.stage_id)
+    if stage is None or payload.task_id not in stage["tasks"]:
+        raise HTTPException(status_code=400, detail="Неизвестная задача")
+    vt, _rr = task_meta(payload.task_id)
+    if vt != "info_read":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Задача {payload.task_id} не является info_read (тип: {vt})",
+        )
+    prog = await load_progress(db, user)
+    tasks = normalize_tasks(prog.done_tasks)
+    sid = str(payload.stage_id)
+    to_add: list[str] = []
+    if payload.task_id not in tasks[sid]:
+        to_add.append(payload.task_id)
+    # MPulse batch: любая mpulse-задача → все 5
+    if payload.task_id in MPULSE_TASKS:
+        for tid in MPULSE_TASKS:
+            if tid not in tasks[sid]:
+                to_add.append(tid)
+    if to_add:
+        tasks[sid] = [*tasks[sid], *to_add]
+        await log_verification(db, user.id, payload.task_id, "info_read",
+                               details={"via": "scroll_checker", "batch": len(to_add) > 1})
     return await save_progress(db, prog, tasks)
 
 

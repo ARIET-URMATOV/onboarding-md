@@ -24,6 +24,7 @@ export interface NotificationItem {
 }
 
 interface User {
+  id: number;
   email: string;
   name: string;
   avatar: string | null;
@@ -122,7 +123,7 @@ export const useOnboarding = create<OnboardingState>()((set, get) => ({
 
   hydrate: (me) =>
     set({
-      user: { email: me.user.email, name: me.user.name, avatar: me.user.avatar, createdAt: me.user.created_at, isStaff: me.user.is_staff ?? false, telegramUsername: me.user.telegram_username ?? '' },
+      user: { id: me.user.id, email: me.user.email, name: me.user.name, avatar: me.user.avatar, createdAt: me.user.created_at, isStaff: me.user.is_staff ?? false, telegramUsername: me.user.telegram_username ?? '' },
       role: me.user.role,
       introSeen: me.user.intro_seen,
       voiceEnabled: me.user.voice_enabled,
@@ -189,7 +190,7 @@ export const useOnboarding = create<OnboardingState>()((set, get) => ({
     try {
       const u = await api.patch<UserResponse>('/api/profile', patch);
       if (get().user) {
-        set({ user: { email: u.email, name: u.name, avatar: u.avatar } });
+        set({ user: { id: u.id, email: u.email, name: u.name, avatar: u.avatar } });
       }
     } catch (e) {
       if (prevUser) set({ user: prevUser });

@@ -26,19 +26,19 @@ _FALLBACK_STAGES: dict[int, dict] = {
 STAGES: dict[int, dict] = _FALLBACK_STAGES
 
 # Мета верификации задач (SSOT для fallback; в БД — колонки stage_tasks).
-# verification_type: manual_hr | manual_staff | technical_code | technical_password | technical_timer
+# verification_type: info_read | manual_hr | manual_staff | technical_code | technical_password | technical_timer
 # responsible_role: подпись ответственного для UI (бекенд делит только employee/staff).
 TASK_META: dict[str, tuple[str, str]] = {
-    "1-dogovor": ("manual_hr", "hr"), "1-nda": ("manual_hr", "hr"),
-    "1-pdp": ("manual_hr", "hr"), "1-ip": ("manual_hr", "hr"), "1-sn": ("manual_hr", "hr"),
-    "1-mbusiness": ("manual_staff", "hr"), "1-accountant": ("manual_staff", "accountant"),
-    "1-wifi": ("technical_password", "sysadmin"), "1-proxy": ("manual_staff", "lead"),
+    "1-dogovor": ("info_read", "hr"), "1-nda": ("info_read", "hr"),
+    "1-pdp": ("info_read", "hr"), "1-ip": ("info_read", "hr"), "1-sn": ("info_read", "hr"),
+    "1-mbusiness": ("info_read", "hr"), "1-accountant": ("info_read", "accountant"),
+    "1-wifi": ("info_read", "sysadmin"), "1-proxy": ("info_read", "lead"),
     "1-telegram": ("manual_staff", "teamlead"),
-    "1-jira": ("self_link", "teamlead"), "1-figma": ("self_link", "teamlead"),
-    "1-gitlab": ("self_link", "teamlead"),
-    "1-mpulse": ("technical_code", "system"), "1-mpulse-schedule": ("technical_code", "system"),
-    "1-mpulse-checkin": ("technical_code", "system"), "1-mpulse-code": ("technical_code", "system"),
-    "1-mpulse-news": ("technical_code", "system"),
+    "1-jira": ("info_read", "teamlead"), "1-figma": ("info_read", "teamlead"),
+    "1-gitlab": ("info_read", "teamlead"),
+    "1-mpulse": ("info_read", "system"), "1-mpulse-schedule": ("info_read", "system"),
+    "1-mpulse-checkin": ("info_read", "system"), "1-mpulse-code": ("info_read", "system"),
+    "1-mpulse-news": ("info_read", "system"),
     "1-confluence-read": ("technical_timer", "system"),
 }
 

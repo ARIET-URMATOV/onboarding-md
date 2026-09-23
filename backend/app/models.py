@@ -134,6 +134,7 @@ class TelegramContact(Base):
     tg_user_id: Mapped[int] = mapped_column(Integer, unique=True, nullable=False, index=True)
     username: Mapped[str] = mapped_column(Text, nullable=False, default="")
     first_name: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow
     )

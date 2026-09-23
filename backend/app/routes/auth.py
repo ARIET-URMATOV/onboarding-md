@@ -225,6 +225,7 @@ async def user_from_token(token: str, db: AsyncSession) -> User | None:
 
 def user_out(user: User) -> UserOut:
     return UserOut(
+        id=user.id,
         email=user.email,
         name=user.name,
         role=user.role,

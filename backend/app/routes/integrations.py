@@ -279,25 +279,34 @@ async def telegram_auto_add(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Вариант A «Сначала Start»: бот добавляет сотрудника во все группы его роли.
+    """Start-based linking: бот добавляет сотрудника во все группы его роли.
 
-    Сотрудник: 1) пишет боту /start, 2) вводит @username, 3) жмёт кнопку.
-    Резолв: telegram_contacts → getChat(@username) → getUpdates.
+    Сотрудник: 1) пишет боту /start (deep-link uid_<id>), 2) жмёт кнопку.
+    Резолв: telegram_contacts.user_id == current_user.id.
     Полный успех → авто-зачёт 1-telegram (verified=true).
-    Требует: TELEGRAM_BOT_TOKEN + username + группы в настройках
+    Требует: TELEGRAM_BOT_TOKEN + группы в настройках
     + бота админом в каждой группе (can_invite_users).
     """
+    from sqlalchemy import select as _select
+
+    from app.models import TelegramContact
+
     if not settings.telegram_bot_token:
         raise HTTPException(
             status_code=501,
             detail="Telegram-бот не настроен: создайте бота через @BotFather, "
             "выдайте ему админку в группах и задайте TELEGRAM_BOT_TOKEN.",
         )
-    if not user.telegram_username:
+    # Resolve by user_id (Start-based linking)
+    contact = (await db.execute(
+        _select(TelegramContact).where(TelegramContact.user_id == user.id)
+    )).scalars().first()
+    if contact is None:
         raise HTTPException(
             status_code=400,
-            detail="Сначала укажите ваш Telegram @username в задаче.",
+            detail="Сначала откройте бота в Telegram и нажмите Start.",
         )
+    tg_id = contact.tg_user_id
     is_demo = user.email.lower() == settings.demo_email.lower()
     groups = await _tg_groups(db, None if is_demo else user.role)
     if not groups:
@@ -306,18 +315,6 @@ async def telegram_auto_add(
             detail="Группы для вашей роли не настроены: обратитесь к HR (/admin → Коды и ссылки).",
         )
     token = settings.telegram_bot_token
-    handle = user.telegram_username.strip()
-    tg_id = await _resolve_tg_id(db, token, handle)
-    invite_links: list[dict] = []
-    if not tg_id:
-        # фолбэк: invite-ссылки, чтобы сотрудник вступил вручную (200, не 400)
-        invite_links = await _make_invite_links(token, groups)
-        failed = [{
-            "title": str(g.get("title") or g["chat_id"]),
-            "reason": f"Не найден {handle}: напишите боту /start и повторите, или вступите по ссылке ниже.",
-        } for g in groups]
-        return AutoAddOut(added=[], failed=failed, username=user.telegram_username,
-                          invite_links=invite_links)
     async def _member_status(chat_id: str) -> str:
         """Реальный статус пользователя в чате (не верим unban на слово)."""
         try:
@@ -361,14 +358,16 @@ async def telegram_auto_add(
             failed.append({"title": title, "reason": hint})
     if failed:
         # частичный фолбэк: ссылки для групп, куда не добавилось
-        failed_ids = {f["title"] for f in failed}
+        failed_titles = {f["title"] for f in failed}
         invite_links = await _make_invite_links(
-            token, [g for g in groups if str(g.get("title") or g["chat_id"]) in failed_ids])
+            token, [g for g in groups if str(g.get("title") or g["chat_id"]) in failed_titles])
+    else:
+        invite_links = []
     # автоотправка приветствия от бота в добавленные группы
     greeted: list[str] = []
     greeting_text = (body.greeting or "").strip()[:500] if body and body.greeting else ""
     if greeting_text and added:
-        greet_msg = f"\U0001f44b \u041d\u043e\u0432\u044b\u0439 \u0441\u043e\u0442\u0440\u0443\u0434\u043d\u0438\u043a @{user.telegram_username}:\n{greeting_text}"
+        greet_msg = f"\U0001f44b \u041d\u043e\u0432\u044b\u0439 \u0441\u043e\u0442\u0440\u0443\u0434\u043d\u0438\u043a {user.name or ''}:\n{greeting_text}"
         added_ids = {str(g["chat_id"]) for g in groups if str(g.get("title") or g["chat_id"]) in set(added)}
         for g in groups:
             chat_id = str(g["chat_id"])
@@ -381,9 +380,9 @@ async def telegram_auto_add(
                 pass  # best-effort — greeting failure must not break verification
     verified = False
     if not failed:
-        # вариант A, шаг 4: бот реально добавил во все группы → задача выполнена
+        # бот реально добавил во все группы → задача выполнена
         verified = await _auto_verify_telegram(db, user.id)
-    return AutoAddOut(added=added, failed=failed, username=user.telegram_username,
+    return AutoAddOut(added=added, failed=failed, username=contact.username,
                       invite_links=invite_links, verified=verified, greeted=greeted)
 
 
@@ -438,12 +437,42 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
             await db.commit()
         except Exception:
             await db.rollback()
-        if str(msg.get("text") or "").startswith("/start"):
+        text = str(msg.get("text") or "")
+        if text.startswith("/start"):
+            # Parse deep-link payload: uid_<userId> or plain /start
+            payload = text.split(maxsplit=1)[1].strip() if " " in text else ""
+            linked_user_id = None
+            if payload.startswith("uid_"):
+                try:
+                    linked_user_id = int(payload[4:])
+                except ValueError:
+                    linked_user_id = None
+            if linked_user_id is not None:
+                # Link this Telegram account to the portal user
+                from app.models import User as _User
+                target_user = await db.get(_User, linked_user_id)
+                if target_user is not None:
+                    row.user_id = linked_user_id
+                    db.add(row)
+                    try:
+                        await db.commit()
+                    except Exception:
+                        await db.rollback()
+                    try:
+                        await _tg_call(settings.telegram_bot_token, "sendMessage", {
+                            "chat_id": tg_id,
+                            "text": f"Привет, {target_user.name or ''}! Вы привязаны к порталу MDigital. "
+                            "Вернитесь в портал и нажмите «Добавить меня в группы».",
+                        })
+                    except RuntimeError:
+                        pass
+                    return JSONResponse({"ok": True, "contact_saved": tg_id, "linked_user": linked_user_id})
+            # Plain /start (no uid payload)
             try:
                 await _tg_call(settings.telegram_bot_token, "sendMessage", {
                     "chat_id": tg_id,
-                    "text": "Привет! Я бот онбординга MDigital. Отлично — теперь вернитесь "
-                    "в портал, введите ваш @username и нажмите «Добавить меня в группы».",
+                    "text": "Привет! Я бот онбординга MDigital. "
+                    "Вернитесь в портал и нажмите «Добавить меня в группы».",
                 })
             except RuntimeError:
                 pass

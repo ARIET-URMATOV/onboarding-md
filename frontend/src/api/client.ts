@@ -44,6 +44,7 @@ export type Role = 'frontend' | 'backend' | 'design';
 
 export interface MeResponse {
   user: {
+    id: number;
     email: string;
     name: string;
     role: Role | null;
@@ -71,6 +72,7 @@ export interface MeResponse {
 }
 
 export interface UserResponse {
+  id: number;
   email: string;
   name: string;
   role: Role | null;

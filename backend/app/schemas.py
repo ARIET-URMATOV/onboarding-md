@@ -74,6 +74,7 @@ class ProgressOut(BaseModel):
 
 
 class UserOut(BaseModel):
+    id: int
     email: str
     name: str
     role: str | None
@@ -312,6 +313,12 @@ class MeOut(BaseModel):
 class OidcCallbackIn(BaseModel):
     code: str
     state: str
+
+
+class InfoReadIn(BaseModel):
+    """Сотрудник подтвердил прочтение инфо-модалки (scroll-checker → auto-complete)."""
+    stage_id: int = Field(ge=1, le=5)
+    task_id: str = Field(min_length=1, max_length=40)
 
 
 class OkOut(BaseModel):

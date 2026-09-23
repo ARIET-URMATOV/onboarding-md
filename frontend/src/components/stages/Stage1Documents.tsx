@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Award, BadgeCheck, ChevronDown, ChevronRight, ClipboardCheck, Clock, FileCheck,
-  FileText, FolderCheck, Hourglass, IdCard, KeyRound, RotateCcw, Send, ShieldCheck, Wifi, XCircle,
+  BadgeCheck, ChevronDown, ChevronRight, ClipboardCheck, FileCheck,
+  FileText, FolderCheck, IdCard, KeyRound, Send, ShieldCheck, Wifi,
   Link as LinkIcon, Smartphone, Apple, BookOpen, Globe, Lock, MessageSquare, ExternalLink, Download,
   CircleCheck, Check, Copy, Info,
 } from 'lucide-react';
-import confetti from 'canvas-confetti';
 import type { StageId } from '../../data/stages';
 import { useOnboarding } from '../../store/useOnboarding';
 import { SlaBanner } from '../ui/SlaBanner';
@@ -51,8 +50,6 @@ function ServiceIcon({ icon_key, size = 16 }: { icon_key: string; size?: number 
 
 export function Stage1Documents({ stageId }: Props) {
   const done = useOnboarding((s) => s.doneTasks[stageId] || []);
-  const pending = useOnboarding((s) => s.pending);
-  const requestTask = useOnboarding((s) => s.requestTask);
   const refreshMe = useOnboarding((s) => s.refreshMe);
   const connectLive = useOnboarding((s) => s.connectLive);
   const user = useOnboarding((s) => s.user);
@@ -73,20 +70,6 @@ export function Stage1Documents({ stageId }: Props) {
   );
   const confTotal = confluencePageIds.length;
 
-  // Wi-Fi
-  const [mac, setMac] = useState('');
-  const [macSent, setMacSent] = useState(false);
-  const [macError, setMacError] = useState<string | null>(null);
-  const [wifiMsg, setWifiMsg] = useState<string | null>(null);
-  const [wifiShownPw, setWifiShownPw] = useState<string | null>(null);
-  const [wifiShowPw, setWifiShowPw] = useState(false);
-
-  // MPulse code
-  const [mpulseCode, setMpulseCode] = useState('');
-  const [mpulseVerifying, setMpulseVerifying] = useState(false);
-  const [mpulseMsg, setMpulseMsg] = useState<string | null>(null);
-
-  // Confluence: dynamic from DB
   const CONF_MIN_SECONDS = 120;
   const cfKey = `cf-progress-${user?.email ?? 'anon'}`;
   const loadCf = (): { openedAt: string | null; clicked: Record<string, string>; visibleSec: number } => {
@@ -115,62 +98,16 @@ export function Stage1Documents({ stageId }: Props) {
 
   const isDone = (k: DocKey) => done.includes(docToTask[k]);
   const isTaskDone = (taskId: string) => done.includes(taskId);
-  const rejNote = (taskId: string) => rejected.find((r) => r.task_id === taskId)?.note ?? null;
-  const [reqMsg, setReqMsg] = useState<string | null>(null);
 
-  // Step 1
-  const DOC_IDS = ['1-dogovor', '1-nda', '1-pdp', '1-ip', '1-sn'];
   const DOCS_PACKAGE = [
-    { id: '1-dogovor', title: 'Договор об оказании услуг', sub: '2 экземпляра · подписать оба, один остаётся у вас',
-      detail: 'Распечатайте или получите бланк у HR. Проверьте паспортные данные и банковские реквизиты, подпишите оба экземпляра. Один остаётся у вас, второй передаётся компании.', Icon: FileText },
-    { id: '1-nda', title: 'NDA — о неразглашении', sub: '2 экземпляра · строгий режим, действует 3 года',
-      detail: 'Устанавливает строгий режим конфиденциальности в отношении разработок, клиентов и партнёров. Действует 3 года после завершения сотрудничества. Подпишите оба экземпляра.', Icon: ShieldCheck },
-    { id: '1-pdp', title: 'Соглашение о персональных данных', sub: 'Обязательный документ',
-      detail: 'Разрешение на обработку персональных данных для кадрового учёта и безопасности. Подписывается при старте онбординга, данные хранятся по закону.', Icon: FileCheck },
-    { id: '1-ip', title: 'Свидетельство ИП', sub: 'Копия / выписка + реквизиты',
-      detail: 'Предоставьте копию свидетельства или выписку из реестра плюс банковские реквизиты — файлом или бумажной копией бухгалтеру / HR для взаиморасчётов.', Icon: IdCard },
-    { id: '1-sn', title: 'Справка о несудимости', sub: 'Актуальный документ',
-      detail: 'Электронная справка с Госуслуг / ЦОН или бумажный оригинал. Подтверждает соответствие требованиям безопасности для доступа к проектам клиентов.', Icon: BadgeCheck },
+    { id: '1-dogovor', title: 'Договор об оказании услуг', sub: '2 экземпляра · подписать оба, один остаётся у вас', kind: 'dogovor' as DocKind, Icon: FileText },
+    { id: '1-nda', title: 'NDA — о неразглашении', sub: '2 экземпляра · строгий режим, действует 3 года', kind: 'nda' as DocKind, Icon: ShieldCheck },
+    { id: '1-pdp', title: 'Соглашение о персональных данных', sub: 'Обязательный документ', kind: 'pdp' as DocKind, Icon: FileCheck },
+    { id: '1-ip', title: 'Свидетельство ИП', sub: 'Копия / выписка + реквизиты', kind: 'ip' as DocKind, Icon: IdCard },
+    { id: '1-sn', title: 'Справка о несудимости', sub: 'Актуальный документ', kind: 'sn' as DocKind, Icon: BadgeCheck },
   ];
-  const [openDoc, setOpenDoc] = useState<string | null>(null);
-  const rejected = useOnboarding((s) => s.rejected);
-  const lastVerifiedAt = useOnboarding((s) => s.lastVerifiedAt);
-  const lastVerifiedTask = useOnboarding((s) => s.lastVerifiedTask);
-  const pendingDocs = DOC_IDS.filter((id) => pending.includes(id));
-  const rejectedDocs = rejected.filter((r) => DOC_IDS.includes(r.task_id));
-  const [sendingDocs, setSendingDocs] = useState(false);
-  const submitDocs = async () => {
-    setSendingDocs(true);
-    setReqMsg(null);
-    try {
-      await api.post('/api/progress/request-batch', { task_ids: DOC_IDS });
-      await refreshMe();
-    } catch (e) {
-      setReqMsg(e instanceof Error ? e.message : 'Не удалось отправить пакет');
-    } finally {
-      setSendingDocs(false);
-    }
-  };
 
   useEffect(() => { connectLive(); }, [connectLive]);
-
-  const prevRejectedCount = useRef(rejected.length);
-  useEffect(() => {
-    if (rejected.length > prevRejectedCount.current) {
-      const fresh = rejected[rejected.length - 1];
-      if (fresh) toast.error(`HR отклонил: ${fresh.task_id}`, fresh.note || 'Доделайте и отправьте снова');
-    }
-    prevRejectedCount.current = rejected.length;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rejected]);
-
-  const handleConfirm = (k: DocKey) => {
-    if (isDone(k) || pending.includes(docToTask[k])) return;
-    setReqMsg(null);
-    requestTask(docToTask[k]).catch((e) => {
-      setReqMsg(e instanceof Error ? e.message : 'Не удалось отправить запрос');
-    });
-  };
 
   const step1Done = ['1-dogovor','1-nda','1-pdp','1-ip','1-sn'].every(id => done.includes(id));
   const STEP2_IDS = ['1-mbusiness','1-accountant','1-wifi','1-proxy','1-telegram','1-jira','1-figma','1-gitlab'];
@@ -191,49 +128,13 @@ export function Stage1Documents({ stageId }: Props) {
   useEffect(() => () => { if (autoTimer.current) window.clearTimeout(autoTimer.current); }, []);
   useEffect(() => () => { if (tgCopyTimer.current) clearTimeout(tgCopyTimer.current); }, []);
 
-  const consumeVerified = useOnboarding((s) => s.consumeVerified);
-  const lastBurst = useRef(0);
-  useEffect(() => {
-    if (lastVerifiedAt === null || lastVerifiedTask === null) return;
-    if (!DOC_IDS.includes(lastVerifiedTask)) return;
-    if (Date.now() - lastVerifiedAt > 10000) { consumeVerified(); return; }
-    consumeVerified();
-    toast.success('HR подтвердил пакет документов', '+5 баллов начислено');
-    if (Date.now() - lastBurst.current > 3000) {
-      lastBurst.current = Date.now();
-      try { confetti({ particleCount: 45, spread: 70, origin: { y: 0.6 }, colors: ['#22C55E', '#3B82F6', '#FBBF24'], ticks: 120 }); } catch { /* ignore */ }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lastVerifiedAt]);
-  const prevStep1Done = useRef(step1Done);
-  useEffect(() => {
-    if (!prevStep1Done.current && step1Done && lastVerifiedAt !== null && Date.now() - lastVerifiedAt < 15000) {
-      if (autoTimer.current) window.clearTimeout(autoTimer.current);
-      autoTimer.current = window.setTimeout(() => { setOpenStep(2); autoTimer.current = null; }, 2000);
-    }
-    prevStep1Done.current = step1Done;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step1Done]);
-
   useEffect(() => {
     if (!confOpenedAt || step4ExplicitDone) return;
     const id = setInterval(() => { if (!document.hidden) setConfVisibleSec((v) => v + 1); }, 1000);
     return () => clearInterval(id);
   }, [confOpenedAt, step4ExplicitDone]);
 
-  useEffect(() => {
-    api.get<{ mac_sent: boolean }>('/api/wifi-status')
-      .then((s) => setMacSent(s.mac_sent))
-      .catch(() => { /* ignore */ });
-    api.get<{ password: string | null }>('/api/wifi-password')
-      .then((r) => { if (r.password) { setWifiShownPw(r.password); setMacSent(true); } })
-      .catch(() => { /* ignore */ });
-  }, []);
-
-  // Telegram
   const userName = user?.name ?? '';
-  const [tgHandle, setTgHandle] = useState('');
-  const [tgHandleError, setTgHandleError] = useState<string | null>(null);
   const [tgGroups, setTgGroups] = useState<{ title: string; chat_id: string }[]>([]);
   const [tgAdded, setTgAdded] = useState<string[]>([]);
   const [tgFailed, setTgFailed] = useState<Record<string, string>>({});
@@ -257,12 +158,6 @@ export function Stage1Documents({ stageId }: Props) {
       .catch(() => { /* ignore */ });
   };
   useEffect(() => {
-    api.get<{ telegram_username?: string }>('/api/me')
-      .then((me: unknown) => {
-        const u = (me as { user?: { telegram_username?: string; name?: string } }).user;
-        if (u?.telegram_username) setTgHandle(u.telegram_username);
-      })
-      .catch(() => { /* ignore */ });
     loadTgGroups();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myRole, user?.email]);
@@ -272,13 +167,9 @@ export function Stage1Documents({ stageId }: Props) {
   }, [userName]);
 
   const handleTgAutoAdd = async () => {
-    const v = tgHandle.trim();
-    if (!/^@?[A-Za-z][A-Za-z0-9_]{4,31}$/.test(v)) { setTgHandleError('Формат: @ivan_99 (латиница, 5–32 символа)'); return; }
-    setTgHandleError(null);
     setTgAdding(true);
     setTgMsg(null);
     try {
-      await api.patch('/api/profile', { telegram_username: v });
       const r = await api.post<{ added: string[]; failed: { title: string; reason: string }[]; invite_links?: { title: string; url: string }[]; verified?: boolean; greeted?: string[] }>('/api/integrations/telegram-auto-add', { greeting: tgGreet.trim().slice(0, 500) });
       setTgAdded(r.added);
       const f: Record<string, string> = {};
@@ -312,62 +203,14 @@ export function Stage1Documents({ stageId }: Props) {
     }
   };
 
-  const handleWifiSubmit = async () => {
-    const v = mac.trim().toUpperCase();
-    const re = /^([0-9A-F]{2}[:-]){5}[0-9A-F]{2}$/;
-    if (!re.test(v)) { setMacError('Введите MAC в формате AA:BB:CC:DD:EE:FF'); return; }
-    setMacError(null);
+  const handleInfoRead = async (taskId: string) => {
+    if (done.includes(taskId)) return;
     try {
-      await api.post('/api/wifi-mac', { mac: v });
-      setMacSent(true);
+      await api.post('/api/progress/info-read', { stage_id: 1, task_id: taskId });
+      toast.success('Задача выполнена', '+XP начислено');
       await refreshMe();
     } catch (e) {
-      setMacError(e instanceof Error ? e.message : 'Ошибка отправки MAC');
-    }
-  };
-
-  const handleWifiCopy = async () => {
-    if (!wifiShownPw) return;
-    try {
-      await navigator.clipboard.writeText(wifiShownPw);
-      setWifiMsg('Пароль скопирован ✓');
-    } catch {
-      setWifiMsg('Выделите пароль вручную');
-    }
-  };
-
-  const handleSelfLink = async (taskId: string) => {
-    if (isTaskDone(taskId)) return;
-    try {
-      await api.post('/api/progress/self-link', { stage_id: 1, task_id: taskId });
-      await refreshMe();
-    } catch { /* best-effort */ }
-  };
-
-  const requestAccess = async (taskId: string, setMsgFn: (m: string | null) => void, okText: string) => {
-    setMsgFn(null);
-    try {
-      await requestTask(taskId);
-      setMsgFn(okText);
-    } catch (e) {
-      setMsgFn(e instanceof Error ? e.message : 'Не удалось отправить запрос');
-    }
-  };
-
-  const handleMpulseVerify = async () => {
-    const code = mpulseCode.trim();
-    if (!code) { setMpulseMsg('Введите проверочный код из MPulse'); return; }
-    setMpulseVerifying(true);
-    setMpulseMsg(null);
-    try {
-      await api.post('/api/verify-mpulse-code', { code });
-      setMpulseMsg('Код принят ✓ Доступ к MPulse подтверждён');
-      toast.success('MPulse подтверждён', '+5 баллов начислено');
-      await refreshMe();
-    } catch (e) {
-      setMpulseMsg(e instanceof Error ? e.message : 'Неверный код');
-    } finally {
-      setMpulseVerifying(false);
+      toast.error('Ошибка', e instanceof Error ? e.message : 'Не удалось зачесть');
     }
   };
 
@@ -392,9 +235,6 @@ export function Stage1Documents({ stageId }: Props) {
     } finally { setConfConfirming(false); }
   };
 
-  const [accMsg, setAccMsg] = useState<string | null>(null);
-  const [mbMsg, setMbMsg] = useState<string | null>(null);
-  const [proxyMsg, setProxyMsg] = useState<string | null>(null);
   const [acctInstruction, setAcctInstruction] = useState('');
 
   const DEFAULT_ACCOUNTANT_TEXT = 'Передайте бухгалтеру реквизиты для выплат: копию свидетельства ИП (или выписку из реестра), БИН/ИИН, банковские реквизиты (БИК, IBAN, наименование банка). Выплаты — с 1 по 10 число. По вопросам начислений пишите бухгалтеру (контакт — у HR).';
@@ -444,116 +284,83 @@ export function Stage1Documents({ stageId }: Props) {
 
       {/* ── Шаг 1 ── */}
       <section className={`s1-step ${effectiveOpen === 1 ? 'open' : ''}`}>
-        <StepHeader n={1} title="Подписание документов" reward="5 баллов" desc="HR выдала пакет офлайн · соберите всё и отправьте одной кнопкой" open={effectiveOpen === 1} done={step1Done} onToggle={() => toggleStep(1)} />
+        <StepHeader n={1} title="Подписание документов" reward="5 баллов" desc="Откройте каждый документ, ознакомьтесь и подтвердите прочтение" open={effectiveOpen === 1} done={step1Done} onToggle={() => toggleStep(1)} />
         <div className="s1-step-body">
         <div className="pkg-card">
           <div className="pkg-head">
             <span className="pkg-ico"><FolderCheck size={20} /></span>
             <div>
               <div className="pkg-title">Пакет документов</div>
-              <div className="pkg-sub">Подпишите всё из списка и отправьте на проверку одной кнопкой</div>
+              <div className="pkg-sub">Откройте каждый документ и подтвердите прочтение</div>
             </div>
           </div>
           <ul className="pkg-list">
             {DOCS_PACKAGE.map((d, i) => {
-              const st = done.includes(d.id) ? 'done' : pending.includes(d.id) ? 'pending' : 'todo';
-              const expanded = openDoc === d.id;
+              const st = done.includes(d.id) ? 'done' : 'todo';
               return (
-                <li key={d.id} className={`pkg-item ${st} ${expanded ? 'open' : ''}`}>
-                  <button type="button" className="pkg-item-row" onClick={() => setOpenDoc(expanded ? null : d.id)} aria-expanded={expanded}>
+                <li key={d.id} className={`pkg-item ${st}`}>
+                  <button type="button" className="pkg-item-row" onClick={() => { if (!done.includes(d.id)) setOpen(d.kind); }} disabled={done.includes(d.id)}>
                     <span className="pkg-item-ico"><d.Icon size={15} /></span>
                     <span className="pkg-item-body"><b>{i + 1}. {d.title}</b><span>{d.sub}</span></span>
-                    <span className="pkg-item-st">{st === 'done' ? <CircleCheck size={16} /> : st === 'pending' ? <Clock size={15} /> : <span className="pkg-dot" />}</span>
-                    <ChevronDown size={15} className={`pkg-chev ${expanded ? 'open' : ''}`} />
+                    <span className="pkg-item-st">{st === 'done' ? <CircleCheck size={16} /> : <span className="pkg-dot" />}</span>
                   </button>
-                  {expanded && <div className="pkg-detail">{d.detail}</div>}
                 </li>
               );
             })}
           </ul>
           {step1Done ? (
-            <div className="pkg-status done"><CircleCheck size={20} /><div><b>Выполнено — шаг 1 пройден</b><span>Подтверждено HR · <Award size={12} style={{ verticalAlign: '-2px' }} /> +5 баллов начислено</span></div></div>
-          ) : rejectedDocs.length ? (
-            <div className="pkg-status rejected"><XCircle size={20} /><div><b>HR отклонил(а) — нужно доделать</b><span>Причина: {rejectedDocs[0].note}</span></div>
-              <button type="button" className="pkg-submit" onClick={submitDocs} disabled={sendingDocs}><RotateCcw size={14} /> {sendingDocs ? 'Отправляем…' : 'Исправить и отправить снова'}</button>
-            </div>
-          ) : pendingDocs.length ? (
-            <div className="pkg-status pending"><Hourglass size={20} className="spin-slow" /><div><b>Ожидает проверки HR</b><span>Пакет ({pendingDocs.length}/5) у HR на проверке</span></div></div>
+            <div className="pkg-status done"><CircleCheck size={20} /><div><b>Выполнено — шаг 1 пройден</b><span>+5 баллов начислено</span></div></div>
           ) : (
-            <button type="button" className="pkg-submit" onClick={submitDocs} disabled={sendingDocs}><Send size={14} /> {sendingDocs ? 'Отправляем…' : 'Отправить на проверку HR'}</button>
+            <div className="pkg-hint">Откройте каждый документ и подтвердите прочтение</div>
           )}
-          {reqMsg && <div className="wifi-err">{reqMsg}</div>}
         </div>
         </div>
       </section>
 
       {/* ── Шаг 2 ── */}
       <section className={`s1-step ${effectiveOpen === 2 ? 'open' : ''}`}>
-        <StepHeader n={2} title="Получение доступов" reward="0 баллов" desc="Подтверждение staff (HR/лид/сисадмин) — сотрудник отмечает, staff верифицирует" open={effectiveOpen === 2} done={step2Done} onToggle={() => toggleStep(2)} />
+        <StepHeader n={2} title="Получение доступов" reward="0 баллов" desc="Ознакомьтесь с каждым доступом и нажмите «Готово»" open={effectiveOpen === 2} done={step2Done} onToggle={() => toggleStep(2)} />
         <div className="s1-step-body">
         <div className="step-grid">
-          <div className="doc-card svc-card">
+          <div className="doc-card svc-card" onClick={() => !isTaskDone('1-mbusiness') && setOpenInfo(INFO_MODALS.mbusiness)} style={{ cursor: isTaskDone('1-mbusiness') ? 'default' : 'pointer' }}>
             <div className="dc-icon"><img src="/mbusiness-logo.png" alt="MBusiness" width={28} height={28} loading="lazy" decoding="async" style={{ objectFit: 'contain' }} /></div>
             <div className="dc-body" style={{ flex: 1 }}>
-              <div className="dc-title">MBusiness — открытие {isTaskDone('1-mbusiness') && <span className="dc-badge">выполнено</span>}{!isTaskDone('1-mbusiness') && pending.includes('1-mbusiness') && <span className="dc-badge pending">ожидает HR</span>}</div>
-              <div className="dc-sub">MBusiness нужен для получения зарплаты (1–10 число). HR поможет с открытием.</div>
-              {!isTaskDone('1-mbusiness') && !pending.includes('1-mbusiness') && (
-                <button type="button" className="wifi-btn" style={{ marginTop: 8 }} onClick={() => requestAccess('1-mbusiness', setMbMsg, 'Запрос отправлен HR ✓')}>Запросить открытие MBusiness</button>
-              )}
-              {pending.includes('1-mbusiness') && !isTaskDone('1-mbusiness') && <div className="wifi-ok">Ожидает подтверждения HR…</div>}
-              {rejNote('1-mbusiness') && <div className="wifi-err">HR: {rejNote('1-mbusiness')}</div>}
-              {mbMsg && <div className="wifi-ok">{mbMsg}</div>}
+              <div className="dc-title">MBusiness — открытие {isTaskDone('1-mbusiness') && <span className="dc-badge">выполнено</span>}</div>
+              <div className="dc-sub">Нажмите чтобы узнать подробнее</div>
             </div>
             <button type="button" className="dc-info-icon" onClick={(e) => { e.stopPropagation(); setOpenInfo(INFO_MODALS.mbusiness); }} aria-label="Подробнее"><Info size={14} /></button>
           </div>
-          <div className="doc-card svc-card">
+          <div className="doc-card svc-card" onClick={() => !isTaskDone('1-accountant') && setOpenInfo(INFO_MODALS.accountant)} style={{ cursor: isTaskDone('1-accountant') ? 'default' : 'pointer' }}>
             <div className="dc-icon"><ClipboardCheck size={16} /></div>
             <div className="dc-body" style={{ flex: 1 }}>
-              <div className="dc-title">Доступ бухгалтеру {isTaskDone('1-accountant') && <span className="dc-badge">выполнено</span>}{!isTaskDone('1-accountant') && pending.includes('1-accountant') && <span className="dc-badge pending">ожидает бухгалтера</span>}</div>
-              <div className="dc-sub">{acctInstruction || DEFAULT_ACCOUNTANT_TEXT}</div>
-              {!isTaskDone('1-accountant') && !pending.includes('1-accountant') && (
-                <button type="button" className="wifi-btn" style={{ marginTop: 8 }} onClick={() => requestAccess('1-accountant', setAccMsg, 'Отмечено — бухгалтер проверит ✓')}>Я выполнил инструкцию</button>
-              )}
-              {pending.includes('1-accountant') && !isTaskDone('1-accountant') && <div className="wifi-ok">Ожидает подтверждения бухгалтера…</div>}
-              {rejNote('1-accountant') && <div className="wifi-err">Бухгалтер: {rejNote('1-accountant')}</div>}
-              {accMsg && <div className="wifi-ok">{accMsg}</div>}
+              <div className="dc-title">Доступ бухгалтеру {isTaskDone('1-accountant') && <span className="dc-badge">выполнено</span>}</div>
+              <div className="dc-sub">Нажмите чтобы узнать подробнее</div>
             </div>
             <button type="button" className="dc-info-icon" onClick={(e) => { e.stopPropagation(); setOpenInfo(INFO_MODALS.accountant); }} aria-label="Подробнее"><Info size={14} /></button>
           </div>
-          <div className="doc-card svc-card">
+          <div className="doc-card svc-card" onClick={() => !isTaskDone('1-proxy') && setOpenInfo(INFO_MODALS.proxy)} style={{ cursor: isTaskDone('1-proxy') ? 'default' : 'pointer' }}>
             <div className="dc-icon"><KeyRound size={16} /></div>
             <div className="dc-body" style={{ flex: 1 }}>
-              <div className="dc-title">Прокси-карта и Face ID {isTaskDone('1-proxy') && <span className="dc-badge">выполнено</span>}{!isTaskDone('1-proxy') && pending.includes('1-proxy') && <span className="dc-badge pending">ожидает выдачи</span>}</div>
-              <div className="dc-sub">Пропуск на 1 этаж · коворкинг · Технопарк / MSpace. Запрос уходит вашему Лиду/PM.</div>
-              {!isTaskDone('1-proxy') && !pending.includes('1-proxy') && (
-                <button type="button" className="wifi-btn" style={{ marginTop: 8 }} onClick={() => requestAccess('1-proxy', setProxyMsg, 'Запрос отправлен Лиду/PM ✓')}>Запросить пропуск у Лида/PM</button>
-              )}
-              {pending.includes('1-proxy') && !isTaskDone('1-proxy') && <div className="wifi-ok">Ожидает выдачи…</div>}
-              {rejNote('1-proxy') && <div className="wifi-err">Лид: {rejNote('1-proxy')}</div>}
-              {proxyMsg && <div className="wifi-ok">{proxyMsg}</div>}
+              <div className="dc-title">Прокси-карта и Face ID {isTaskDone('1-proxy') && <span className="dc-badge">выполнено</span>}</div>
+              <div className="dc-sub">Нажмите чтобы узнать подробнее</div>
             </div>
             <button type="button" className="dc-info-icon" onClick={(e) => { e.stopPropagation(); setOpenInfo(INFO_MODALS.proxy); }} aria-label="Подробнее"><Info size={14} /></button>
           </div>
           <div className="doc-card tg-card">
               <div className={`dc-icon ${isTaskDone('1-telegram') ? 'dc-done' : ''}`}>{isTaskDone('1-telegram') ? <CircleCheck size={16} /> : <Send size={16} />}</div>
             <div className="dc-body" style={{ flex: 1 }}>
-              <div className="dc-title">Доступ в Telegram-группы {isTaskDone('1-telegram') && <span className="dc-badge">готово</span>}{!isTaskDone('1-telegram') && pending.includes('1-telegram') && <span className="dc-badge pending">ожидает HR</span>}{user?.email === 'demo@mdigital.kg' ? <span className="dc-badge">демо: все группы</span> : myRole ? <span className="dc-badge">{myRole}</span> : null}</div>
+              <div className="dc-title">Доступ в Telegram-группы {isTaskDone('1-telegram') && <span className="dc-badge">готово</span>}{user?.email === 'demo@mdigital.kg' ? <span className="dc-badge">демо: все группы</span> : myRole ? <span className="dc-badge">{myRole}</span> : null}</div>
               {!isTaskDone('1-telegram') && (
-                <div className="tg-hint">1. Откройте бота по ссылке и нажмите /start. 2. Введите ваш @username — бот найдёт вас в Telegram. 3. Нажмите «Добавить меня в группы» — бот добавит вас и отправит приветствие из шаблона.</div>
+                <div className="tg-hint">1. Откройте бота по ссылке и нажмите Start. 2. Нажмите «Добавить меня в группы» — бот добавит вас во все группы.</div>
               )}
               {isTaskDone('1-telegram') ? (
                 <>
-                  <div className="dc-sub">✅ Вы добавлены в группы:</div>
+                  <div className="dc-sub">Вы добавлены в группы:</div>
                   <div className="tg-groups">{(tgAdded.length ? tgAdded : tgGroups.map((g) => g.title)).map((t) => (<div key={t} className="tg-group-row"><span>• {t}</span></div>))}</div>
                   <div className="dc-sub">Не забудьте представиться команде! Шаблон приветствия:</div>
                 </>
               ) : (
                 <div className="tg-form-block">
-                  <div className="dc-sub">Укажите ваш @username в Telegram:</div>
-                  <div className="wifi-inline" onClick={e => e.stopPropagation()}>
-                    <input className="wifi-input" placeholder="@ivan_99" value={tgHandle} onChange={e => setTgHandle(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleTgAutoAdd(); }} aria-label="Telegram username" />
-                  </div>
-                  {tgHandleError && <div className="wifi-err">{tgHandleError}</div>}
                   {tgGroups.length > 0 ? (
                     <>
                       <div className="tg-chk-list">
@@ -567,7 +374,7 @@ export function Stage1Documents({ stageId }: Props) {
                       </div>
                       <div className="tg-btn-row">
                         <button type="button" className="tg-btn-primary" onClick={handleTgAutoAdd} disabled={tgAdding}>{tgAdding ? 'Добавляем…' : 'Добавить меня в группы'}</button>
-                        <a href="https://t.me/onboarding_admin_bot?start=onboarding" target="_blank" rel="noopener noreferrer" className="tg-btn-secondary" onClick={e => e.stopPropagation()}>Открыть бота →</a>
+                        <a href={`https://t.me/onboarding_admin_bot?start=uid_${user?.id ?? ''}`} target="_blank" rel="noopener noreferrer" className="tg-btn-secondary" onClick={e => e.stopPropagation()}>Открыть бота →</a>
                       </div>
                     </>
                   ) : <div className="wifi-err">Групп для вашей роли ({myRole || '—'}) пока нет — обратитесь к HR</div>}
@@ -587,48 +394,27 @@ export function Stage1Documents({ stageId }: Props) {
                 </div>
               )}
               {tgMsg && <div className={tgMsg.includes('✓') ? 'wifi-ok' : 'wifi-err'}>{tgMsg}</div>}
-              {rejNote('1-telegram') && <div className="wifi-err">Тимлид: {rejNote('1-telegram')}</div>}
             </div>
             <button type="button" className="dc-info-icon" onClick={(e) => { e.stopPropagation(); setOpenInfo(INFO_MODALS.telegram); }} aria-label="Подробнее"><Info size={14} /></button>
           </div>
-          {/* Access services from DB */}
           {accessServices.map((s) => (
-            <div key={s.key} className="doc-card svc-card">
+            <div key={s.key} className="doc-card svc-card" onClick={() => s.task_id && !isTaskDone(s.task_id) && handleInfoRead(s.task_id)} style={{ cursor: s.task_id && !isTaskDone(s.task_id) ? 'pointer' : 'default' }}>
               <div className="dc-icon"><ServiceIcon icon_key={s.icon_key} /></div>
               <div className="dc-body" style={{ flex: 1 }}>
                 <div className="dc-title">{s.title} {s.task_id && isTaskDone(s.task_id) && <span className="dc-badge">выполнено</span>}</div>
                 <div className="dc-sub">{s.subtitle}</div>
                 {s.url ? (
-                  s.task_id
-                    ? <a href={s.url} target="_blank" rel="noopener noreferrer" className="wifi-help-link" onClick={() => handleSelfLink(s.task_id!)}>{s.title} →</a>
-                    : <a href={s.url} target="_blank" rel="noopener noreferrer" className="wifi-help-link">{s.title} →</a>
+                  <a href={s.url} target="_blank" rel="noopener noreferrer" className="wifi-help-link" onClick={e => e.stopPropagation()}>{s.title} →</a>
                 ) : <span className="wifi-err">Ссылка не настроена</span>}
               </div>
               {s.details && <button type="button" className="dc-info-icon" onClick={(e) => { e.stopPropagation(); setOpenInfo({ title: s.title, sub: s.subtitle, body: s.details }); }} aria-label="Подробнее"><Info size={14} /></button>}
             </div>
           ))}
-          <div className="doc-card wifi-card">
+          <div className="doc-card wifi-card" onClick={() => !isTaskDone('1-wifi') && setOpen('wifi')} style={{ cursor: isTaskDone('1-wifi') ? 'default' : 'pointer' }}>
             <div className={`dc-icon ${isTaskDone('1-wifi') ? 'dc-done' : ''}`}>{isTaskDone('1-wifi') ? <CircleCheck size={16} /> : <Wifi size={16} />}</div>
             <div className="dc-body" style={{ flex: 1 }}>
               <div className="dc-title">Доступ к Wi-Fi (Закрытая сеть) {isTaskDone('1-wifi') && <span className="dc-badge">готово</span>}</div>
-              <div className="dc-sub">Введите MAC-адрес ноутбука — сетевик выдаст пароль</div>
-              <div className="wifi-inline" onClick={e => e.stopPropagation()}>
-                <input className="wifi-input" placeholder="AA:BB:CC:DD:EE:FF" value={mac} onChange={e => setMac(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleWifiSubmit(); }} aria-label="MAC-адрес" />
-                <button type="button" className="wifi-btn" onClick={handleWifiSubmit} disabled={macSent}>{macSent ? 'Отправлено ✓' : 'Отправить'}</button>
-              </div>
-              {macError && <div className="wifi-err">{macError}</div>}
-              {macSent && !isTaskDone('1-wifi') && !wifiShownPw && !macError && <div className="wifi-ok">⏳ Ожидаем пароль от сетевика…</div>}
-              {isTaskDone('1-wifi') && !macError && <div className="wifi-ok">Wi-Fi подтверждён ✓</div>}
-              {wifiShownPw && (
-                <div className="wifi-shown">
-                  <div className="wifi-inline" onClick={e => e.stopPropagation()}>
-                    <input className="wifi-input" type={wifiShowPw ? 'text' : 'password'} value={wifiShownPw} readOnly aria-label="Пароль Wi-Fi" />
-                    <button type="button" className="wifi-btn" onClick={() => setWifiShowPw(!wifiShowPw)}>{wifiShowPw ? 'Скрыть' : 'Показать'}</button>
-                    <button type="button" className="wifi-btn" onClick={handleWifiCopy}>Копировать</button>
-                  </div>
-                </div>
-              )}
-              {wifiMsg && <div className={wifiMsg.includes('✓') ? 'wifi-ok' : 'wifi-err'}>{wifiMsg}</div>}
+              <div className="dc-sub">Откройте инструкцию по подключению к корпоративному Wi-Fi</div>
             </div>
             <button type="button" className="dc-info-icon" onClick={(e) => { e.stopPropagation(); setOpenInfo(INFO_MODALS.wifi); }} aria-label="Подробнее"><Info size={14} /></button>
           </div>
@@ -662,25 +448,22 @@ export function Stage1Documents({ stageId }: Props) {
               </a>
             ))}
           </div>
-          <div className="mpulse-verify">
-            <div className="mpulse-verify-title">
-              <span className="mpulse-verify-ico">🔑</span>
-              Верификация — введите проверочный код из MPulse
-            </div>
-            <div className="mpulse-verify-sub">После входа в приложение вы увидите код. Введите его здесь, чтобы система зачла выполнение.</div>
-            {isTaskDone('1-mpulse-code') ? (
+          <div className="mpulse-verify" onClick={() => !step3Done && setOpenInfo(INFO_MODALS.mpulse)} style={{ cursor: step3Done ? 'default' : 'pointer' }}>
+            {step3Done ? (
               <div className="mpulse-verify-done">
                 <CircleCheck size={18} />
-                <span>Код подтверждён ✓</span>
+                <span>MPulse настроен ✓</span>
               </div>
             ) : (
-              <div className="mpulse-row">
-                <input className="mpulse-input" placeholder="Например: MPULSE-2026" value={mpulseCode} onChange={e => setMpulseCode(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleMpulseVerify(); }} aria-label="Проверочный код MPulse" />
-                <button type="button" className="mpulse-btn" onClick={handleMpulseVerify} disabled={mpulseVerifying}>{mpulseVerifying ? 'Проверка…' : 'Подтвердить код'}</button>
-              </div>
+              <>
+                <div className="mpulse-verify-title">
+                  <span className="mpulse-verify-ico">🔑</span>
+                  Откройте инструкцию по настройке MPulse
+                </div>
+                <div className="mpulse-verify-sub">Нажмите чтобы узнать подробнее о настройке приложения</div>
+                <button type="button" className="mpulse-btn" onClick={(e) => { e.stopPropagation(); handleInfoRead('1-mpulse-code'); }}>Я настроил MPulse</button>
+              </>
             )}
-            {mpulseMsg && <div className={`mpulse-msg ${mpulseMsg.includes('✓') ? 'ok' : 'err'}`}>{mpulseMsg}</div>}
-            {step3Done && <div className="pkg-status done"><CircleCheck size={20} /><div><b>Выполнено — MPulse настроен</b></div></div>}
           </div>
         </div>
         </div>
@@ -714,9 +497,7 @@ export function Stage1Documents({ stageId }: Props) {
         {step4ExplicitDone && <div className="step-done-badge">Шаг 4 выполнен ✓ +10 баллов</div>}
       </section>
 
-      <div className="doc-hint font-orbitron">HR верификация шага 1 обязательна.</div>
-
-      <DocumentModal kind="wifi" open={open === 'wifi'} onClose={() => setOpen(null)} alreadyDone={isDone('wifi')} onConfirm={() => handleConfirm('wifi')} />
+      <DocumentModal kind="wifi" open={open === 'wifi'} onClose={() => setOpen(null)} alreadyDone={isDone('wifi')} onConfirm={() => handleInfoRead('1-wifi')} />
       {openInfo && <ServiceModal title={openInfo.title} sub={openInfo.sub} body={openInfo.body} onClose={() => setOpenInfo(null)} />}
 
     <style>{`
