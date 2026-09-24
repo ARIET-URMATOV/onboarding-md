@@ -26,21 +26,22 @@ async def lifespan(_: FastAPI):
         await warm_stages_cache()
     except Exception as e:
         print(f"stages warmup: {e}")
+    # HOTFIX: ensure user_id column exists in telegram_contacts (миграция 026).
+    # Вне telegram-if: колонка должна чиниться всегда, независимо от env.
+    try:
+        from sqlalchemy import text as _text
+
+        from app.database import engine
+        async with engine.begin() as conn:
+            await conn.execute(_text("ALTER TABLE telegram_contacts ADD COLUMN IF NOT EXISTS user_id INTEGER"))
+            await conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_telegram_contacts_user_id ON telegram_contacts(user_id)"))
+        print("HOTFIX: telegram_contacts.user_id ensured")
+    except Exception as e:
+        print(f"HOTFIX: telegram_contacts migration failed: {e}")
+
     # Telegram webhook auto-registration (best-effort)
     if settings.telegram_bot_token and settings.telegram_webhook_secret and settings.public_base_url:
         import httpx as _httpx
-        
-        # --- HOTFIX: ensure user_id column exists in telegram_contacts ---
-        try:
-            from sqlalchemy import text as _text
-            from app.database import engine
-            async with engine.begin() as conn:
-                await conn.execute(_text("ALTER TABLE telegram_contacts ADD COLUMN IF NOT EXISTS user_id INTEGER"))
-                await conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_telegram_contacts_user_id ON telegram_contacts(user_id)"))
-            print("HOTFIX: telegram_contacts.user_id ensured")
-        except Exception as e:
-            print(f"HOTFIX: telegram_contacts migration failed: {e}")
-        # --- END HOTFIX ---
 
         wh_url = f"{settings.public_base_url.rstrip('/')}/api/integrations/telegram-webhook"
         try:
