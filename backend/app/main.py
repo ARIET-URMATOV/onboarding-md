@@ -28,6 +28,8 @@ async def lifespan(_: FastAPI):
         print(f"stages warmup: {e}")
     # HOTFIX: ensure user_id column exists in telegram_contacts (миграция 026).
     # Вне telegram-if: колонка должна чиниться всегда, независимо от env.
+    # HOTFIX-2: stage_tasks verification_type=info_read (миграция 026, часть 2).
+    # Без этого /progress/info-read отвечает 400 на проде, где alembic не накатился.
     try:
         from sqlalchemy import text as _text
 
@@ -35,9 +37,16 @@ async def lifespan(_: FastAPI):
         async with engine.begin() as conn:
             await conn.execute(_text("ALTER TABLE telegram_contacts ADD COLUMN IF NOT EXISTS user_id INTEGER"))
             await conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_telegram_contacts_user_id ON telegram_contacts(user_id)"))
-        print("HOTFIX: telegram_contacts.user_id ensured")
+            await conn.execute(_text(
+                "UPDATE stage_tasks SET verification_type = 'info_read' WHERE id IN ("
+                "'1-dogovor','1-nda','1-pdp','1-ip','1-sn',"
+                "'1-mbusiness','1-accountant','1-wifi','1-proxy',"
+                "'1-jira','1-figma','1-gitlab',"
+                "'1-mpulse','1-mpulse-schedule','1-mpulse-checkin','1-mpulse-code','1-mpulse-news')"
+            ))
+        print("HOTFIX: telegram_contacts.user_id + stage_tasks info_read ensured")
     except Exception as e:
-        print(f"HOTFIX: telegram_contacts migration failed: {e}")
+        print(f"HOTFIX failed: {e}")
 
     # Telegram webhook auto-registration (best-effort)
     if settings.telegram_bot_token and settings.telegram_webhook_secret and settings.public_base_url:

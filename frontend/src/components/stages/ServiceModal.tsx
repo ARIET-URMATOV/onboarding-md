@@ -6,11 +6,15 @@ interface Props {
   sub?: string;
   body: string;
   onClose: () => void;
+  onConfirm?: () => void;
+  confirmLabel?: string;
+  alreadyDone?: boolean;
 }
 
-export function ServiceModal({ title, sub, body, onClose }: Props) {
+export function ServiceModal({ title, sub, body, onClose, onConfirm, confirmLabel, alreadyDone }: Props) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [pct, setPct] = useState(0);
+  const [canConfirm, setCanConfirm] = useState(alreadyDone ?? false);
 
   useEffect(() => {
     if (!scrollRef.current) return;
@@ -20,6 +24,7 @@ export function ServiceModal({ title, sub, body, onClose }: Props) {
       const p = el.scrollHeight <= el.clientHeight ? 100
         : Math.round(((el.scrollTop + el.clientHeight) / el.scrollHeight) * 100);
       setPct(Math.min(100, p));
+      if (el.scrollTop + el.clientHeight >= el.scrollHeight - 16) setCanConfirm(true);
     };
     check();
     el.addEventListener('scroll', check, { passive: true });
@@ -64,7 +69,18 @@ export function ServiceModal({ title, sub, body, onClose }: Props) {
           </div>
         </div>
         <div className="svc-modal-foot">
-          <button className="svc-modal-btn" onClick={onClose}>Понятно</button>
+          {onConfirm ? (
+            <button
+              className="svc-modal-btn"
+              disabled={!canConfirm}
+              style={!canConfirm ? { opacity: 0.45, cursor: 'not-allowed' } : undefined}
+              onClick={() => { onConfirm(); onClose(); }}
+            >
+              {alreadyDone ? 'Ознакомлен(-а) ✓' : (confirmLabel ?? 'Подтвердить прочтение')}
+            </button>
+          ) : (
+            <button className="svc-modal-btn" onClick={onClose}>Понятно</button>
+          )}
         </div>
       </div>
       <style>{`

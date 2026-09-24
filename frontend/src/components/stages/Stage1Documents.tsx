@@ -16,10 +16,11 @@ import { ServiceModal } from './ServiceModal';
 
 interface Props { stageId: StageId }
 
-type DocKey = Exclude<DocKind, 'docs' | 'lead' | 'mplus' | 'jira' | 'confluence'>;
+type DocKey = Exclude<DocKind, 'docs' | 'lead' | 'jira' | 'confluence'>;
 const docToTask: Record<DocKey, string> = {
   dogovor: '1-dogovor', nda: '1-nda', pdp: '1-pdp', ip: '1-ip', sn: '1-sn',
   mbusiness: '1-mbusiness', accountant: '1-accountant', wifi: '1-wifi', proxy: '1-proxy', telegram: '1-telegram',
+  mplus: '1-mpulse-code',
 };
 
 function StepHeader({ n, title, reward, desc, open, done, onToggle }: {
@@ -57,7 +58,7 @@ export function Stage1Documents({ stageId }: Props) {
   const toast = useToast();
 
   const [open, setOpen] = useState<DocKind | null>(null);
-  const [openInfo, setOpenInfo] = useState<{ title: string; sub?: string; body: string } | null>(null);
+  const [openInfo, setOpenInfo] = useState<{ title: string; sub?: string; body: string; taskId?: string } | null>(null);
 
   // Services from DB
   const { services } = useServices();
@@ -96,7 +97,6 @@ export function Stage1Documents({ stageId }: Props) {
   const confRemain = Math.max(0, Math.ceil(CONF_MIN_SECONDS - confVisibleSec));
   const confReady = confClickedCount >= confTotal && confRemain <= 0;
 
-  const isDone = (k: DocKey) => done.includes(docToTask[k]);
   const isTaskDone = (taskId: string) => done.includes(taskId);
 
   const DOCS_PACKAGE = [
@@ -245,21 +245,24 @@ export function Stage1Documents({ stageId }: Props) {
       .catch(() => { /* не критично */ });
   }, []);
 
-  const INFO_MODALS: Record<string, { title: string; sub?: string; body: string }> = {
+  const INFO_MODALS: Record<string, { title: string; sub?: string; body: string; taskId?: string }> = {
     mbusiness: {
       title: 'MBusiness — открытие счёта',
       sub: 'Необходим для получения зарплаты',
       body: 'MBusiness нужен для того, чтобы вы своевременно получали выплаты за работу. Деньги поступают раз в месяц с 1 по 10 число.\n\nПомощь: При возникновении вопросов на этапе открытия счёта вам оперативно поможет ваш HR-менеджер.',
+      taskId: '1-mbusiness',
     },
     accountant: {
       title: 'Доступ бухгалтеру',
       sub: 'Предоставление реквизитов бухгалтерской службе',
       body: acctInstruction || DEFAULT_ACCOUNTANT_TEXT,
+      taskId: '1-accountant',
     },
     proxy: {
       title: 'Прокси-карта и Face ID (Транспортный доступ)',
       sub: 'Доступ в коворкинг, Технопарк и MSpace',
       body: 'Для получения физического пропуска/Face ID на первый этаж, в коворкинг, Технопарк или MSpace.\n\nЗапрос оформляется через вашего Team Lead или PM. Свяжитесь с руководителем для подачи заявки.',
+      taskId: '1-proxy',
     },
     wifi: {
       title: 'Доступ к Wi-Fi (Закрытая сеть)',
@@ -404,10 +407,10 @@ export function Stage1Documents({ stageId }: Props) {
                 <div className="dc-title">{s.title} {s.task_id && isTaskDone(s.task_id) && <span className="dc-badge">выполнено</span>}</div>
                 <div className="dc-sub">{s.subtitle}</div>
                 {s.url ? (
-                  <a href={s.url} target="_blank" rel="noopener noreferrer" className="wifi-help-link" onClick={e => e.stopPropagation()}>{s.title} →</a>
+                  <a href={s.url} target="_blank" rel="noopener noreferrer" className="wifi-help-link" onClick={(e) => { e.stopPropagation(); if (s.task_id && !isTaskDone(s.task_id)) handleInfoRead(s.task_id); }}>{s.title} →</a>
                 ) : <span className="wifi-err">Ссылка не настроена</span>}
               </div>
-              {s.details && <button type="button" className="dc-info-icon" onClick={(e) => { e.stopPropagation(); setOpenInfo({ title: s.title, sub: s.subtitle, body: s.details }); }} aria-label="Подробнее"><Info size={14} /></button>}
+              {s.details && <button type="button" className="dc-info-icon" onClick={(e) => { e.stopPropagation(); setOpenInfo({ title: s.title, sub: s.subtitle, body: s.details, taskId: s.task_id ?? undefined }); }} aria-label="Подробнее"><Info size={14} /></button>}
             </div>
           ))}
           <div className="doc-card wifi-card" onClick={() => !isTaskDone('1-wifi') && setOpen('wifi')} style={{ cursor: isTaskDone('1-wifi') ? 'default' : 'pointer' }}>
@@ -416,7 +419,7 @@ export function Stage1Documents({ stageId }: Props) {
               <div className="dc-title">Доступ к Wi-Fi (Закрытая сеть) {isTaskDone('1-wifi') && <span className="dc-badge">готово</span>}</div>
               <div className="dc-sub">Откройте инструкцию по подключению к корпоративному Wi-Fi</div>
             </div>
-            <button type="button" className="dc-info-icon" onClick={(e) => { e.stopPropagation(); setOpenInfo(INFO_MODALS.wifi); }} aria-label="Подробнее"><Info size={14} /></button>
+            <button type="button" className="dc-info-icon" onClick={(e) => { e.stopPropagation(); if (!isTaskDone('1-wifi')) setOpen('wifi'); }} aria-label="Подробнее"><Info size={14} /></button>
           </div>
         </div>
         </div>
@@ -448,7 +451,7 @@ export function Stage1Documents({ stageId }: Props) {
               </a>
             ))}
           </div>
-          <div className="mpulse-verify" onClick={() => !step3Done && setOpenInfo(INFO_MODALS.mpulse)} style={{ cursor: step3Done ? 'default' : 'pointer' }}>
+          <div className="mpulse-verify" onClick={() => !step3Done && setOpen('mplus')} style={{ cursor: step3Done ? 'default' : 'pointer' }}>
             {step3Done ? (
               <div className="mpulse-verify-done">
                 <CircleCheck size={18} />
@@ -460,8 +463,7 @@ export function Stage1Documents({ stageId }: Props) {
                   <span className="mpulse-verify-ico">🔑</span>
                   Откройте инструкцию по настройке MPulse
                 </div>
-                <div className="mpulse-verify-sub">Нажмите чтобы узнать подробнее о настройке приложения</div>
-                <button type="button" className="mpulse-btn" onClick={(e) => { e.stopPropagation(); handleInfoRead('1-mpulse-code'); }}>Я настроил MPulse</button>
+                <div className="mpulse-verify-sub">Прочитайте инструкцию до конца и подтвердите — этап зачтётся автоматически</div>
               </>
             )}
           </div>
@@ -497,8 +499,25 @@ export function Stage1Documents({ stageId }: Props) {
         {step4ExplicitDone && <div className="step-done-badge">Шаг 4 выполнен ✓ +10 баллов</div>}
       </section>
 
-      <DocumentModal kind="wifi" open={open === 'wifi'} onClose={() => setOpen(null)} alreadyDone={isDone('wifi')} onConfirm={() => handleInfoRead('1-wifi')} />
-      {openInfo && <ServiceModal title={openInfo.title} sub={openInfo.sub} body={openInfo.body} onClose={() => setOpenInfo(null)} />}
+      {open !== null && (
+        <DocumentModal
+          kind={open}
+          open={open !== null}
+          onClose={() => setOpen(null)}
+          alreadyDone={(docToTask as Record<string, string>)[open] ? done.includes((docToTask as Record<string, string>)[open]) : false}
+          onConfirm={() => { const tid = (docToTask as Record<string, string>)[open]; if (tid) handleInfoRead(tid); }}
+        />
+      )}
+      {openInfo && (
+        <ServiceModal
+          title={openInfo.title}
+          sub={openInfo.sub}
+          body={openInfo.body}
+          onClose={() => setOpenInfo(null)}
+          onConfirm={openInfo.taskId ? () => handleInfoRead(openInfo.taskId as string) : undefined}
+          alreadyDone={openInfo.taskId ? done.includes(openInfo.taskId) : undefined}
+        />
+      )}
 
     <style>{`
   .stage-content.s1-steps {

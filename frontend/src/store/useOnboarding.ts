@@ -36,7 +36,6 @@ interface User {
   office?: string | null;
   ad_login?: string | null;
   oidc_sub?: string | null;
-  employee_uuid?: string | null;
 }
 
 interface OnboardingState {
@@ -123,7 +122,20 @@ export const useOnboarding = create<OnboardingState>()((set, get) => ({
 
   hydrate: (me) =>
     set({
-      user: { id: me.user.id, email: me.user.email, name: me.user.name, avatar: me.user.avatar, createdAt: me.user.created_at, isStaff: me.user.is_staff ?? false, telegramUsername: me.user.telegram_username ?? '' },
+      user: { 
+        id: me.user.id, 
+        email: me.user.email, 
+        name: me.user.name, 
+        avatar: me.user.avatar, 
+        createdAt: me.user.created_at, 
+        isStaff: me.user.is_staff ?? false, 
+        telegramUsername: me.user.telegram_username ?? '',
+        department: me.user.department,
+        position: me.user.position,
+        office: me.user.office,
+        ad_login: me.user.ad_login,
+        oidc_sub: me.user.oidc_sub,
+      },
       role: me.user.role,
       introSeen: me.user.intro_seen,
       voiceEnabled: me.user.voice_enabled,

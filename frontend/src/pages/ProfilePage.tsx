@@ -4,7 +4,6 @@ import { motion } from 'framer-motion';
 import { Pencil } from 'lucide-react';
 import { TopBar, DefaultAvatar } from '../components/layout/TopBar';
 import { getProgress, useOnboarding } from '../store/useOnboarding';
-import { api } from '../api/client';
 import { usePageMeta } from '../hooks/usePageMeta';
 
 function fileToAvatarDataUrl(file: File): Promise<string> {
@@ -28,7 +27,7 @@ function fileToAvatarDataUrl(file: File): Promise<string> {
 }
 
 export function ProfilePage() {
-  usePageMeta('Профиль — MDIGITAL Онбординг', 'Управляй профилем: имя, аватар и пароль аккаунта MDIGITAL.');
+  usePageMeta('Профиль — MDIGITAL Онбординг', 'Твой профиль: данные сотрудника, аватар и прогресс онбординга.');
   const nav = useNavigate();
   const user = useOnboarding((s) => s.user);
   const xp = useOnboarding((s) => s.xp);
@@ -38,23 +37,9 @@ export function ProfilePage() {
   const updateProfile = useOnboarding((s) => s.updateProfile);
   const logout = useOnboarding((s) => s.logout);
 
-  const [name, setName] = useState(user?.name ?? '');
   const [avatarPreview, setAvatarPreview] = useState<string | null>(user?.avatar ?? null);
   const [profileSaved, setProfileSaved] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
-  const [profileLoading, setProfileLoading] = useState(false);
-
-  // AD / OIDC profile fields
-  const [department, setDepartment] = useState(user?.department ?? '');
-  const [position, setPosition] = useState(user?.position ?? '');
-  const [office, setOffice] = useState(user?.office ?? '');
-
-  const [pwCurrent, setPwCurrent] = useState('');
-  const [pwNew, setPwNew] = useState('');
-  const [pwConfirm, setPwConfirm] = useState('');
-  const [pwSaved, setPwSaved] = useState(false);
-  const [pwError, setPwError] = useState<string | null>(null);
-  const [pwLoading, setPwLoading] = useState(false);
 
   const fileRef = useRef<HTMLInputElement | null>(null);
 
@@ -76,48 +61,20 @@ export function ProfilePage() {
       const dataUrl = await fileToAvatarDataUrl(file);
       setAvatarPreview(dataUrl);
       setProfileError(null);
-      await saveProfile(dataUrl);
+      await saveAvatar(dataUrl);
     } catch (err) {
       setProfileError(err instanceof Error ? err.message : 'Ошибка загрузки');
     }
   };
 
-  const saveProfile = async (avatar?: string) => {
-    setProfileLoading(true);
+  const saveAvatar = async (avatar: string) => {
     setProfileError(null);
     try {
-      const patch: { name?: string; avatar?: string | null; department?: string | null; position?: string | null; office?: string | null } = { name: name.trim() };
-      if (avatar !== undefined) patch.avatar = avatar;
-      if (user.oidc_sub) {
-        if (department.trim()) patch.department = department.trim();
-        if (position.trim()) patch.position = position.trim();
-        if (office.trim()) patch.office = office.trim();
-      }
-      await updateProfile(patch);
+      await updateProfile({ avatar });
       setProfileSaved(true);
       window.setTimeout(() => setProfileSaved(false), 2200);
     } catch (err) {
       setProfileError(err instanceof Error ? err.message : 'Ошибка сохранения');
-    } finally {
-      setProfileLoading(false);
-    }
-  };
-
-  const changePassword = async () => {
-    setPwError(null);
-    if (!pwCurrent || !pwNew || !pwConfirm) { setPwError('Заполни все поля'); return; }
-    if (pwNew.length < 8) { setPwError('Новый пароль — минимум 8 символов'); return; }
-    if (pwNew !== pwConfirm) { setPwError('Пароли не совпадают'); return; }
-    setPwLoading(true);
-    try {
-      await api.post('/api/profile/password', { current_password: pwCurrent, new_password: pwNew });
-      setPwSaved(true);
-      setPwCurrent(''); setPwNew(''); setPwConfirm('');
-      window.setTimeout(() => setPwSaved(false), 2500);
-    } catch (err) {
-      setPwError(err instanceof Error ? err.message : 'Ошибка смены пароля');
-    } finally {
-      setPwLoading(false);
     }
   };
 
@@ -171,99 +128,57 @@ export function ProfilePage() {
             <span className="pf-xpDone">{progress.done}/5</span>
           </button>
 
-          {/* Личные данные */}
+          {/* Личные данные — только просмотр */}
           <section className="pf-section">
             <div className="pf-label">Личные данные</div>
-            <label className="pf-field">
+            <div className="pf-field-readonly">
               <span>Имя</span>
-              <input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} placeholder="Твоё имя" />
-            </label>
+              <span className="pf-value">{user.name}</span>
+            </div>
+            <div className="pf-field-readonly">
+              <span>Email</span>
+              <span className="pf-value">{user.email}</span>
+            </div>
+            {user.telegramUsername && (
+              <div className="pf-field-readonly">
+                <span>Telegram</span>
+                <span className="pf-value">{user.telegramUsername}</span>
+              </div>
+            )}
             {profileError && <div className="pf-error">{profileError}</div>}
-            <button type="button" className="pf-save" disabled={profileLoading} onClick={() => saveProfile()}>
-              {profileLoading ? 'Сохраняем…' : profileSaved ? 'Сохранено ✓' : 'Сохранить изменения'}
-            </button>
+            {profileSaved && <div className="pf-ok">Фото обновлено ✓</div>}
           </section>
 
-          {/* Рабочая информация */}
+          {/* Рабочая информация — только просмотр */}
           <section className="pf-section">
             <div className="pf-label">Рабочая информация</div>
-            {user.oidc_sub ? (
-              // OIDC user — editable fields
-              <>
-                <label className="pf-field">
-                  <span>Департамент</span>
-                  <input value={department} onChange={(e) => setDepartment(e.target.value)} maxLength={120} placeholder="Например: IT" />
-                </label>
-                <label className="pf-field">
-                  <span>Должность</span>
-                  <input value={position} onChange={(e) => setPosition(e.target.value)} maxLength={120} placeholder="Например: Senior Developer" />
-                </label>
-                <label className="pf-field">
-                  <span>Офис</span>
-                  <input value={office} onChange={(e) => setOffice(e.target.value)} maxLength={120} placeholder="Например: Bishkek" />
-                </label>
-              </>
-            ) : (
-              // AD user — read-only display
-              <>
-                {user.department && (
-                  <div className="pf-field-readonly">
-                    <span>Департамент</span>
-                    <span className="pf-value">{user.department}</span>
-                  </div>
-                )}
-                {user.position && (
-                  <div className="pf-field-readonly">
-                    <span>Должность</span>
-                    <span className="pf-value">{user.position}</span>
-                  </div>
-                )}
-                {user.office && (
-                  <div className="pf-field-readonly">
-                    <span>Офис</span>
-                    <span className="pf-value">{user.office}</span>
-                  </div>
-                )}
-                {user.ad_login && (
-                  <div className="pf-field-readonly">
-                    <span>AD логин</span>
-                    <span className="pf-value">{user.ad_login}</span>
-                  </div>
-                )}
-                {!user.department && !user.position && !user.office && !user.ad_login && (
-                  <div className="pf-empty">Данные не загружены</div>
-                )}
-              </>
+            {user.department && (
+              <div className="pf-field-readonly">
+                <span>Департамент</span>
+                <span className="pf-value">{user.department}</span>
+              </div>
             )}
-            {user.oidc_sub && profileError && <div className="pf-error">{profileError}</div>}
-            {user.oidc_sub && (
-              <button type="button" className="pf-save" disabled={profileLoading} onClick={() => saveProfile()}>
-                {profileLoading ? 'Сохраняем…' : profileSaved ? 'Сохранено ✓' : 'Сохранить изменения'}
-              </button>
+            {user.position && (
+              <div className="pf-field-readonly">
+                <span>Должность</span>
+                <span className="pf-value">{user.position}</span>
+              </div>
             )}
-          </section>
-
-          {/* Смена пароля */}
-          <section className="pf-section">
-            <div className="pf-label">Смена пароля</div>
-            <label className="pf-field">
-              <span>Текущий пароль</span>
-              <input type="password" value={pwCurrent} onChange={(e) => setPwCurrent(e.target.value)} placeholder="••••••••" autoComplete="current-password" />
-            </label>
-            <div className="pf-row">
-              <label className="pf-field">
-                <span>Новый пароль</span>
-                <input type="password" value={pwNew} onChange={(e) => setPwNew(e.target.value)} placeholder="Минимум 8 символов" autoComplete="new-password" />
-              </label>
-              <label className="pf-field">
-                <span>Повтори новый</span>
-                <input type="password" value={pwConfirm} onChange={(e) => setPwConfirm(e.target.value)} placeholder="Ещё раз" autoComplete="new-password" />
-              </label>
-            </div>
-            {pwError && <div className="pf-error">{pwError}</div>}
-            <button type="button" className="pf-save ghost" disabled={pwLoading} onClick={changePassword}>
-              {pwLoading ? 'Меняем…' : pwSaved ? 'Пароль изменён ✓' : 'Изменить пароль'}
-            </button>
+            {user.office && (
+              <div className="pf-field-readonly">
+                <span>Офис</span>
+                <span className="pf-value">{user.office}</span>
+              </div>
+            )}
+            {user.ad_login && (
+              <div className="pf-field-readonly">
+                <span>AD логин</span>
+                <span className="pf-value">{user.ad_login}</span>
+              </div>
+            )}
+            {!user.department && !user.position && !user.office && !user.ad_login && (
+              <div className="pf-empty">Данные не загружены</div>
+            )}
           </section>
 
           {/* Опасная зона */}
@@ -421,6 +336,12 @@ export function ProfilePage() {
           border: 1px solid rgba(248, 113, 113, 0.4);
           background: rgba(248, 113, 113, 0.08);
           color: #FCA5A5; font-size: 12px; border-radius: 9px;
+        }
+        .pf-ok {
+          margin: 4px 0 10px; padding: 9px 12px;
+          border: 1px solid rgba(52, 211, 153, 0.4);
+          background: rgba(52, 211, 153, 0.08);
+          color: #6EE7B7; font-size: 12px; border-radius: 9px;
         }
         .pf-save {
           width: 100%; padding: 12px 16px; margin-top: 2px;

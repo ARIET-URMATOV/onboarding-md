@@ -84,6 +84,10 @@ class UserOut(BaseModel):
     created_at: str | None = None
     is_staff: bool = False
     telegram_username: str = ""
+    department: str | None = None
+    position: str | None = None
+    office: str | None = None
+    ad_login: str | None = None
 
 
 class MpulseCodeIn(BaseModel):

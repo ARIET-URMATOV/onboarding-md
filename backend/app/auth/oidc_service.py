@@ -170,6 +170,11 @@ class OIDCClaims:
     name: str
     preferred_username: str = ""
     employee_uuid: str | None = None
+    role: str | None = None
+    department: str | None = None
+    position: str | None = None
+    office: str | None = None
+    ad_login: str | None = None
 
 
 async def validate_id_token(id_token: str, expected_nonce: str) -> OIDCClaims:
@@ -192,12 +197,21 @@ async def validate_id_token(id_token: str, expected_nonce: str) -> OIDCClaims:
     if claims.get("nonce") != expected_nonce:
         raise ValueError("Nonce mismatch — possible replay attack")
 
+    role_val = claims.get("role") or claims.get("user_role") or claims.get("roles")
+    if isinstance(role_val, list):
+        role_val = role_val[0] if role_val else None
+
     return OIDCClaims(
         sub=str(claims.get("sub", "")),
         email=str(claims.get("email", "")).lower().strip(),
         name=str(claims.get("name", "") or claims.get("preferred_username", "")).strip(),
         preferred_username=str(claims.get("preferred_username", "")).strip(),
         employee_uuid=claims.get("employee_uuid"),
+        role=str(role_val) if role_val else None,
+        department=str(claims.get("department") or claims.get("dept") or claims.get("division") or "") or None,
+        position=str(claims.get("position") or claims.get("title") or claims.get("job_title") or "") or None,
+        office=str(claims.get("office") or claims.get("location") or "") or None,
+        ad_login=str(claims.get("ad_login") or claims.get("sAMAccountName") or claims.get("username") or "") or None,
     )
 
 
@@ -256,6 +270,15 @@ async def consume_state(db: AsyncSession, state: str) -> dict | None:
 # User upsert
 # ---------------------------------------------------------------------------
 
+def map_portal_role(portal_role: str | None) -> str | None:
+    """Маппинг строковой роли портала в frontend|backend|design."""
+    if not portal_role: return None
+    r = portal_role.lower().strip()
+    if "front" in r: return "frontend"
+    if "back" in r: return "backend"
+    if "design" in r or "ui" in r: return "design"
+    return None
+
 async def upsert_user(db: AsyncSession, claims: OIDCClaims, refresh_token: str | None = None):
     """Find or create user by oidc_sub, then by email. Return (user, is_new)."""
     from app.models import User, Progress
@@ -265,21 +288,16 @@ async def upsert_user(db: AsyncSession, claims: OIDCClaims, refresh_token: str |
 
     # 1. Find by oidc_sub
     if claims.sub:
-        result = await db.execute(
-            select(User).where(User.oidc_sub == claims.sub)
-        )
+        result = await db.execute(select(User).where(User.oidc_sub == claims.sub))
         user = result.scalar_one_or_none()
 
     # 2. Find by email
     if user is None and claims.email:
-        result = await db.execute(
-            select(User).where(User.email == claims.email)
-        )
+        result = await db.execute(select(User).where(User.email == claims.email))
         user = result.scalar_one_or_none()
 
-    # 3. Create
+    # 3. Create or Update
     if user is None:
-        import secrets as _secrets
         user = User(
             email=claims.email or f"{claims.sub}@mdigital.kg",
             password_hash="oidc-managed",
@@ -287,21 +305,33 @@ async def upsert_user(db: AsyncSession, claims: OIDCClaims, refresh_token: str |
             oidc_sub=claims.sub or None,
             employee_uuid=claims.employee_uuid,
             oidc_refresh_token=refresh_token,
+            department=claims.department,
+            position=claims.position,
+            office=claims.office,
+            ad_login=claims.ad_login,
         )
+        # Apply role if mapped
+        mapped_role = map_portal_role(claims.role)
+        if mapped_role: user.role = mapped_role
+        
         db.add(user)
         await db.flush()
         db.add(Progress(user_id=user.id))
         is_new = True
     else:
-        # Update OIDC fields
-        if claims.sub:
-            user.oidc_sub = claims.sub
-        if claims.employee_uuid:
-            user.employee_uuid = claims.employee_uuid
-        if claims.name:
-            user.name = claims.name
-        if refresh_token:
-            user.oidc_refresh_token = refresh_token
+        # Update OIDC fields (overwrite)
+        user.oidc_sub = claims.sub or user.oidc_sub
+        user.employee_uuid = claims.employee_uuid or user.employee_uuid
+        user.name = claims.name or user.name
+        user.oidc_refresh_token = refresh_token or user.oidc_refresh_token
+        user.department = claims.department or user.department
+        user.position = claims.position or user.position
+        user.office = claims.office or user.office
+        user.ad_login = claims.ad_login or user.ad_login
+        
+        # Apply role if mapped
+        mapped_role = map_portal_role(claims.role)
+        if mapped_role: user.role = mapped_role
 
     await db.commit()
     await db.refresh(user)

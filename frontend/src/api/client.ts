@@ -54,6 +54,11 @@ export interface MeResponse {
     created_at?: string | null;
     is_staff?: boolean;
     telegram_username?: string;
+    department?: string | null;
+    position?: string | null;
+    office?: string | null;
+    ad_login?: string | null;
+    oidc_sub?: string | null;
   };
   progress: {
     done_tasks: Record<string, string[]>;
@@ -86,7 +91,6 @@ export interface UserResponse {
   office?: string | null;
   ad_login?: string | null;
   oidc_sub?: string | null;
-  employee_uuid?: string | null;
 }
 
 export interface ProgressResponse {
