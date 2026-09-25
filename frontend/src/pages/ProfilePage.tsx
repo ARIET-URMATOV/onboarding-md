@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Pencil, User, Mail, Send, Tag, Building2, Hash } from 'lucide-react';
+import { Pencil, User, Mail, Send, Tag } from 'lucide-react';
 import { TopBar, DefaultAvatar } from '../components/layout/TopBar';
 import { getProgress, useOnboarding } from '../store/useOnboarding';
 import { usePageMeta } from '../hooks/usePageMeta';
@@ -143,10 +143,6 @@ export function ProfilePage() {
               <span className="pf-value">{missing(user.email) ?? <i className="pf-missing">Не указано</i>}</span>
             </div>
             <div className="pf-field-readonly">
-              <span className="pf-row-label"><Hash size={13} />ID</span>
-              <span className="pf-value">{missing(user.id?.toString()) ?? <i className="pf-missing">Не указано</i>}</span>
-            </div>
-            <div className="pf-field-readonly">
               <span className="pf-row-label"><Send size={13} />Telegram</span>
               <span className="pf-value">{missing(user.telegramUsername) ?? <i className="pf-missing">Не указано</i>}</span>
             </div>
@@ -160,10 +156,6 @@ export function ProfilePage() {
             <div className="pf-field-readonly">
               <span className="pf-row-label"><Tag size={13} />Роль</span>
               <span className="pf-value">{missing(onboardingRole) ?? <i className="pf-missing">Не указано</i>}</span>
-            </div>
-            <div className="pf-field-readonly">
-              <span className="pf-row-label"><Building2 size={13} />Департамент</span>
-              <span className="pf-value">{missing(user.department) ?? <i className="pf-missing">Не указано</i>}</span>
             </div>
           </section>
 
