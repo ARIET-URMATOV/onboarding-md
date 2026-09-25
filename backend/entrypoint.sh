@@ -1,14 +1,33 @@
 #!/bin/sh
-set -e
+# Entrypoint with retry logic for database connections and non-blocking migrations
 
-# Миграции БД — отдельно от старта приложения (оптимально для продакшена)
-# В тестах (sqlite :memory:) alembic не нужен — сразу старт
+# Retry function with exponential backoff
+retry_with_backoff() {
+    max_attempts=5
+    attempt=1
+    delay=2
+    
+    while [ $attempt -le $max_attempts ]; do
+        if "$@"; then
+            return 0
+        fi
+        echo "Attempt $attempt failed. Retrying in ${delay}s..."
+        sleep $delay
+        attempt=$((attempt + 1))
+        delay=$((delay * 2))
+    done
+    
+    echo "All $max_attempts attempts failed. Continuing without migration..."
+    return 1
+}
+
+# Миграции БД — не блокируют старт приложения
 if echo "$DATABASE_URL" | grep -q "sqlite.*:memory:"; then
   echo "entrypoint: sqlite memory — skip alembic"
 else
-  echo "entrypoint: alembic upgrade head"
-  alembic upgrade head || {
-    echo "entrypoint: alembic failed, fallback create_all will be handled by app if needed"
+  echo "entrypoint: attempting alembic upgrade head (non-blocking)..."
+  retry_with_backoff alembic upgrade head || {
+    echo "entrypoint: alembic failed after retries, fallback create_all will be handled by app on startup"
   }
 fi
 

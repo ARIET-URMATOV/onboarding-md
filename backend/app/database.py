@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.pool import StaticPool, NullPool
 from sqlalchemy.exc import OperationalError, DisconnectionError
 from sqlalchemy import text
 
@@ -10,13 +10,31 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Detect PgBouncer by port 6432 or pgbouncer in URL
+_is_pgbouncer = ":6432" in settings.database_url or "pgbouncer" in settings.database_url.lower()
 # Internal Render URL (dpg-...:5432) is private network without SSL;
 # External URL (*.oregon-postgres.render.com, *.onrender.com) needs SSL.
 _is_external = "postgres.render.com" in settings.database_url or "onrender.com" in settings.database_url
 
-engine_kwargs: dict = {"echo": False, "pool_pre_ping": True, "pool_size": 5, "max_overflow": 5, "pool_recycle": 1800, "pool_timeout": 30}
-if _is_external:
+# Configure engine kwargs based on connection type
+if _is_pgbouncer:
+    # PgBouncer handles connection pooling - use NullPool to disable SQLAlchemy pooling
+    engine_kwargs: dict = {
+        "echo": False, 
+        "pool_pre_ping": True, 
+        "poolclass": NullPool,
+        "pool_recycle": 1800,
+        "pool_timeout": 30
+    }
+    logger.info("Using PgBouncer connection pooling (NullPool)")
+elif _is_external:
+    # Direct PostgreSQL connection with reduced pool for free tier
+    engine_kwargs: dict = {"echo": False, "pool_pre_ping": True, "pool_size": 3, "max_overflow": 2, "pool_recycle": 1800, "pool_timeout": 30}
     engine_kwargs["connect_args"] = {"ssl": True}
+else:
+    # Local development
+    engine_kwargs: dict = {"echo": False, "pool_pre_ping": True, "pool_size": 5, "max_overflow": 5, "pool_recycle": 1800, "pool_timeout": 30}
+
 if "sqlite" in settings.database_url and ":memory:" in settings.database_url:
     # Тесты: одна shared in-memory БД на весь engine
     engine_kwargs["poolclass"] = StaticPool
