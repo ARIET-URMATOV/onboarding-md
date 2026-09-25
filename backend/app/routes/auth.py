@@ -108,37 +108,46 @@ async def oidc_callback(
         logger.warning(f"OIDC ID token validation failed: {e}")
         raise HTTPException(status_code=401, detail=f"ID token не прошёл валидацию: {e}")
 
-    # 3b. Fetch userinfo (Portal claims_supported=["sub"] only)
+    # 3b. Fetch userinfo + extended profile (role/department/...).
+    # Приоритет расширенных полей: profile > userinfo > id_token. Оба запроса non-fatal.
     try:
-        userinfo = await fetch_userinfo(tokens.access_token)
-        # --- DEBUG ---
-        logger.warning(f"OIDC-DEBUG userinfo full: {userinfo}")
+        import asyncio as _asyncio
+
+        from app.auth.oidc_service import extract_extended_claims as _ext
+        from app.auth.oidc_service import fetch_profile as _fetch_profile
+
+        userinfo_res, profile_res = await _asyncio.gather(
+            fetch_userinfo(tokens.access_token),
+            _fetch_profile(tokens.access_token),
+            return_exceptions=True,
+        )
+        userinfo = userinfo_res if isinstance(userinfo_res, dict) else {}
+        profile = profile_res if isinstance(profile_res, dict) else {}
+        if isinstance(userinfo_res, Exception):
+            logger.warning(f"OIDC userinfo fetch failed (non-fatal): {userinfo_res}")
+        # fetch_profile уже логирует свои ошибки внутри себя
+        # --- TEMP DEBUG: keys only, no values ---
         try:
-            import jwt as _jwt_dbg
-            unverified = _jwt_dbg.decode(tokens.id_token, options={"verify_signature": False})
-            logger.warning(f"OIDC-DEBUG id_token full: {unverified}")
-        except Exception: pass
-        # --- END DEBUG ---
-        
+            logger.warning(f"OIDC-DEBUG userinfo keys: {sorted((userinfo or {}).keys())}")
+            logger.warning(f"OIDC-DEBUG profile keys: {sorted((profile or {}).keys())}")
+        except Exception:
+            pass
+        # --- END TEMP DEBUG ---
+
         if userinfo:
-            # Flexible merge
             if not claims.email and userinfo.get("email"): claims.email = str(userinfo["email"]).lower().strip()
             if not claims.name and userinfo.get("name"): claims.name = str(userinfo["name"]).strip()
             if not claims.preferred_username and userinfo.get("preferred_username"): claims.preferred_username = str(userinfo["preferred_username"]).strip()
             if userinfo.get("employee_uuid"): claims.employee_uuid = str(userinfo["employee_uuid"])
-            
-            # New fields
-            role_val = userinfo.get("role") or userinfo.get("user_role") or userinfo.get("roles")
-            if isinstance(role_val, list): role_val = role_val[0] if role_val else None
-            if role_val: claims.role = str(role_val)
-            
-            claims.department = str(userinfo.get("department") or userinfo.get("dept") or claims.department or "") or None
-            claims.position = str(userinfo.get("position") or userinfo.get("title") or claims.position or "") or None
-            claims.office = str(userinfo.get("office") or userinfo.get("location") or claims.office or "") or None
-            claims.ad_login = str(userinfo.get("ad_login") or userinfo.get("sAMAccountName") or userinfo.get("username") or claims.ad_login or "") or None
+
+        for source in (userinfo, profile):
+            ext = _ext(source)
+            for field in ("role", "department", "position", "office", "ad_login"):
+                if ext[field]:
+                    setattr(claims, field, ext[field])
 
     except Exception as e:
-        logger.warning(f"OIDC userinfo fetch failed (non-fatal): {e}")
+        logger.warning(f"OIDC userinfo/profile fetch failed (non-fatal): {e}")
 
     # 4. Upsert user
     user, _is_new = await upsert_user(db, claims, tokens.refresh_token)

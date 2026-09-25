@@ -1158,3 +1158,58 @@ def test_webhook_register_missing_env(client, monkeypatch):
     r = client.post("/api/admin/telegram-webhook/register")
     assert r.status_code == 501
     assert "PUBLIC_BASE_URL" in r.json()["detail"]
+
+
+# ---------- unit: OIDC extended claims extractor ----------
+
+def test_extract_extended_claims_variants():
+    from app.auth.oidc_service import extract_extended_claims
+
+    ext = extract_extended_claims({
+        "user_role": "Frontend Developer",
+        "dept": "IT",
+        "title": "Senior Developer",
+        "location": "Bishkek",
+        "sAMAccountName": "a.urmatov",
+    })
+    assert ext["role"] == "Frontend Developer"
+    assert ext["department"] == "IT"
+    assert ext["position"] == "Senior Developer"
+    assert ext["office"] == "Bishkek"
+    assert ext["ad_login"] == "a.urmatov"
+
+
+def test_extract_extended_claims_roles_list_and_empty():
+    from app.auth.oidc_service import extract_extended_claims
+
+    ext = extract_extended_claims({"roles": ["backend", "admin"]})
+    assert ext["role"] == "backend"
+    assert ext["department"] is None
+
+    ext2 = extract_extended_claims({})
+    assert all(v is None for v in ext2.values())
+
+    ext3 = extract_extended_claims(None)
+    assert all(v is None for v in ext3.values())
+
+
+def test_extract_extended_claims_unwrap():
+    from app.auth.oidc_service import extract_extended_claims
+
+    ext = extract_extended_claims({"user": {"department": "Design", "role": "designer"}})
+    assert ext["department"] == "Design"
+    assert ext["role"] == "designer"
+
+    ext2 = extract_extended_claims({"data": {"position": "PM"}})
+    assert ext2["position"] == "PM"
+
+
+def test_map_portal_role():
+    from app.auth.oidc_service import map_portal_role
+
+    assert map_portal_role("Frontend Developer") == "frontend"
+    assert map_portal_role("backend") == "backend"
+    assert map_portal_role("UI/UX Designer") == "design"
+    assert map_portal_role("Бухгалтер") is None
+    assert map_portal_role(None) is None
+    assert map_portal_role("") is None

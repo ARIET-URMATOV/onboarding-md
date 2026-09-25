@@ -197,9 +197,7 @@ async def validate_id_token(id_token: str, expected_nonce: str) -> OIDCClaims:
     if claims.get("nonce") != expected_nonce:
         raise ValueError("Nonce mismatch — possible replay attack")
 
-    role_val = claims.get("role") or claims.get("user_role") or claims.get("roles")
-    if isinstance(role_val, list):
-        role_val = role_val[0] if role_val else None
+    ext = extract_extended_claims(claims)
 
     return OIDCClaims(
         sub=str(claims.get("sub", "")),
@@ -207,12 +205,59 @@ async def validate_id_token(id_token: str, expected_nonce: str) -> OIDCClaims:
         name=str(claims.get("name", "") or claims.get("preferred_username", "")).strip(),
         preferred_username=str(claims.get("preferred_username", "")).strip(),
         employee_uuid=claims.get("employee_uuid"),
-        role=str(role_val) if role_val else None,
-        department=str(claims.get("department") or claims.get("dept") or claims.get("division") or "") or None,
-        position=str(claims.get("position") or claims.get("title") or claims.get("job_title") or "") or None,
-        office=str(claims.get("office") or claims.get("location") or "") or None,
-        ad_login=str(claims.get("ad_login") or claims.get("sAMAccountName") or claims.get("username") or "") or None,
+        role=ext["role"],
+        department=ext["department"],
+        position=ext["position"],
+        office=ext["office"],
+        ad_login=ext["ad_login"],
     )
+
+
+def _unwrap(payload: dict) -> dict:
+    """Разворачивает один уровень обёртки вида {"user": {...}} / {"data": {...}}."""
+    if not isinstance(payload, dict):
+        return {}
+    for wrapper in ("user", "data", "profile", "result"):
+        inner = payload.get(wrapper)
+        if isinstance(inner, dict) and inner:
+            return inner
+    return payload
+
+
+def extract_extended_claims(payload: dict | None) -> dict:
+    """Гибкое извлечение role/department/position/office/ad_login из любого источника.
+
+    Покрывает варианты имён ключей портала. Возвращает dict с None для отсутствующих.
+    """
+    p = _unwrap(payload or {})
+    if not isinstance(p, dict):
+        return {"role": None, "department": None, "position": None, "office": None, "ad_login": None}
+
+    role_val = p.get("role") or p.get("user_role") or p.get("roles")
+    if isinstance(role_val, list):
+        role_val = role_val[0] if role_val else None
+
+    def _s(*keys: str) -> str | None:
+        for k in keys:
+            v = p.get(k)
+            if v is None:
+                continue
+            if isinstance(v, list):
+                v = v[0] if v else None
+            if v is None:
+                continue
+            s = str(v).strip()
+            if s:
+                return s
+        return None
+
+    return {
+        "role": str(role_val).strip() if role_val else None,
+        "department": _s("department", "dept", "division"),
+        "position": _s("position", "title", "job_title"),
+        "office": _s("office", "location"),
+        "ad_login": _s("ad_login", "sAMAccountName", "username"),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -232,6 +277,24 @@ async def fetch_userinfo(access_token: str) -> dict:
         )
         resp.raise_for_status()
         return resp.json()
+
+
+async def fetch_profile(access_token: str) -> dict:
+    """Fetch extended profile (role/department/...) from {issuer}/oauth/profile/.
+
+    Эндпоинт не рекламируется в discovery-документе — URL строится из настроек.
+    Non-fatal: при любой ошибке возвращает {} и пишет warning (видно в Render-логах).
+    """
+    url = f"{settings.oidc_issuer.rstrip('/')}/oauth/profile/"
+    try:
+        async with httpx.AsyncClient(timeout=10) as cl:
+            resp = await cl.get(url, headers={"Authorization": f"Bearer {access_token}"})
+            resp.raise_for_status()
+            data = resp.json()
+            return data if isinstance(data, dict) else {}
+    except Exception as e:
+        logger.warning(f"OIDC profile fetch failed (non-fatal): {e}")
+        return {}
 
 
 # ---------------------------------------------------------------------------
@@ -272,11 +335,15 @@ async def consume_state(db: AsyncSession, state: str) -> dict | None:
 
 def map_portal_role(portal_role: str | None) -> str | None:
     """Маппинг строковой роли портала в frontend|backend|design."""
-    if not portal_role: return None
+    if not portal_role:
+        return None
     r = portal_role.lower().strip()
-    if "front" in r: return "frontend"
-    if "back" in r: return "backend"
-    if "design" in r or "ui" in r: return "design"
+    if "front" in r:
+        return "frontend"
+    if "back" in r:
+        return "backend"
+    if "design" in r or "ui" in r:
+        return "design"
     return None
 
 async def upsert_user(db: AsyncSession, claims: OIDCClaims, refresh_token: str | None = None):
@@ -312,7 +379,8 @@ async def upsert_user(db: AsyncSession, claims: OIDCClaims, refresh_token: str |
         )
         # Apply role if mapped
         mapped_role = map_portal_role(claims.role)
-        if mapped_role: user.role = mapped_role
+        if mapped_role:
+            user.role = mapped_role
         
         db.add(user)
         await db.flush()
@@ -331,7 +399,8 @@ async def upsert_user(db: AsyncSession, claims: OIDCClaims, refresh_token: str |
         
         # Apply role if mapped
         mapped_role = map_portal_role(claims.role)
-        if mapped_role: user.role = mapped_role
+        if mapped_role:
+            user.role = mapped_role
 
     await db.commit()
     await db.refresh(user)
