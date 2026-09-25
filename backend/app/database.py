@@ -8,7 +8,7 @@ from app.config import settings
 # External URL (*.oregon-postgres.render.com, *.onrender.com) needs SSL.
 _is_external = "postgres.render.com" in settings.database_url or "onrender.com" in settings.database_url
 
-engine_kwargs: dict = {"echo": False, "pool_pre_ping": True, "pool_size": 10, "max_overflow": 20, "pool_recycle": 3600}
+engine_kwargs: dict = {"echo": False, "pool_pre_ping": True, "pool_size": 5, "max_overflow": 5, "pool_recycle": 1800, "pool_timeout": 30}
 if _is_external:
     engine_kwargs["connect_args"] = {"ssl": True}
 if "sqlite" in settings.database_url and ":memory:" in settings.database_url:
