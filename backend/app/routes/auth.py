@@ -16,6 +16,7 @@ from app.limiter import limiter
 from app.models import Notification, PendingRequest, Progress, User, VerificationLog, WifiMac, utcnow
 from app.auth import LDAPAuthError, ldap_service
 from app.schemas import (
+    Department,
     LoginIn,
     MeOut,
     OidcCallbackIn,
