@@ -1,14 +1,16 @@
-from contextlib import asynccontextmanager
-
-from fastapi import FastAPI, WebSocket
-from fastapi import Request as _Request
+from fastapi import FastAPI, Request as _Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse as _JSONResponse
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
+from sqlalchemy.exc import OperationalError, DisconnectionError
 
 from app.config import settings
 from app.limiter import limiter, rate_limit_handler
+
+logger = logging.getLogger(__name__)
+
+import logging
 
 
 @asynccontextmanager
@@ -109,6 +111,28 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limit_handler)  # type: ignore[arg-type]
 app.add_middleware(SlowAPIMiddleware)
+
+# Global exception handler to ensure CORS headers on all error responses
+@app.exception_handler(Exception)
+async def global_exception_handler(request: _Request, exc: Exception):
+    """Ensure CORS headers are present on all error responses."""
+    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    
+    origin = request.headers.get("origin")
+    cors_headers = {}
+    if origin and origin in settings.cors_origins:
+        cors_headers = {
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+        }
+    
+    return _JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+        headers=cors_headers
+    )
 
 # Trust X-Forwarded-For from Render/Vercel proxy for correct IP in rate-limit
 try:
