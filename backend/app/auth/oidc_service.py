@@ -233,7 +233,7 @@ def extract_extended_claims(payload: dict | None) -> dict:
     if not isinstance(p, dict):
         return {"role": None, "department": None, "position": None, "office": None, "ad_login": None}
 
-    role_val = p.get("role") or p.get("user_role") or p.get("roles")
+    role_val = p.get("role") or p.get("user_role") or p.get("company_role") or p.get("roles")
     if isinstance(role_val, list):
         role_val = role_val[0] if role_val else None
 

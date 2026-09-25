@@ -145,6 +145,16 @@ async def oidc_callback(
             for field in ("role", "department", "position", "office", "ad_login"):
                 if ext[field]:
                     setattr(claims, field, ext[field])
+        # --- TEMP DEBUG: raw company_role value + mapped result ---
+        try:
+            from app.auth.oidc_service import map_portal_role as _map_role
+            logger.warning(
+                f"OIDC-DEBUG company_role={claims.role!r} department={claims.department!r} "
+                f"mapped_role={_map_role(claims.role)!r}"
+            )
+        except Exception:
+            pass
+        # --- END TEMP DEBUG ---
 
     except Exception as e:
         logger.warning(f"OIDC userinfo/profile fetch failed (non-fatal): {e}")

@@ -1240,3 +1240,15 @@ def test_telegram_contact_big_tg_id():
             await db.commit()
 
     asyncio.run(_go())
+
+
+def test_extract_extended_claims_company_role():
+    from app.auth.oidc_service import extract_extended_claims
+
+    ext = extract_extended_claims({
+        "company_role": "Frontend Developer",
+        "department": "IT",
+        "sub": "x",
+    })
+    assert ext["role"] == "Frontend Developer"
+    assert ext["department"] == "IT"
