@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Pencil } from 'lucide-react';
+import { Pencil, User, Mail, Send, Tag, Building2, Briefcase, MapPin, KeyRound } from 'lucide-react';
 import { TopBar, DefaultAvatar } from '../components/layout/TopBar';
 import { getProgress, useOnboarding } from '../store/useOnboarding';
 import { usePageMeta } from '../hooks/usePageMeta';
@@ -36,6 +36,12 @@ export function ProfilePage() {
   const lvl = Math.floor(xp / 100) + 1;
   const updateProfile = useOnboarding((s) => s.updateProfile);
   const logout = useOnboarding((s) => s.logout);
+  const onboardingRole = useOnboarding((s) => s.role);
+
+  const ROLE_LABELS: Record<string, string> = { frontend: 'Frontend', backend: 'Backend', design: 'Design' };
+  const roleLabel = onboardingRole ? (ROLE_LABELS[onboardingRole] ?? onboardingRole) : null;
+
+  const missing = (v: string | null | undefined) => (v && v.trim() ? v : null);
 
   const [avatarPreview, setAvatarPreview] = useState<string | null>(user?.avatar ?? null);
   const [profileSaved, setProfileSaved] = useState(false);
@@ -132,19 +138,17 @@ export function ProfilePage() {
           <section className="pf-section">
             <div className="pf-label">Личные данные</div>
             <div className="pf-field-readonly">
-              <span>Имя</span>
-              <span className="pf-value">{user.name}</span>
+              <span className="pf-row-label"><User size={13} />Имя</span>
+              <span className="pf-value">{missing(user.name) ?? <i className="pf-missing">Не указано</i>}</span>
             </div>
             <div className="pf-field-readonly">
-              <span>Email</span>
-              <span className="pf-value">{user.email}</span>
+              <span className="pf-row-label"><Mail size={13} />Email</span>
+              <span className="pf-value">{missing(user.email) ?? <i className="pf-missing">Не указано</i>}</span>
             </div>
-            {user.telegramUsername && (
-              <div className="pf-field-readonly">
-                <span>Telegram</span>
-                <span className="pf-value">{user.telegramUsername}</span>
-              </div>
-            )}
+            <div className="pf-field-readonly">
+              <span className="pf-row-label"><Send size={13} />Telegram</span>
+              <span className="pf-value">{missing(user.telegramUsername) ?? <i className="pf-missing">Не указано</i>}</span>
+            </div>
             {profileError && <div className="pf-error">{profileError}</div>}
             {profileSaved && <div className="pf-ok">Фото обновлено ✓</div>}
           </section>
@@ -152,33 +156,26 @@ export function ProfilePage() {
           {/* Рабочая информация — только просмотр */}
           <section className="pf-section">
             <div className="pf-label">Рабочая информация</div>
-            {user.department && (
-              <div className="pf-field-readonly">
-                <span>Департамент</span>
-                <span className="pf-value">{user.department}</span>
-              </div>
-            )}
-            {user.position && (
-              <div className="pf-field-readonly">
-                <span>Должность</span>
-                <span className="pf-value">{user.position}</span>
-              </div>
-            )}
-            {user.office && (
-              <div className="pf-field-readonly">
-                <span>Офис</span>
-                <span className="pf-value">{user.office}</span>
-              </div>
-            )}
-            {user.ad_login && (
-              <div className="pf-field-readonly">
-                <span>AD логин</span>
-                <span className="pf-value">{user.ad_login}</span>
-              </div>
-            )}
-            {!user.department && !user.position && !user.office && !user.ad_login && (
-              <div className="pf-empty">Данные не загружены</div>
-            )}
+            <div className="pf-field-readonly">
+              <span className="pf-row-label"><Tag size={13} />Роль</span>
+              <span className="pf-value">{roleLabel ?? <i className="pf-missing">Не указано</i>}</span>
+            </div>
+            <div className="pf-field-readonly">
+              <span className="pf-row-label"><Building2 size={13} />Департамент</span>
+              <span className="pf-value">{missing(user.department) ?? <i className="pf-missing">Не указано</i>}</span>
+            </div>
+            <div className="pf-field-readonly">
+              <span className="pf-row-label"><Briefcase size={13} />Должность</span>
+              <span className="pf-value">{missing(user.position) ?? <i className="pf-missing">Не указано</i>}</span>
+            </div>
+            <div className="pf-field-readonly">
+              <span className="pf-row-label"><MapPin size={13} />Офис</span>
+              <span className="pf-value">{missing(user.office) ?? <i className="pf-missing">Не указано</i>}</span>
+            </div>
+            <div className="pf-field-readonly">
+              <span className="pf-row-label"><KeyRound size={13} />AD логин</span>
+              <span className="pf-value">{missing(user.ad_login) ?? <i className="pf-missing">Не указано</i>}</span>
+            </div>
           </section>
 
           {/* Опасная зона */}
@@ -377,8 +374,15 @@ export function ProfilePage() {
         }
         .pf-value {
           font-size: 13.5px; font-weight: 500; color: #E2E8F0;
-          font-family: 'Inter', sans-serif;
+          font-family: 'Inter', sans-serif; text-align: right;
+          overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%;
         }
+        .pf-row-label {
+          display: inline-flex !important; align-items: center; gap: 7px;
+          flex-shrink: 0;
+        }
+        .pf-row-label svg { color: rgba(96, 165, 250, 0.8); flex-shrink: 0; }
+        .pf-missing { color: #475569; font-style: normal; font-size: 12.5px; }
         .pf-empty {
           padding: 16px; text-align: center;
           color: #64748B; font-size: 13px;

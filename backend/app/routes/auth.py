@@ -126,13 +126,6 @@ async def oidc_callback(
         if isinstance(userinfo_res, Exception):
             logger.warning(f"OIDC userinfo fetch failed (non-fatal): {userinfo_res}")
         # fetch_profile уже логирует свои ошибки внутри себя
-        # --- TEMP DEBUG: keys only, no values ---
-        try:
-            logger.warning(f"OIDC-DEBUG userinfo keys: {sorted((userinfo or {}).keys())}")
-            logger.warning(f"OIDC-DEBUG profile keys: {sorted((profile or {}).keys())}")
-        except Exception:
-            pass
-        # --- END TEMP DEBUG ---
 
         if userinfo:
             if not claims.email and userinfo.get("email"): claims.email = str(userinfo["email"]).lower().strip()
@@ -145,16 +138,6 @@ async def oidc_callback(
             for field in ("role", "department", "position", "office", "ad_login"):
                 if ext[field]:
                     setattr(claims, field, ext[field])
-        # --- TEMP DEBUG: raw company_role value + mapped result ---
-        try:
-            from app.auth.oidc_service import map_portal_role as _map_role
-            logger.warning(
-                f"OIDC-DEBUG company_role={claims.role!r} department={claims.department!r} "
-                f"mapped_role={_map_role(claims.role)!r}"
-            )
-        except Exception:
-            pass
-        # --- END TEMP DEBUG ---
 
     except Exception as e:
         logger.warning(f"OIDC userinfo/profile fetch failed (non-fatal): {e}")
