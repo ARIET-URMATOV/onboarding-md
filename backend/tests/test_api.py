@@ -1213,3 +1213,30 @@ def test_map_portal_role():
     assert map_portal_role("Бухгалтер") is None
     assert map_portal_role(None) is None
     assert map_portal_role("") is None
+
+
+# ---------- unit: TelegramContact.tg_user_id holds int64 ids ----------
+
+def test_telegram_contact_big_tg_id():
+    """TG user ids (e.g. 5506243702) exceed int32 — column must be BIGINT."""
+    import asyncio
+
+    from sqlalchemy import select
+
+    from app.database import SessionLocal
+    from app.models import TelegramContact
+
+    BIG_ID = 5506243702
+
+    async def _go() -> None:
+        async with SessionLocal() as db:
+            db.add(TelegramContact(tg_user_id=BIG_ID, username="big_user", first_name="B"))
+            await db.commit()
+            row = (await db.execute(
+                select(TelegramContact).where(TelegramContact.tg_user_id == BIG_ID)
+            )).scalar_one()
+            assert row.tg_user_id == BIG_ID
+            await db.delete(row)
+            await db.commit()
+
+    asyncio.run(_go())

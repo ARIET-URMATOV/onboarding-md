@@ -30,6 +30,8 @@ async def lifespan(_: FastAPI):
     # Вне telegram-if: колонка должна чиниться всегда, независимо от env.
     # HOTFIX-2: stage_tasks verification_type=info_read (миграция 026, часть 2).
     # Без этого /progress/info-read отвечает 400 на проде, где alembic не накатился.
+    # HOTFIX-3: telegram_contacts.tg_user_id INTEGER -> BIGINT (миграция 027).
+    # TG id 5506243702 > int32 max -> asyncpg DataError в webhook. Только PostgreSQL.
     try:
         from sqlalchemy import text as _text
 
@@ -44,6 +46,20 @@ async def lifespan(_: FastAPI):
                 "'1-jira','1-figma','1-gitlab',"
                 "'1-mpulse','1-mpulse-schedule','1-mpulse-checkin','1-mpulse-code','1-mpulse-news')"
             ))
+            dialect = ""
+            try:
+                dialect = conn.engine.dialect.name
+            except Exception:
+                dialect = ""
+            if dialect == "postgresql":
+                cur = await conn.execute(_text(
+                    "SELECT data_type FROM information_schema.columns "
+                    "WHERE table_name = 'telegram_contacts' AND column_name = 'tg_user_id'"
+                ))
+                row = cur.first()
+                if row is not None and row[0] != "bigint":
+                    await conn.execute(_text("ALTER TABLE telegram_contacts ALTER COLUMN tg_user_id TYPE BIGINT"))
+                    print("HOTFIX: telegram_contacts.tg_user_id converted to BIGINT")
         print("HOTFIX: telegram_contacts.user_id + stage_tasks info_read ensured")
     except Exception as e:
         print(f"HOTFIX failed: {e}")
