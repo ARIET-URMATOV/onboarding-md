@@ -919,10 +919,10 @@ export function Stage1Documents({ stageId }: Props) {
   }
   .svc-open-btn {
     display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-    min-height: 44px; padding: 10px 18px; margin-top: 10px;
-    border-radius: 10px; border: 1px solid rgba(59, 130, 246, 0.45);
+    min-height: 35px; padding: 6px 14px; margin-top: 10px;
+    border-radius: 8px; border: 1px solid rgba(59, 130, 246, 0.45);
     background: linear-gradient(90deg, rgba(30, 58, 138, 0.55), rgba(37, 99, 235, 0.55));
-    color: #fff; font-size: 13px; font-weight: 700; letter-spacing: 0.02em;
+    color: #fff; font-size: 12.5px; font-weight: 700; letter-spacing: 0.02em;
     cursor: pointer; transition: filter 0.15s ease, transform 0.1s ease;
     -webkit-tap-highlight-color: transparent;
   }
