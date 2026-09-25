@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Pencil, User, Mail, Send, Tag, Building2, Briefcase, MapPin, KeyRound } from 'lucide-react';
+import { Pencil, User, Mail, Send, Tag } from 'lucide-react';
 import { TopBar, DefaultAvatar } from '../components/layout/TopBar';
 import { getProgress, useOnboarding } from '../store/useOnboarding';
 import { usePageMeta } from '../hooks/usePageMeta';
@@ -37,9 +37,6 @@ export function ProfilePage() {
   const updateProfile = useOnboarding((s) => s.updateProfile);
   const logout = useOnboarding((s) => s.logout);
   const onboardingRole = useOnboarding((s) => s.role);
-
-  const ROLE_LABELS: Record<string, string> = { frontend: 'Frontend', backend: 'Backend', design: 'Design' };
-  const roleLabel = onboardingRole ? (ROLE_LABELS[onboardingRole] ?? onboardingRole) : null;
 
   const missing = (v: string | null | undefined) => (v && v.trim() ? v : null);
 
@@ -158,23 +155,7 @@ export function ProfilePage() {
             <div className="pf-label">Рабочая информация</div>
             <div className="pf-field-readonly">
               <span className="pf-row-label"><Tag size={13} />Роль</span>
-              <span className="pf-value">{roleLabel ?? <i className="pf-missing">Не указано</i>}</span>
-            </div>
-            <div className="pf-field-readonly">
-              <span className="pf-row-label"><Building2 size={13} />Департамент</span>
-              <span className="pf-value">{missing(user.department) ?? <i className="pf-missing">Не указано</i>}</span>
-            </div>
-            <div className="pf-field-readonly">
-              <span className="pf-row-label"><Briefcase size={13} />Должность</span>
-              <span className="pf-value">{missing(user.position) ?? <i className="pf-missing">Не указано</i>}</span>
-            </div>
-            <div className="pf-field-readonly">
-              <span className="pf-row-label"><MapPin size={13} />Офис</span>
-              <span className="pf-value">{missing(user.office) ?? <i className="pf-missing">Не указано</i>}</span>
-            </div>
-            <div className="pf-field-readonly">
-              <span className="pf-row-label"><KeyRound size={13} />AD логин</span>
-              <span className="pf-value">{missing(user.ad_login) ?? <i className="pf-missing">Не указано</i>}</span>
+              <span className="pf-value">{missing(onboardingRole) ?? <i className="pf-missing">Не указано</i>}</span>
             </div>
           </section>
 
@@ -410,6 +391,14 @@ export function ProfilePage() {
           .pf-avatar { width: 114px; height: 114px; }
           .pf-avatar-badge { width: 28px; height: 28px; right: 6px; bottom: 6px; }
           .pf-row { grid-template-columns: 1fr; }
+          .pf-field-readonly {
+            flex-direction: column; align-items: flex-start; gap: 4px;
+            padding: 10px 12px;
+          }
+          .pf-value {
+            max-width: 100%; white-space: normal; overflow-wrap: anywhere;
+            text-align: left; font-size: 13px;
+          }
         }
         @media (prefers-reduced-motion: reduce) {
           .pf-orbit { animation: none; }

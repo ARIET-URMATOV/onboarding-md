@@ -138,6 +138,7 @@ export function Stage1Documents({ stageId }: Props) {
   const [tgGroups, setTgGroups] = useState<{ title: string; chat_id: string }[]>([]);
   const [tgAdded, setTgAdded] = useState<string[]>([]);
   const [tgFailed, setTgFailed] = useState<Record<string, string>>({});
+  const [tgSkipped, setTgSkipped] = useState<string[]>([]);
   const [tgAdding, setTgAdding] = useState(false);
   const [tgGreet, setTgGreet] = useState('');
   const [tgMsg, setTgMsg] = useState<string | null>(null);
@@ -170,17 +171,19 @@ export function Stage1Documents({ stageId }: Props) {
     setTgAdding(true);
     setTgMsg(null);
     try {
-      const r = await api.post<{ added: string[]; failed: { title: string; reason: string }[]; invite_links?: { title: string; url: string }[]; verified?: boolean; greeted?: string[] }>('/api/integrations/telegram-auto-add', { greeting: tgGreet.trim().slice(0, 500) });
+      const r = await api.post<{ added: string[]; failed: { title: string; reason: string }[]; skipped?: string[]; invite_links?: { title: string; url: string }[]; verified?: boolean; greeted?: string[] }>('/api/integrations/telegram-auto-add', { greeting: tgGreet.trim().slice(0, 500) });
       setTgAdded(r.added);
       const f: Record<string, string> = {};
       for (const x of r.failed) f[x.title] = x.reason;
       setTgFailed(f);
+      setTgSkipped(r.skipped ?? []);
       setTgInvites(r.invite_links ?? []);
       await refreshMe();
       loadTgGroups();
       if (r.failed.length === 0) {
         const greetNote = r.greeted && r.greeted.length > 0 ? ', приветствие отправлено' : '';
-        setTgMsg(`Вы добавлены в группы ✓ (${r.added.length})${greetNote}`);
+        const skipNote = r.skipped && r.skipped.length > 0 ? ` · пропущены без админки: ${r.skipped.length}` : '';
+        setTgMsg(`Вы добавлены в группы ✓ (${r.added.length})${greetNote}${skipNote}`);
         toast.success('Telegram: вы добавлены в группы', 'Этап зачтён автоматически');
       } else {
         setTgMsg(`Добавлен: ${r.added.length}, не вышло: ${r.failed.length} — см. причины выше`);
@@ -302,7 +305,7 @@ export function Stage1Documents({ stageId }: Props) {
               const st = done.includes(d.id) ? 'done' : 'todo';
               return (
                 <li key={d.id} className={`pkg-item ${st}`}>
-                  <button type="button" className="pkg-item-row" onClick={() => { if (!done.includes(d.id)) setOpen(d.kind); }} disabled={done.includes(d.id)}>
+                  <button type="button" className="pkg-item-row" onClick={() => setOpen(d.kind)}>
                     <span className="pkg-item-ico"><d.Icon size={15} /></span>
                     <span className="pkg-item-body"><b>{i + 1}. {d.title}</b><span>{d.sub}</span></span>
                     <span className="pkg-item-st">{st === 'done' ? <CircleCheck size={16} /> : <span className="pkg-dot" />}</span>
@@ -371,7 +374,7 @@ export function Stage1Documents({ stageId }: Props) {
                           <label key={g.chat_id} className="tg-chk" onClick={e => e.stopPropagation()}>
                             <input type="checkbox" checked={tgSelected[g.chat_id] ?? true} onChange={e => setTgSelected(prev => ({ ...prev, [g.chat_id]: e.target.checked }))} />
                             <span className="tg-chk-label">{g.title}</span>
-                            {tgAdded.includes(g.title) ? <span className="wifi-ok">✓</span> : tgFailed[g.title] ? <span className="wifi-err">{tgFailed[g.title]}</span> : null}
+                            {tgAdded.includes(g.title) ? <span className="wifi-ok">✓</span> : tgFailed[g.title] ? <span className="wifi-err">{tgFailed[g.title]}</span> : tgSkipped.includes(g.title) ? <span className="tg-skip">пропущена (бот не админ)</span> : null}
                           </label>
                         ))}
                       </div>
@@ -407,7 +410,9 @@ export function Stage1Documents({ stageId }: Props) {
                 <div className="dc-title">{s.title} {s.task_id && isTaskDone(s.task_id) && <span className="dc-badge">выполнено</span>}</div>
                 <div className="dc-sub">{s.subtitle}</div>
                 {s.url ? (
-                  <a href={s.url} target="_blank" rel="noopener noreferrer" className="wifi-help-link" onClick={(e) => { e.stopPropagation(); if (s.task_id && !isTaskDone(s.task_id)) handleInfoRead(s.task_id); }}>{s.title} →</a>
+                  <button type="button" className="svc-open-btn" onClick={(e) => { e.stopPropagation(); window.open(s.url, '_blank', 'noopener,noreferrer'); if (s.task_id && !isTaskDone(s.task_id)) handleInfoRead(s.task_id); }}>
+                    <ExternalLink size={14} /> Открыть — {s.title}
+                  </button>
                 ) : <span className="wifi-err">Ссылка не настроена</span>}
               </div>
               {s.details && <button type="button" className="dc-info-icon" onClick={(e) => { e.stopPropagation(); setOpenInfo({ title: s.title, sub: s.subtitle, body: s.details, taskId: s.task_id ?? undefined }); }} aria-label="Подробнее"><Info size={14} /></button>}
@@ -905,6 +910,24 @@ export function Stage1Documents({ stageId }: Props) {
   @keyframes noticeIn { from { opacity: 0; transform: translateY(-2px); } to { opacity: 1; transform: translateY(0); } }
   .wifi-ok { background: var(--ok-soft); border: 1px solid var(--ok-line); color: #A7F3D0; }
   .wifi-err { background: var(--err-soft); border: 1px solid var(--err-line); color: #FCA5A5; }
+  .tg-skip {
+    display: inline-flex; align-items: center;
+    font-size: 10.5px; font-weight: 500; color: #94A3B8;
+    padding: 4px 8px; border-radius: 6px;
+    background: rgba(148, 163, 184, 0.08); border: 1px solid rgba(148, 163, 184, 0.2);
+    line-height: 1.4;
+  }
+  .svc-open-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    min-height: 44px; padding: 10px 18px; margin-top: 10px;
+    border-radius: 10px; border: 1px solid rgba(59, 130, 246, 0.45);
+    background: linear-gradient(90deg, rgba(30, 58, 138, 0.55), rgba(37, 99, 235, 0.55));
+    color: #fff; font-size: 13px; font-weight: 700; letter-spacing: 0.02em;
+    cursor: pointer; transition: filter 0.15s ease, transform 0.1s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .svc-open-btn:hover { filter: brightness(1.15); }
+  .svc-open-btn:active { transform: scale(0.98); }
   .wifi-help-link {
     font-size: 11.5px; font-weight: 500;
     color: var(--blue-hi);

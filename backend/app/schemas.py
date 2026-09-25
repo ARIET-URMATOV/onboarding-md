@@ -37,6 +37,7 @@ class TelegramGroupIn(BaseModel):
 class AutoAddOut(BaseModel):
     added: list[str] = []
     failed: list[dict] = []
+    skipped: list[str] = []
     username: str = ""
     invite_links: list[dict] = []
     verified: bool = False

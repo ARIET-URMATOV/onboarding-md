@@ -235,7 +235,7 @@ export function IsometricRoadmap({ statuses, done }: Props) {
                 disabled={st === 'locked'}
                 aria-label={`Этап ${s.id}: ${s.title}`}
               >
-                <span className="btab-icon">{st === 'done' ? <Check size={18} strokeWidth={2.5} /> : <StageIcon size={16} strokeWidth={1.8} />}</span>
+                <span className="btab-icon"><StageIcon size={16} strokeWidth={1.8} /></span>
                 <span className="btab-label">{s.shortLabel}</span>
                 <span className={`btab-dot ${st}`} />
               </button>

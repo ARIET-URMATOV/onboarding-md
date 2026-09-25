@@ -19,6 +19,8 @@ export function LoginPage() {
   const nav = useNavigate();
 
   useEffect(() => {
+    // warm-up ping: будим спящий бэкенд, пока юзер вводит данные
+    api.get('/api/health').catch(() => { /* ignore */ });
     api.get<{ ldap_configured: boolean }>('/api/auth/ldap-status')
       .then((r) => setLdapConfigured(r.ldap_configured))
       .catch(() => setLdapConfigured(false));
@@ -252,6 +254,14 @@ export function LoginPage() {
           transition:all .15s ease;font-family:'Open Sans',sans-serif;
         }
         .btn-demo-stage:hover:not(:disabled){background:rgba(0,242,254,.12);border-color:var(--cyan-l)}
+        @media (max-width: 480px){
+          .auth-wrap{ padding:16px }
+          .auth-card{ padding:30px 22px }
+          .auth-head h1{ font-size:20px; letter-spacing:.1em }
+          .auth-head p{ font-size:12.5px }
+          .logo-mark{ width:60px; height:60px }
+          .logo-mark svg{ width:30px; height:30px }
+        }
         .btn-demo-stage:disabled{opacity:.5;cursor:not-allowed}
       `}</style>
     </div>

@@ -8,7 +8,7 @@ import { usePageMeta } from '../hooks/usePageMeta';
 import { SlaBanner } from '../components/ui/SlaBanner';
 
 type Phase = 'dark' | 'flight' | 'done';
-const DUR = 1400;
+const DUR = 900;
 
 function bezier(t: number, p0: number, p1: number, p2: number, p3: number) {
   const u = 1 - t;
@@ -124,7 +124,7 @@ export function DashboardPage() {
     setPhase('dark');
     document.body.style.background = '#060B18';
 
-    timersRef.current.push(window.setTimeout(() => setPhase('flight'), 500));
+    timersRef.current.push(window.setTimeout(() => setPhase('flight'), 250));
 
     let start = 0;
     let lastSpark = 0;
@@ -153,7 +153,7 @@ export function DashboardPage() {
         localStorage.setItem('md_intro_seen', '1');
         document.body.style.background = '#0A0F1E';
         timersRef.current.push(
-          window.setTimeout(() => setOverlayOn(false), 2400),
+          window.setTimeout(() => setOverlayOn(false), 1000),
         );
       }
     };
@@ -240,7 +240,7 @@ export function DashboardPage() {
             <span className="k-text">Добро пожаловать В</span>
             <i className="k-line" />
           </motion.div>
-          <motion.h1 className="h-title" aria-label="В MDIGITAL" initial={{ opacity: 0, y: 18 }} animate={revealed ? { opacity: 1, y: 0 } : {}} transition={{ delay: 0.28, duration: 0.7, ease: [0.16, 1, 0.3, 1] }}>
+          <motion.h1 className="h-title" aria-label="В MDIGITAL" initial={{ opacity: 0, y: 18 }} animate={revealed ? { opacity: 1, y: 0 } : {}} transition={{ delay: 0.1, duration: 0.45, ease: [0.16, 1, 0.3, 1] }}>
             <span className="h-title-planet" aria-hidden>
               <span className="ht-planet" />
               <span className="ht-planetRing" />

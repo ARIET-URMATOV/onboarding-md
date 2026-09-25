@@ -315,6 +315,7 @@ async def telegram_auto_add(
             detail="Группы для вашей роли не настроены: обратитесь к HR (/admin → Коды и ссылки).",
         )
     token = settings.telegram_bot_token
+
     async def _member_status(chat_id: str) -> str:
         """Реальный статус пользователя в чате (не верим unban на слово)."""
         try:
@@ -323,8 +324,27 @@ async def telegram_auto_add(
         except RuntimeError:
             return "unknown"
 
+    async def _member_status_settled(chat_id: str) -> str:
+        """Статус с одной повторной проверкой (лаг пропагации Telegram после add)."""
+        status = await _member_status(chat_id)
+        if status in ("left", "kicked", "unknown"):
+            import asyncio as _asyncio
+
+            try:
+                await _asyncio.sleep(1.5)
+            except Exception:
+                pass
+            status = await _member_status(chat_id)
+        return status
+
+    def _is_rights_error(reason: str) -> bool:
+        r = reason.lower()
+        return ("not enough rights" in r or "need administrator" in r
+                or "bot is not" in r or "admin" in r or "can_invite" in r)
+
     added: list[str] = []
     failed: list[dict] = []
+    skipped: list[str] = []
     for g in groups:
         chat_id = str(g["chat_id"])
         title = str(g.get("title") or chat_id)
@@ -336,10 +356,13 @@ async def telegram_auto_add(
             except RuntimeError as e:
                 if "chat owner" in str(e).lower() or "already" in str(e).lower():
                     pass  # владелец / уже участник — считаем добавленным
+                elif _is_rights_error(str(e)):
+                    skipped.append(title)
+                    continue  # бот не админ — тихо пропускаем, без ошибок
                 else:
                     await _tg_call(token, "addChatMember", {"chat_id": chat_id, "user_id": tg_id})
             # проверка: unban снимает бан, но НЕ возвращает левнувшего в чат
-            status = await _member_status(chat_id)
+            status = await _member_status_settled(chat_id)
             if status in ("left", "kicked", "unknown"):
                 raise RuntimeError(
                     "JOIN_REQUIRED: пользователь вне чата — вступите по ссылке-приглашению ниже."
@@ -347,20 +370,25 @@ async def telegram_auto_add(
             added.append(title)
         except RuntimeError as e:
             reason = str(e)
+            if _is_rights_error(reason):
+                skipped.append(title)
+                continue  # бот не админ — тихо пропускаем, без ошибок
             if reason.startswith("JOIN_REQUIRED"):
                 hint = "Вы вышли из группы — бот не может вернуть force-join. Вступите по ссылке ниже."
             elif "bot was blocked" in reason.lower() or "user not found" in reason.lower():
                 hint = "Пользователь не найден — напишите боту /start и повторите."
-            elif "not enough rights" in reason.lower() or "admin" in reason.lower():
-                hint = "Дайте боту админку в группе (can_invite_users)."
             else:
                 hint = reason
             failed.append({"title": title, "reason": hint})
+    # частичный фолбэк: ссылки для групп с жёсткой ошибкой (best-effort, не роняет 200)
+    invite_links: list[dict] = []
     if failed:
-        # частичный фолбэк: ссылки для групп, куда не добавилось
-        failed_titles = {f["title"] for f in failed}
-        invite_links = await _make_invite_links(
-            token, [g for g in groups if str(g.get("title") or g["chat_id"]) in failed_titles])
+        try:
+            failed_titles = {f["title"] for f in failed}
+            invite_links = await _make_invite_links(
+                token, [g for g in groups if str(g.get("title") or g["chat_id"]) in failed_titles])
+        except RuntimeError:
+            invite_links = []
     else:
         invite_links = []
     # автоотправка приветствия от бота в добавленные группы
@@ -380,9 +408,14 @@ async def telegram_auto_add(
                 pass  # best-effort — greeting failure must not break verification
     verified = False
     if not failed:
-        # бот реально добавил во все группы → задача выполнена
-        verified = await _auto_verify_telegram(db, user.id)
-    return AutoAddOut(added=added, failed=failed, username=contact.username,
+        # бот реально добавил во все группы (skipped не блокирует зачёт) → задача выполнена.
+        # best-effort: падение верификации не должно ронять 200 после успешных добавлений.
+        try:
+            verified = await _auto_verify_telegram(db, user.id)
+        except Exception as e:
+            print(f"telegram auto-verify failed (non-fatal): {e}")
+            verified = False
+    return AutoAddOut(added=added, failed=failed, skipped=skipped, username=contact.username,
                       invite_links=invite_links, verified=verified, greeted=greeted)
 
 
