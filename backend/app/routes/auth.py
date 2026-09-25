@@ -242,6 +242,27 @@ async def user_from_token(token: str, db: AsyncSession) -> User | None:
         return None
 
 
+import json
+import re
+
+
+def _parse_department(dept: str | None) -> Department | str | None:
+    """Parse department string, handling Python dict string format."""
+    if not dept:
+        return None
+    if isinstance(dept, str) and dept.strip().startswith("{"):
+        # Try to parse Python-like dict string
+        try:
+            # Replace single quotes with double quotes for JSON parsing
+            json_str = dept.replace("'", '"')
+            parsed = json.loads(json_str)
+            if isinstance(parsed, dict) and parsed.get("display_name"):
+                return Department(**parsed)
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return dept
+
+
 def user_out(user: User) -> UserOut:
     return UserOut(
         id=user.id,
@@ -254,7 +275,7 @@ def user_out(user: User) -> UserOut:
         created_at=user.created_at.isoformat() if user.created_at else None,
         is_staff=user.is_staff,
         telegram_username=user.telegram_username or "",
-        department=user.department,
+        department=_parse_department(user.department),
         position=user.position,
         office=user.office,
         ad_login=user.ad_login,

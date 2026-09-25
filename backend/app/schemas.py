@@ -74,6 +74,13 @@ class ProgressOut(BaseModel):
     completed_at: str | None = None
 
 
+class Department(BaseModel):
+    id: str
+    display_name: str
+    name: str
+    slug: str
+
+
 class UserOut(BaseModel):
     id: int
     email: str
@@ -85,7 +92,7 @@ class UserOut(BaseModel):
     created_at: str | None = None
     is_staff: bool = False
     telegram_username: str = ""
-    department: str | None = None
+    department: Department | str | None = None
     position: str | None = None
     office: str | None = None
     ad_login: str | None = None

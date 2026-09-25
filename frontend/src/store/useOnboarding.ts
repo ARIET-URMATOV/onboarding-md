@@ -113,21 +113,7 @@ function normalizeDepartment(dept: Department | string | null | undefined): Depa
   if (typeof dept === 'object') {
     return dept;
   }
-  // Parse Python-like string dict: {'id': '...', 'slug': '...', 'name': '...', 'display_name': '...'}
-  try {
-    const jsonStr = dept.replace(/'/g, '"');
-    const parsed = JSON.parse(jsonStr);
-    if (parsed && typeof parsed === 'object' && parsed.display_name) {
-      return {
-        id: parsed.id || '',
-        display_name: parsed.display_name,
-        name: parsed.name || '',
-        slug: parsed.slug || ''
-      };
-    }
-  } catch {
-    // If parsing fails, treat as plain string
-  }
+  // Fallback: treat as plain string
   return {
     id: dept,
     display_name: dept,
