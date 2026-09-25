@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Pencil, User, Mail, Send, Tag, Building2 } from 'lucide-react';
+import { Pencil, User, Mail, Send, Tag, Building2, Hash } from 'lucide-react';
 import { TopBar, DefaultAvatar } from '../components/layout/TopBar';
 import { getProgress, useOnboarding } from '../store/useOnboarding';
 import { usePageMeta } from '../hooks/usePageMeta';
@@ -141,6 +141,10 @@ export function ProfilePage() {
             <div className="pf-field-readonly">
               <span className="pf-row-label"><Mail size={13} />Email</span>
               <span className="pf-value">{missing(user.email) ?? <i className="pf-missing">Не указано</i>}</span>
+            </div>
+            <div className="pf-field-readonly">
+              <span className="pf-row-label"><Hash size={13} />ID</span>
+              <span className="pf-value">{missing(user.id?.toString()) ?? <i className="pf-missing">Не указано</i>}</span>
             </div>
             <div className="pf-field-readonly">
               <span className="pf-row-label"><Send size={13} />Telegram</span>
