@@ -42,6 +42,13 @@ async function req<T>(path: string, opts?: RequestInit & { json?: unknown }): Pr
 
 export type Role = 'frontend' | 'backend' | 'design';
 
+export interface Department {
+  id: string;
+  display_name: string;
+  name: string;
+  slug: string;
+}
+
 export interface MeResponse {
   user: {
     id: number;
@@ -54,7 +61,7 @@ export interface MeResponse {
     created_at?: string | null;
     is_staff?: boolean;
     telegram_username?: string;
-    department?: string | null;
+    department?: Department | string | null;
     position?: string | null;
     office?: string | null;
     ad_login?: string | null;
@@ -86,7 +93,7 @@ export interface UserResponse {
   voice_enabled: boolean;
   created_at?: string | null;
   is_staff?: boolean;
-  department?: string | null;
+  department?: Department | string | null;
   position?: string | null;
   office?: string | null;
   ad_login?: string | null;

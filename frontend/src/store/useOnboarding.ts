@@ -23,6 +23,13 @@ export interface NotificationItem {
   read: boolean;
 }
 
+interface Department {
+  id:string
+  display_name:string,
+  name:string
+  slug:string
+}
+
 interface User {
   id: number;
   email: string;
@@ -31,7 +38,7 @@ interface User {
   createdAt?: string | null;
   isStaff?: boolean;
   telegramUsername?: string;
-  department?: string | null;
+  department?: Department | null;
   position?: string | null;
   office?: string | null;
   ad_login?: string | null;
@@ -101,6 +108,14 @@ const xpFromTasks = (doneTasks: Record<StageId, string[]>): number => {
   return total;
 };
 
+function normalizeDepartment(dept: Department | string | null | undefined): Department | null {
+  if (!dept) return null;
+  if (typeof dept === 'string') {
+    return { id: dept, display_name: dept, name: dept, slug: dept.toLowerCase().replace(/\s+/g, '-') };
+  }
+  return dept;
+}
+
 export const useOnboarding = create<OnboardingState>()((set, get) => ({
   user: null,
   role: null,
@@ -130,7 +145,7 @@ export const useOnboarding = create<OnboardingState>()((set, get) => ({
         createdAt: me.user.created_at, 
         isStaff: me.user.is_staff ?? false, 
         telegramUsername: me.user.telegram_username ?? '',
-        department: me.user.department,
+        department: normalizeDepartment(me.user.department),
         position: me.user.position,
         office: me.user.office,
         ad_login: me.user.ad_login,

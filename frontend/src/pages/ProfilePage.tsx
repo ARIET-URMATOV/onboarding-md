@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Pencil, User, Mail, Send, Tag } from 'lucide-react';
+import { Pencil, User, Mail, Send, Tag, Building2 } from 'lucide-react';
 import { TopBar, DefaultAvatar } from '../components/layout/TopBar';
 import { getProgress, useOnboarding } from '../store/useOnboarding';
 import { usePageMeta } from '../hooks/usePageMeta';
@@ -36,7 +36,7 @@ export function ProfilePage() {
   const lvl = Math.floor(xp / 100) + 1;
   const updateProfile = useOnboarding((s) => s.updateProfile);
   const logout = useOnboarding((s) => s.logout);
-  const onboardingRole = useOnboarding((s) => s.role);
+  const onboardingRole = useOnboarding((s) => s.user?.department?.display_name);
 
   const missing = (v: string | null | undefined) => (v && v.trim() ? v : null);
 
@@ -156,6 +156,10 @@ export function ProfilePage() {
             <div className="pf-field-readonly">
               <span className="pf-row-label"><Tag size={13} />Роль</span>
               <span className="pf-value">{missing(onboardingRole) ?? <i className="pf-missing">Не указано</i>}</span>
+            </div>
+            <div className="pf-field-readonly">
+              <span className="pf-row-label"><Building2 size={13} />Департамент</span>
+              <span className="pf-value">{missing(user.department?.display_name) ?? <i className="pf-missing">Не указано</i>}</span>
             </div>
           </section>
 
