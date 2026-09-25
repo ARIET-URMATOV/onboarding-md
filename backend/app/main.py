@@ -8,9 +8,9 @@ from sqlalchemy.exc import OperationalError, DisconnectionError
 from app.config import settings
 from app.limiter import limiter, rate_limit_handler
 
-logger = logging.getLogger(__name__)
-
 import logging
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
