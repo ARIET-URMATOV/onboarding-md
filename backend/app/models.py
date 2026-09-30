@@ -32,6 +32,7 @@ class User(Base):
     intro_seen: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     voice_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     is_staff: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    staff_role: Mapped[str | None] = mapped_column(String, nullable=True)
     telegram_username: Mapped[str] = mapped_column(Text, nullable=False, default="")
     lead_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
@@ -168,6 +169,7 @@ class StageTask(Base):
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     verification_type: Mapped[str] = mapped_column(String, nullable=False, default="manual")
     responsible_role: Mapped[str] = mapped_column(String, nullable=False, default="")
+    department: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     stage: Mapped[Stage] = relationship(back_populates="tasks")
 
@@ -217,3 +219,43 @@ class ExternalService(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow
     )
+
+
+class CandidateApplication(Base):
+    __tablename__ = "candidate_applications"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    number: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    email: Mapped[str] = mapped_column(Text, index=True, nullable=False)
+    phone: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    department: Mapped[str | None] = mapped_column(Text, nullable=True)
+    position: Mapped[str | None] = mapped_column(Text, nullable=True)
+    planned_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    lead_name: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    status: Mapped[str] = mapped_column(String, nullable=False, default="new")
+
+    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    ad_login: Mapped[str | None] = mapped_column(Text, nullable=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+    stage1_progress: Mapped[dict] = mapped_column(FlexibleJSON, nullable=False, default=dict)
+
+    consent_given: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    consent_ip: Mapped[str] = mapped_column(Text, nullable=False, default="")
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class ApplicationEvent(Base):
+    __tablename__ = "application_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    application_id: Mapped[int] = mapped_column(ForeignKey("candidate_applications.id", ondelete="CASCADE"), nullable=False, index=True)
+    from_status: Mapped[str] = mapped_column(String, nullable=False, default="")
+    to_status: Mapped[str] = mapped_column(String, nullable=False)
+    author_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    comment: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
