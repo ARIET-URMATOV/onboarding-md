@@ -8,11 +8,11 @@ import type { StageId } from '../../data/stages';
 import type { StageStatus } from '../../store/useOnboarding';
 import { useOnboarding } from '../../store/useOnboarding';
 import { useStages } from '../../api/queries';
-import { Stage1Documents } from '../stages/Stage1Documents';
-import { Stage2Team } from '../stages/Stage2Team';
-import { Stage3Video } from '../stages/Stage3Video';
-import { Stage4Checklist } from '../stages/Stage4Checklist';
-import { Stage5Test } from '../stages/Stage5Test';
+import { Stage1Prelogin } from '../stages/v2/Stage1Prelogin';
+import { Stage2AppDownload } from '../stages/v2/Stage2AppDownload';
+import { Stage3Docs } from '../stages/v2/Stage3Docs';
+import { Stage4TeamVideoChecklist } from '../stages/v2/Stage4Combined';
+import { Stage5Dept } from '../stages/v2/Stage5Dept';
 
 type Props = {
   statuses: Record<StageId, StageStatus>;
@@ -273,28 +273,27 @@ export function IsometricRoadmap({ statuses, done }: Props) {
 
             {selected === 1 && selStatus !== 'locked' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.12 }}>
-                <Stage1Documents stageId={selected} />
+                <Stage1Prelogin stageId={selected} />
               </motion.div>
             )}
             {selected === 2 && selStatus !== 'locked' && (
               <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-                <Stage2Team stageId={selected} />
-                {/* generic checklist for stage 2 */}
+                <Stage2AppDownload stageId={selected} />
               </motion.div>
             )}
             {selected === 3 && selStatus !== 'locked' && (
               <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-                <Stage3Video stageId={selected} onVideoEnded={setVideoEnded} />
+                <Stage3Docs stageId={selected} />
               </motion.div>
             )}
             {selected === 4 && selStatus !== 'locked' && (
               <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-                <Stage4Checklist stageId={selected} />
+                <Stage4TeamVideoChecklist stageId={selected} onVideoEnded={setVideoEnded} />
               </motion.div>
             )}
             {selected === 5 && selStatus !== 'locked' && (
               <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-                <Stage5Test stageId={selected} />
+                <Stage5Dept stageId={selected} />
               </motion.div>
             )}
 
@@ -348,25 +347,24 @@ export function IsometricRoadmap({ statuses, done }: Props) {
               </div>
             )}
 
-            {selected === 1 && selStatus === 'current' && !allDoneForGate && (
+            {selected === 3 && selStatus === 'current' && !allDoneForGate && (
               <div className="gr-gate">Открой каждый документ и пролистай до конца — иначе этап не засчитается.</div>
             )}
 
             <div className="gr-tasksLabel font-mono" style={{ marginTop: 16 }}>
-              {selected === 1 ? 'Шаги этапа' : 'Задачи этапа'}
+              {selected === 3 ? 'Шаги этапа' : 'Задачи этапа'}
             </div>
             <div className="gr-chips">
-              {selected === 1 ? (
+              {selected === 3 ? (
                 (() => {
-                  const d1 = (doneTasks[1] || []);
+                  const d3 = (doneTasks[3] || []);
                   const steps = [
                     { label: 'Документы', ids: ['1-dogovor','1-nda','1-pdp','1-ip','1-sn'], hint: '5 документов' },
                     { label: 'Доступы', ids: ['1-mbusiness','1-accountant','1-wifi','1-proxy','1-telegram','1-jira','1-figma','1-gitlab'], hint: '8 сервисов' },
-                    { label: 'MPulse', ids: ['1-mpulse','1-mpulse-schedule','1-mpulse-checkin','1-mpulse-code','1-mpulse-news'], hint: '5 задач' },
                     { label: 'Confluence', ids: ['1-confluence-read'], hint: '1 задача' },
                   ];
                   return steps.map((s, i) => {
-                    const done = s.ids.every((id) => d1.includes(id)) || selStatus === 'done';
+                    const done = s.ids.every((id) => d3.includes(id)) || selStatus === 'done';
                     return (
                       <motion.span
                         key={s.label}
@@ -396,7 +394,7 @@ export function IsometricRoadmap({ statuses, done }: Props) {
                 ))
               )}
               <span className="gr-chipLabel">
-                {selected === 1 ? '4 шага' : `${selDoneTasks.length} задач${selDoneTasks.length === 1 ? 'а' : selDoneTasks.length < 5 ? 'и' : ''}`}
+                {selected === 3 ? '3 шага' : `${selDoneTasks.length} задач${selDoneTasks.length === 1 ? 'а' : selDoneTasks.length < 5 ? 'и' : ''}`}
               </span>
             </div>
           </div>
