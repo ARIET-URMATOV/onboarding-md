@@ -1,3 +1,9 @@
+def _sid_for(tid: str) -> str:
+    from app.stages_data import get_stages_sync
+    for s, st in get_stages_sync().items():
+        if tid in st["tasks"]: return str(s)
+    return "1"
+
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -190,7 +196,7 @@ async def request_verification(
         raise HTTPException(status_code=400, detail="Эта задача не требует запроса (код/таймер/пароль)")
     prog = await load_progress(db, user)
     tasks = normalize_tasks(prog.done_tasks)
-    if payload.task_id in tasks["1"]:
+    if payload.task_id in tasks[_sid_for(payload.task_id)]:
         return await save_progress(db, prog, tasks)  # уже подтверждена
     existing = await db.execute(
         _select(PendingRequest).where(
@@ -254,7 +260,7 @@ async def request_batch(
         wanted.append(tid)
     prog = await load_progress(db, user)
     tasks = normalize_tasks(prog.done_tasks)
-    done = set(tasks["1"])
+    done = {t for s in tasks.values() for t in s}
     created = 0
     for tid in wanted:
         if tid in done:
@@ -370,8 +376,8 @@ async def verify_docs(
         raise HTTPException(status_code=404, detail="Сотрудник не найден")
     prog = await load_progress(db, target)
     tasks = normalize_tasks(prog.done_tasks)
-    if payload.task_id not in tasks["1"]:
-        tasks["1"] = [*tasks["1"], payload.task_id]
+    if payload.task_id not in tasks[_sid_for(payload.task_id)]:
+        tasks[_sid_for(payload.task_id)] = [*tasks[_sid_for(payload.task_id)], payload.task_id]
     await log_verification(db, target.id, payload.task_id, "manual_hr", staff.id)
     out = await save_progress(db, prog, tasks)
     # закрыть запрос + уведомить сотрудника (письмо + WS)
@@ -429,8 +435,8 @@ async def verify_docs_batch(
     prog = await load_progress(db, target)
     tasks = normalize_tasks(prog.done_tasks)
     for tid in wanted:
-        if tid not in tasks["1"]:
-            tasks["1"].append(tid)
+        if tid not in tasks[_sid_for(tid)]:
+            tasks[_sid_for(tid)].append(tid)
         await log_verification(db, target.id, tid, "manual_hr", staff.id)
         req = await db.execute(
             _select(PendingRequest).where(
@@ -471,8 +477,8 @@ async def verify_access(
         raise HTTPException(status_code=404, detail="Сотрудник не найден")
     prog = await load_progress(db, target)
     tasks = normalize_tasks(prog.done_tasks)
-    if payload.task_id not in tasks["1"]:
-        tasks["1"] = [*tasks["1"], payload.task_id]
+    if payload.task_id not in tasks[_sid_for(payload.task_id)]:
+        tasks[_sid_for(payload.task_id)] = [*tasks[_sid_for(payload.task_id)], payload.task_id]
     await log_verification(db, target.id, payload.task_id, "manual_staff", staff.id)
     out = await save_progress(db, prog, tasks)
     from sqlalchemy import select as _select
@@ -521,8 +527,8 @@ async def wifi_mac(
     # Авто-зачёт 1-wifi при отправке MAC (сетевик задаёт пароль отдельно)
     prog = await load_progress(db, user)
     tasks = normalize_tasks(prog.done_tasks)
-    if "1-wifi" not in tasks["1"]:
-        tasks["1"] = [*tasks["1"], "1-wifi"]
+    if "1-wifi" not in tasks[_sid_for("1-wifi")]:
+        tasks[_sid_for("1-wifi")] = [*tasks[_sid_for("1-wifi")], "1-wifi"]
     await log_verification(db, user.id, "1-wifi", "technical_password",
                            details={"via": "mac_submit"})
     out = await save_progress(db, prog, tasks)
@@ -616,7 +622,7 @@ async def wifi_status(
     res = await db.execute(_select(WifiMac).where(WifiMac.user_id == user.id).limit(1))
     mac_sent = res.scalar_one_or_none() is not None
     prog = await db.get(Progress, user.id)
-    verified = prog is not None and "1-wifi" in normalize_tasks(prog.done_tasks).get("1", [])
+    verified = prog is not None and \"1-wifi\" in normalize_tasks(prog.done_tasks).get(_sid_for(\"1-wifi\"), [])
     return {"mac_sent": mac_sent, "verified": verified}
 
 
@@ -695,10 +701,10 @@ async def verify_mpulse_code(
         raise HTTPException(status_code=400, detail="Неверный код MPulse")
     prog = await load_progress(db, user)
     tasks = normalize_tasks(prog.done_tasks)
-    cur = set(tasks["1"])
+    cur = {t for s in tasks.values() for t in s}
     for tid in MPULSE_TASKS:
         if tid not in cur:
-            tasks["1"].append(tid)
+            tasks[_sid_for(tid)].append(tid)
     await log_verification(db, user.id, "1-mpulse-code", "technical_code",
                            details={"via_api": api_used})
     out = await save_progress(db, prog, tasks)
@@ -725,7 +731,7 @@ async def confirm_confluence(
 
     from app.models import ExternalService
 
-    if CONFLUENCE_READ in normalize_tasks((await load_progress(db, user)).done_tasks)["1"]:
+    if CONFLUENCE_READ in normalize_tasks((await load_progress(db, user)).done_tasks)[_sid_for(CONFLUENCE_READ)]:
         prog = await load_progress(db, user)
         return await save_progress(db, prog, prog.done_tasks)
     # динамический набор pageId из видимых knowledge-сервисов
@@ -789,8 +795,8 @@ async def confirm_confluence(
         raise HTTPException(status_code=400, detail="Нет отметки времени открытия")
     prog = await load_progress(db, user)
     tasks = normalize_tasks(prog.done_tasks)
-    if CONFLUENCE_READ not in tasks["1"]:
-        tasks["1"].append(CONFLUENCE_READ)
+    if CONFLUENCE_READ not in tasks[_sid_for(CONFLUENCE_READ)]:
+        tasks[_sid_for(CONFLUENCE_READ)].append(CONFLUENCE_READ)
     await log_verification(db, user.id, CONFLUENCE_READ, "technical_timer",
                            details={"opened_at": payload.opened_at,
                                     "elapsed_s": round(elapsed_s, 1),

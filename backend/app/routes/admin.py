@@ -84,7 +84,7 @@ async def list_users(
         prog = await db.get(Progress, u.id)
         done1: list[str] = []
         if prog is not None:
-            done1 = normalize_tasks(prog.done_tasks).get("1", [])
+            done1 = normalize_tasks(prog.done_tasks).get("3", [])
         out.append(_admin_user_out(u, done1, await _lead_email(db, u)))
     return out
 
@@ -343,7 +343,7 @@ async def set_lead(
     prog = await db.get(Progress, target.id)
     done1: list[str] = []
     if prog is not None:
-        done1 = normalize_tasks(prog.done_tasks).get("1", [])
+        done1 = normalize_tasks(prog.done_tasks).get("3", [])
     return _admin_user_out(target, done1, email if email else "")
 
 

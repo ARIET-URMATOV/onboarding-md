@@ -7,21 +7,31 @@
 # Confluence checklist (8×1) заменён одним тогглером 1-confluence-read ×10.
 # normalize_tasks() отфильтрует legacy ID из done_tasks существующих юзеров.
 _FALLBACK_STAGES: dict[int, dict] = {
-    1: {"xp_reward": 150, "tasks": {
-        # Step 1: Подписание документов (5 баллов, HR-верификация)
+    # Stage 1: Знакомство с компанией (засчитывается при выдаче учётки)
+    1: {"xp_reward": 100, "tasks": {
+        "1-intro": 50,
+    }},
+    # Stage 2: Скачай приложение (бывший шаг из 1 этапа)
+    2: {"xp_reward": 50, "tasks": {
+        "1-mpulse": 1, "1-mpulse-schedule": 1, "1-mpulse-checkin": 1, "1-mpulse-code": 1, "1-mpulse-news": 1,
+    }},
+    # Stage 3: Документы и доступы (бывший этап 1 без MPulse)
+    3: {"xp_reward": 100, "tasks": {
         "1-dogovor": 1, "1-nda": 1, "1-pdp": 1, "1-ip": 1, "1-sn": 1,
-        # Step 2: Получение доступов (0 баллов, ручная верификация staff)
         "1-mbusiness": 0, "1-accountant": 0, "1-wifi": 0, "1-proxy": 0, "1-telegram": 0,
         "1-jira": 0, "1-figma": 0, "1-gitlab": 0,
-        # Step 3: Корпоративное приложение MPulse (5 баллов, код)
-        "1-mpulse": 1, "1-mpulse-schedule": 1, "1-mpulse-checkin": 1, "1-mpulse-code": 1, "1-mpulse-news": 1,
-        # Step 4: База знаний Confluence (10 баллов, один тогглер; 5 ссылок + видимый таймер 120с)
         "1-confluence-read": 10,
     }},
-    2: {"xp_reward": 0, "tasks": {"2-team-read": 5}},
-    3: {"xp_reward": 0, "tasks": {"3-watch": 5}},
-    4: {"xp_reward": 0, "tasks": {"4-ready": 5}},
-    5: {"xp_reward": 200, "tasks": {"5-take": 100, "5-confirm": 100}},
+    # Stage 4: Команда, видео, чек-лист (объединённые старые 2, 3, 4)
+    4: {"xp_reward": 100, "tasks": {
+        "2-team-read": 5,
+        "3-watch": 5,
+        "4-ready": 5,
+    }},
+    # Stage 5: Онбординг в департамент
+    5: {"xp_reward": 200, "tasks": {
+        "5-take": 100, "5-confirm": 100
+    }},
 }
 STAGES: dict[int, dict] = _FALLBACK_STAGES
 
@@ -29,6 +39,7 @@ STAGES: dict[int, dict] = _FALLBACK_STAGES
 # verification_type: info_read | manual_hr | manual_staff | technical_code | technical_password | technical_timer
 # responsible_role: подпись ответственного для UI (бекенд делит только employee/staff).
 TASK_META: dict[str, tuple[str, str]] = {
+    "1-intro": ("info_read", "system"),
     "1-dogovor": ("info_read", "hr"), "1-nda": ("info_read", "hr"),
     "1-pdp": ("info_read", "hr"), "1-ip": ("info_read", "hr"), "1-sn": ("info_read", "hr"),
     "1-mbusiness": ("info_read", "hr"), "1-accountant": ("info_read", "accountant"),

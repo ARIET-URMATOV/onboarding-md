@@ -348,7 +348,7 @@ def map_portal_role(portal_role: str | None) -> str | None:
 
 async def upsert_user(db: AsyncSession, claims: OIDCClaims, refresh_token: str | None = None):
     """Find or create user by oidc_sub, then by email. Return (user, is_new)."""
-    from app.models import User, Progress
+    from app.models import User, Progress, CandidateApplication, ApplicationEvent
 
     user = None
     is_new = False
@@ -384,7 +384,9 @@ async def upsert_user(db: AsyncSession, claims: OIDCClaims, refresh_token: str |
         
         db.add(user)
         await db.flush()
-        db.add(Progress(user_id=user.id))
+        
+        prog = Progress(user_id=user.id)
+        db.add(prog)
         is_new = True
     else:
         # Update OIDC fields (overwrite)
@@ -401,6 +403,44 @@ async def upsert_user(db: AsyncSession, claims: OIDCClaims, refresh_token: str |
         mapped_role = map_portal_role(claims.role)
         if mapped_role:
             user.role = mapped_role
+
+    # 4. Check for CandidateApplication (FR-305)
+    stmt = select(CandidateApplication).where(CandidateApplication.status == 'account_created')
+    if claims.ad_login:
+        stmt = stmt.where(CandidateApplication.ad_login == claims.ad_login)
+    elif claims.email:
+        stmt = stmt.where(CandidateApplication.email == claims.email)
+    else:
+        stmt = stmt.where(sa_text("1=0"))  # Skip if neither exists
+
+    app = (await db.execute(stmt)).scalars().first()
+    
+    if app:
+        # Link and transfer data
+        app.status = 'activated'
+        app.user_id = user.id
+        
+        user.department = app.department or user.department
+        user.position = app.position or user.position
+        # Try to map department string to role
+        if app.department:
+            mapped_app_role = map_portal_role(app.department)
+            if mapped_app_role:
+                user.role = mapped_app_role
+        
+        # We need to transfer stage1_progress (FR-104)
+        if is_new:
+            prog.done_tasks = {"1": ["1-intro"]}
+            from app.stages_data import compute_xp
+            prog.xp = compute_xp(prog.done_tasks)
+        
+        evt = ApplicationEvent(
+            application_id=app.id,
+            from_status='account_created',
+            to_status='activated',
+            comment=f"Первый вход совершён. Профиль пользователя #{user.id} связан."
+        )
+        db.add(evt)
 
     await db.commit()
     await db.refresh(user)

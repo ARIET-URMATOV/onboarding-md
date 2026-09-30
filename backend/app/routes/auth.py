@@ -302,6 +302,8 @@ async def login(
     request: Request, payload: LoginIn, response: Response, db: AsyncSession = Depends(get_db)
 ):
     """Вход через Active Directory (LDAP)."""
+    if settings.is_production:
+        raise HTTPException(status_code=404, detail="Password login disabled in production. Use OIDC.")
     try:
         user = ldap_service.authenticate(payload.email, payload.password)
     except LDAPAuthError as e:
@@ -461,9 +463,10 @@ async def get_demo_user(db: AsyncSession) -> User | None:
 @router.post("/demo/login", response_model=MeOut)
 @limiter.limit("20/minute")
 async def demo_login(request: Request, response: Response, db: AsyncSession = Depends(get_db), stage: int | None = None):
-    """Идемпотентный вход в демо-аккаунт: создаёт его при первом заходе.
+    """Идемпотентный вход в демо-аккаунт: создаёт его при первом заходе."""
+    if settings.is_production:
+        raise HTTPException(status_code=404, detail="Demo login is disabled in production")
 
-    Параметры:
     - stage: если передан (1-5), прогресс будет настроен так, чтобы этот этап был current.
       Все предыдущие этапы считаются пройденными.
     """
