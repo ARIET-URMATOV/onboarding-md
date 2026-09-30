@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { useToast } from '../components/ui/ToastProvider';
 import { useOnboarding } from '../store/useOnboarding';
+import { AdminApplications } from '../components/admin/AdminApplications';
 
 interface AdminUser {
   id: number;
@@ -97,7 +98,7 @@ export function AdminPage() {
   const [audit, setAudit] = useState<AuditRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [tab, setTab] = useState<'pending' | 'users' | 'audit' | 'codes' | 'wifi' | 'settings' | 'services'>('pending');
+  const [tab, setTab] = useState<'applications' | 'pending' | 'users' | 'audit' | 'codes' | 'wifi' | 'settings' | 'services'>('applications');
   const [taskFilter, setTaskFilter] = useState<string>('all');
   const [contacts, setContacts] = useState<Record<string, string>>({});
   const [wifiReqs, setWifiReqs] = useState<{ user_id: number; email: string; name: string; mac: string; sent_at: string | null; has_password: boolean; verified: boolean }[]>([]);
@@ -429,14 +430,16 @@ export function AdminPage() {
         </span>
       </h1>
       <div className="admin-tabs">
-        {(['pending', 'users', 'audit', 'codes', 'wifi', 'settings', 'services'] as const).map((t) => (
+        {(['applications', 'pending', 'users', 'audit', 'codes', 'wifi', 'settings', 'services'] as const).map((t) => (
           <button key={t} type="button" onClick={() => setTab(t)} className={`admin-tab ${tab === t ? 'active' : ''}`}>
-            {t === 'pending' ? `Ожидают (${pending.length})` : t === 'users' ? 'Сотрудники' : t === 'audit' ? `Журнал (${audit.length})` : t === 'codes' ? 'Коды и ссылки' : t === 'wifi' ? 'Wi-Fi запросы' : t === 'services' ? `Сервисы (${svcList.length})` : 'Настройки'}
+            {t === 'applications' ? 'Заявки V2' : t === 'pending' ? `Ожидают (${pending.length})` : t === 'users' ? 'Сотрудники' : t === 'audit' ? `Журнал (${audit.length})` : t === 'codes' ? 'Коды и ссылки' : t === 'wifi' ? 'Wi-Fi запросы' : t === 'services' ? `Сервисы (${svcList.length})` : 'Настройки'}
           </button>
         ))}
         <button type="button" onClick={() => load()} className="admin-tab" disabled={loading}>↻</button>
       </div>
       {msg && <div className="admin-msg">{msg}</div>}
+
+      {tab === 'applications' && <AdminApplications />}
 
       {tab === 'pending' && (
         <div className="admin-list">
