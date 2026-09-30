@@ -1,20 +1,18 @@
 import { useState, useMemo } from 'react';
 import { Smartphone, Apple, CircleCheck } from 'lucide-react';
-import { useStages, useServices } from '../../api/queries';
-import { useOnboarding } from '../../store/useOnboarding';
-import type { StageId } from '../../data/stages';
-import { api } from '../../api/client';
-import { ServiceModal } from './ServiceModal';
+import { QRCodeSVG } from 'qrcode.react';
+import { useServices } from '../../../hooks/useServices';
+import { useOnboarding } from '../../../store/useOnboarding';
+import type { StageId } from '../../../data/stages';
+import { api } from '../../../api/client';
 
 export function Stage2AppDownload({ stageId }: { stageId: StageId }) {
   const done = useOnboarding((s) => s.doneTasks[stageId] || []);
   const toggleTask = useOnboarding((s) => s.toggleTask);
-  const { data: services = [] } = useServices();
+  const { services = [] } = useServices();
   
-  const mpulseServices = useMemo(() => services.filter((s) => s.category === 'mpulse'), [services]);
+  const mpulseServices = useMemo(() => services.filter((s: any) => s.category === 'mpulse'), [services]);
   const isDone = ['1-mpulse','1-mpulse-schedule','1-mpulse-checkin','1-mpulse-code','1-mpulse-news'].every(id => done.includes(id));
-
-  const [open, setOpen] = useState<string | null>(null);
 
   // Mpulse verification state inside the modal logic or inline
   // Using ServiceModal just like V1, assuming we can inject content or just use inline verification.
@@ -57,24 +55,32 @@ export function Stage2AppDownload({ stageId }: { stageId: StageId }) {
           <li>Корпоративные новости и уведомления</li>
         </ul>
 
-        <div className="mpulse-links">
-          {mpulseServices.map((s) => (
-            <a key={s.key} href={s.url} target="_blank" rel="noopener noreferrer" className={`mpulse-dl ${s.icon_key === 'Apple' ? 'apple' : 'google'}`}>
-              {s.icon_key === 'Apple' ? <Apple size={14} /> : <Smartphone size={14} />}
-              <span>{s.title}</span>
-            </a>
-          ))}
-          {/* Fallback if services not loaded */}
-          {mpulseServices.length === 0 && (
-            <>
-              <a href="https://apps.apple.com/us/app/mpulse-kg/id6740697046" target="_blank" rel="noopener noreferrer" className="mpulse-dl apple">
-                <Apple size={14} /> <span>App Store</span>
-              </a>
-              <a href="https://play.google.com/store/apps/details?id=kg.pulse.app" target="_blank" rel="noopener noreferrer" className="mpulse-dl google">
-                <Smartphone size={14} /> <span>Google Play</span>
-              </a>
-            </>
-          )}
+        <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', alignItems: 'center', background: 'rgba(0,0,0,0.2)', padding: '16px', borderRadius: '12px' }}>
+          <div style={{ background: '#fff', padding: '8px', borderRadius: '8px', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+             <QRCodeSVG value="https://apps.apple.com/us/app/mpulse-kg/id6740697046" size={80} level="M" />
+          </div>
+          <div>
+            <div style={{ fontSize: '13px', color: '#E5E7EB', fontWeight: 'bold', marginBottom: '8px' }}>Скачай с телефона</div>
+            <div className="mpulse-links">
+              {mpulseServices.map((s: any) => (
+                <a key={s.key} href={s.url} target="_blank" rel="noopener noreferrer" className={`mpulse-dl ${s.icon_key === 'Apple' ? 'apple' : 'google'}`}>
+                  {s.icon_key === 'Apple' ? <Apple size={14} /> : <Smartphone size={14} />}
+                  <span>{s.title}</span>
+                </a>
+              ))}
+              {/* Fallback if services not loaded */}
+              {mpulseServices.length === 0 && (
+                <>
+                  <a href="https://apps.apple.com/us/app/mpulse-kg/id6740697046" target="_blank" rel="noopener noreferrer" className="mpulse-dl apple">
+                    <Apple size={14} /> <span>App Store</span>
+                  </a>
+                  <a href="https://play.google.com/store/apps/details?id=kg.pulse.app" target="_blank" rel="noopener noreferrer" className="mpulse-dl google">
+                    <Smartphone size={14} /> <span>Google Play</span>
+                  </a>
+                </>
+              )}
+            </div>
+          </div>
         </div>
 
         <div className="mpulse-verify">

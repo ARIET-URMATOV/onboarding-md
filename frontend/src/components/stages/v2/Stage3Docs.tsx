@@ -5,14 +5,14 @@ import {
   Link as LinkIcon, Smartphone, Apple, BookOpen, Globe, Lock, MessageSquare, ExternalLink, Download,
   CircleCheck, Check, Copy, Info,
 } from 'lucide-react';
-import type { StageId } from '../../data/stages';
-import { useOnboarding } from '../../store/useOnboarding';
-import { SlaBanner } from '../ui/SlaBanner';
-import { DocumentModal, type DocKind } from './DocumentModal';
-import { useToast } from '../ui/ToastProvider';
-import { api } from '../../api/client';
-import { useServices } from '../../hooks/useServices';
-import { ServiceModal } from './ServiceModal';
+import type { StageId } from '../../../data/stages';
+import { useOnboarding } from '../../../store/useOnboarding';
+import { SlaBanner } from '../../ui/SlaBanner';
+import { DocumentModal, type DocKind } from '../DocumentModal';
+import { useToast } from '../../ui/ToastProvider';
+import { api } from '../../../api/client';
+import { useServices } from '../../../hooks/useServices';
+import { ServiceModal } from '../ServiceModal';
 
 interface Props { stageId: StageId }
 
@@ -63,8 +63,7 @@ export function Stage3Docs({ stageId }: Props) {
   // Services from DB
   const { services } = useServices();
   const accessServices = useMemo(() => services.filter((s) => s.category === 'access'), [services]);
-  const mpulseServices = useMemo(() => services.filter((s) => s.category === 'mpulse'), [services]);
-  const knowledgeServices = useMemo(() => services.filter((s) => s.category === 'knowledge'), [services]);
+  const knowledgeServices = useMemo(() => services.filter((s: any) => s.category === 'knowledge'), [services]);
   const confluencePageIds = useMemo(() =>
     knowledgeServices.map((s) => s.extra.pageId).filter(Boolean),
     [knowledgeServices],

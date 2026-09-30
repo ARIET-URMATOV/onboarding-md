@@ -1,8 +1,8 @@
 import type { StageId } from '../../../data/stages';
 import { useOnboarding } from '../../../store/useOnboarding';
 
-export function Stage5Dept({ stageId }: { stageId: StageId }) {
-  const user = useOnboarding((s) => s.user);
+export function Stage5Dept({}: { stageId: StageId }) {
+  const user = useOnboarding((s: any) => s.user);
   
   const deptLabel = typeof user?.department === 'string' 
     ? user.department 

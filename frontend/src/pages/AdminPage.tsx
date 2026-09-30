@@ -128,26 +128,30 @@ export function AdminPage() {
 
   useEffect(() => { void loadTgGroups(); }, [loadTgGroups]);
 
+  const [v2Pending, setV2Pending] = useState(0);
+
   const loadExtras = useCallback(async () => {
     try {
-      const [w, s, svcs] = await Promise.all([
+      const [w, s, svcs, v2apps] = await Promise.all([
         api.get<{ user_id: number; email: string; name: string; mac: string; sent_at: string | null; has_password: boolean; verified: boolean }[]>('/api/admin/wifi-requests'),
-        api.get<{ contacts: Record<string, string>; instructions: Record<string, string> }>('/api/admin/settings'),
+        api.get<{ contacts: Record<string, string>; instructions: Record<string, string>; intro: Record<string, string>; stage5: Record<string, string> }>('/api/admin/settings'),
         api.get<{ key: string; title: string; subtitle: string; url: string; icon_key: string; category: string; task_id: string | null; roles: string[]; sort_order: number; is_visible: boolean; open_new_tab: boolean; extra: Record<string, string>; details: string }[]>('/api/admin/services'),
+        api.get<any[]>('/api/admin/applications?status=new'),
       ]);
       setWifiReqs(w);
       setContacts(s.contacts);
       setSvcList(svcs);
+      setV2Pending(v2apps.length);
       if (s.instructions) setContacts((prev) => ({ ...prev, ...s.instructions }));
+      if (s.intro) setContacts((prev) => ({ ...prev, ...s.intro }));
+      if (s.stage5) setContacts((prev) => ({ ...prev, ...s.stage5 }));
     } catch { /* ignore */ }
   }, []);
 
-  useEffect(() => { void loadExtras(); }, [loadExtras]);
-
   const saveContact = async (key: string) => {
     try {
-      const r = await api.patch<{ contacts: Record<string, string>; instructions: Record<string, string> }>('/api/admin/settings', { key, value: contacts[key] ?? '' });
-      setContacts({ ...r.contacts, ...r.instructions });
+      const r = await api.patch<{ contacts: Record<string, string>; instructions: Record<string, string>; intro: Record<string, string>; stage5: Record<string, string> }>('/api/admin/settings', { key, value: contacts[key] ?? '' });
+      setContacts({ ...r.contacts, ...r.instructions, ...r.intro, ...r.stage5 });
       setMsg(`✓ ${key} сохранён`);
     } catch (e) {
       setMsg(e instanceof Error ? e.message : 'Ошибка сохранения');
@@ -297,12 +301,12 @@ export function AdminPage() {
     try {
       const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       ws = new WebSocket(`${proto}//${window.location.host}/ws/admin`);
-      ws.onmessage = () => { setLiveOn(true); void load(true); };
+      ws.onmessage = () => { setLiveOn(true); void load(true); void loadExtras(); };
       ws.onclose = () => setLiveOn(false);
       ws.onerror = () => { try { ws?.close(); } catch { /* ignore */ } };
     } catch { /* WS недоступен — polling */ }
-    const id = setInterval(() => void load(true), 15000);
-    const refetch = () => void load(true);
+    const id = setInterval(() => { void load(true); void loadExtras(); }, 15000);
+    const refetch = () => { void load(true); void loadExtras(); };
     document.addEventListener('visibilitychange', refetch);
     window.addEventListener('focus', refetch);
     try {
@@ -432,10 +436,10 @@ export function AdminPage() {
       <div className="admin-tabs">
         {(['applications', 'pending', 'users', 'audit', 'codes', 'wifi', 'settings', 'services'] as const).map((t) => (
           <button key={t} type="button" onClick={() => setTab(t)} className={`admin-tab ${tab === t ? 'active' : ''}`}>
-            {t === 'applications' ? 'Заявки V2' : t === 'pending' ? `Ожидают (${pending.length})` : t === 'users' ? 'Сотрудники' : t === 'audit' ? `Журнал (${audit.length})` : t === 'codes' ? 'Коды и ссылки' : t === 'wifi' ? 'Wi-Fi запросы' : t === 'services' ? `Сервисы (${svcList.length})` : 'Настройки'}
+            {t === 'applications' ? `Заявки V2 ${v2Pending > 0 ? `(${v2Pending}🔴)` : ''}` : t === 'pending' ? `Ожидают (${pending.length})` : t === 'users' ? 'Сотрудники' : t === 'audit' ? `Журнал (${audit.length})` : t === 'codes' ? 'Коды и ссылки' : t === 'wifi' ? 'Wi-Fi запросы' : t === 'services' ? `Сервисы (${svcList.length})` : 'Настройки'}
           </button>
         ))}
-        <button type="button" onClick={() => load()} className="admin-tab" disabled={loading}>↻</button>
+        <button type="button" onClick={() => { load(); loadExtras(); }} className="admin-tab" disabled={loading}>↻</button>
       </div>
       {msg && <div className="admin-msg">{msg}</div>}
 
@@ -463,8 +467,52 @@ export function AdminPage() {
                   <div>
                     <b>{g.name}</b>
                     <div className="admin-email">{g.email} · отправлено {first.created_at ? ago(first.created_at) : '—'}</div>
-                  </div>
+          </div>
+
+          <div className="admin-card">
+            <div className="admin-card-head"><b>Контент: Знакомство с компанией (Этап 1 V2)</b></div>
+            <div className="admin-card-sub">Редактирование публичной страницы.</div>
+            
+            <label style={{ fontSize: 11, color: 'var(--muted)', marginTop: 8 }}>Заголовок</label>
+            <input value={contacts['intro.title'] ?? ''} onChange={(e) => setContacts(p => ({ ...p, 'intro.title': e.target.value }))} className="admin-input" placeholder="Добро пожаловать в MDIGITAL" />
+            <button type="button" onClick={() => saveContact('intro.title')} className="admin-btn small" style={{ marginBottom: 12 }}>Сохранить заголовок</button>
+
+            <label style={{ fontSize: 11, color: 'var(--muted)' }}>Миссия (подзаголовок)</label>
+            <textarea value={contacts['intro.mission'] ?? ''} onChange={(e) => setContacts(p => ({ ...p, 'intro.mission': e.target.value }))} rows={2} className="admin-input" />
+            <button type="button" onClick={() => saveContact('intro.mission')} className="admin-btn small" style={{ marginBottom: 12 }}>Сохранить миссию</button>
+
+            <label style={{ fontSize: 11, color: 'var(--muted)' }}>Ценности (JSON array)</label>
+            <input value={contacts['intro.values'] ?? ''} onChange={(e) => setContacts(p => ({ ...p, 'intro.values': e.target.value }))} className="admin-input" placeholder='["Скорость", "Инновации"]' />
+            <button type="button" onClick={() => saveContact('intro.values')} className="admin-btn small" style={{ marginBottom: 12 }}>Сохранить ценности</button>
+
+            <label style={{ fontSize: 11, color: 'var(--muted)' }}>Инструкция</label>
+            <textarea value={contacts['intro.instruction'] ?? ''} onChange={(e) => setContacts(p => ({ ...p, 'intro.instruction': e.target.value }))} rows={3} className="admin-input" />
+            <button type="button" onClick={() => saveContact('intro.instruction')} className="admin-btn small">Сохранить инструкцию</button>
+          </div>
+
+          <div className="admin-card">
+            <div className="admin-card-head"><b>Задачи Этапа 5 (Департаменты)</b></div>
+            <div className="admin-card-sub">Настройка задач по департаментам (JSON формат: [&#123;"title": "Задача", "url": "https...", "xp": 100&#125;])</div>
+
+            {['Frontend', 'Backend', 'Design'].map((dept) => {
+              const key = `stage5.${dept.toLowerCase()}`;
+              return (
+                <div key={dept} style={{ marginTop: 12 }}>
+                  <label style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 'bold' }}>{dept}</label>
+                  <textarea 
+                    value={contacts[key] ?? ''} 
+                    onChange={(e) => setContacts(p => ({ ...p, [key]: e.target.value }))} 
+                    rows={2} 
+                    className="admin-input" 
+                    placeholder='[{"title":"Пройти тест", "url":"link", "xp": 50}]'
+                  />
+                  <button type="button" onClick={() => saveContact(key)} className="admin-btn small" style={{ marginTop: 6 }}>Сохранить {dept}</button>
                 </div>
+              );
+            })}
+          </div>
+
+        </div>
                 <div className="admin-card-sub">Пакет документов на физическую проверку — сверьте 5 пунктов, затем подтвердите:</div>
                 <ul className="hr-checklist">
                   {DOC_TASKS.map((tid) => {

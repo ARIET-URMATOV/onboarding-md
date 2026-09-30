@@ -452,8 +452,8 @@ export function IsometricRoadmap({ statuses, done }: Props) {
           <div className="gf-flash" />
           <div className="gf-banner">
             <div className="gf-title">Добро пожаловать в ряды MDIGITAL</div>
-            <div className="gf-sub">Ты — часть команды. Поехали!</div>
-            <button className="gf-cta" onClick={() => nav('/dashboard')}>Перейти в кабинет →</button>
+            <div className="gf-sub">Все этапы успешно завершены!</div>
+            <button className="gf-cta" onClick={() => nav('/complete')}>Получить сертификат →</button>
           </div>
         </div>
       )}
