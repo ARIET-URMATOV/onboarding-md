@@ -10,6 +10,11 @@ import { RegisterPage } from './pages/RegisterPage';
 import { AuthStartPage } from './pages/AuthStartPage';
 import { AuthCallbackPage } from './pages/AuthCallbackPage';
 
+// Eager: public v2 pages
+import { PublicIntroPage } from './pages/PublicIntroPage';
+import { ApplyPage } from './pages/ApplyPage';
+import { StatusPage } from './pages/StatusPage';
+
 // Lazy: heavy / authenticated pages — code-split per route
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
 const StagesPage = lazy(() => import('./pages/StagesPage').then((m) => ({ default: m.StagesPage })));
@@ -30,7 +35,11 @@ export default function App() {
         <div className="app-content">
           <Suspense fallback={<PageFallback />}>
             <Routes>
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/" element={<Navigate to="/intro" replace />} />
+              <Route path="/intro" element={<GuestOnly><PublicIntroPage /></GuestOnly>} />
+              <Route path="/apply" element={<GuestOnly><ApplyPage /></GuestOnly>} />
+              <Route path="/status" element={<GuestOnly><StatusPage /></GuestOnly>} />
+              
               <Route path="/login" element={<GuestOnly><LoginPage /></GuestOnly>} />
               <Route path="/register" element={<GuestOnly><RegisterPage /></GuestOnly>} />
               <Route path="/auth/start" element={<AuthStartPage />} />
