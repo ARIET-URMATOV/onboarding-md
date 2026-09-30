@@ -30,41 +30,75 @@ async def lifespan(_: FastAPI):
         await warm_stages_cache()
     except Exception as e:
         print(f"stages warmup: {e}")
-    # HOTFIX: ensure user_id column exists in telegram_contacts (миграция 026).
-    # Вне telegram-if: колонка должна чиниться всегда, независимо от env.
-    # HOTFIX-2: stage_tasks verification_type=info_read (миграция 026, часть 2).
-    # Без этого /progress/info-read отвечает 400 на проде, где alembic не накатился.
-    # HOTFIX-3: telegram_contacts.tg_user_id INTEGER -> BIGINT (миграция 027).
-    # TG id 5506243702 > int32 max -> asyncpg DataError в webhook. Только PostgreSQL.
+    # HOTFIX-страховка на время, пока на проде не накатилась миграция 026/027.
+    # Каждая правка в отдельной транзакции и с проверкой таблицы —
+    # отсутствие одной таблицы не срывает остальные правки.
     try:
         from sqlalchemy import text as _text
 
         from app.database import engine
-        async with engine.begin() as conn:
-            await conn.execute(_text("ALTER TABLE telegram_contacts ADD COLUMN IF NOT EXISTS user_id INTEGER"))
-            await conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_telegram_contacts_user_id ON telegram_contacts(user_id)"))
-            await conn.execute(_text(
-                "UPDATE stage_tasks SET verification_type = 'info_read' WHERE id IN ("
-                "'1-dogovor','1-nda','1-pdp','1-ip','1-sn',"
-                "'1-mbusiness','1-accountant','1-wifi','1-proxy',"
-                "'1-jira','1-figma','1-gitlab',"
-                "'1-mpulse','1-mpulse-schedule','1-mpulse-checkin','1-mpulse-code','1-mpulse-news')"
-            ))
-            dialect = ""
-            try:
-                dialect = conn.engine.dialect.name
-            except Exception:
-                dialect = ""
+
+        async def _table_exists(conn, table: str) -> bool:
+            dialect = conn.engine.dialect.name
             if dialect == "postgresql":
-                cur = await conn.execute(_text(
-                    "SELECT data_type FROM information_schema.columns "
-                    "WHERE table_name = 'telegram_contacts' AND column_name = 'tg_user_id'"
-                ))
+                cur = await conn.execute(_text("SELECT to_regclass(:t)"), {"t": table})
                 row = cur.first()
-                if row is not None and row[0] != "bigint":
-                    await conn.execute(_text("ALTER TABLE telegram_contacts ALTER COLUMN tg_user_id TYPE BIGINT"))
-                    print("HOTFIX: telegram_contacts.tg_user_id converted to BIGINT")
-        print("HOTFIX: telegram_contacts.user_id + stage_tasks info_read ensured")
+                return row is not None and row[0] is not None
+            cur = await conn.execute(
+                _text("SELECT name FROM sqlite_master WHERE type = 'table' AND name = :t"),
+                {"t": table},
+            )
+            return cur.first() is not None
+
+        # HOTFIX-1: telegram_contacts.user_id (миграция 026, part 1)
+        try:
+            async with engine.begin() as conn:
+                if await _table_exists(conn, "telegram_contacts"):
+                    import sqlalchemy as _sa
+
+                    def _cols(sync_conn) -> list[str]:
+                        return [c["name"] for c in _sa.inspect(sync_conn).get_columns("telegram_contacts")]
+
+                    cols = await conn.run_sync(_cols)
+                    if "user_id" not in cols:
+                        await conn.execute(_text("ALTER TABLE telegram_contacts ADD COLUMN user_id INTEGER"))
+                    await conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_telegram_contacts_user_id ON telegram_contacts(user_id)"))
+        except Exception as e:
+            print(f"HOTFIX-1 (telegram_contacts.user_id) failed: {e}")
+
+        # HOTFIX-2: stage_tasks verification_type=info_read (миграция 026, part 2).
+        # Без этого /progress/info-read отвечает 400 на проде, где alembic не накатился.
+        try:
+            async with engine.begin() as conn:
+                if await _table_exists(conn, "stage_tasks"):
+                    await conn.execute(_text(
+                        "UPDATE stage_tasks SET verification_type = 'info_read' WHERE id IN ("
+                        "'1-dogovor','1-nda','1-pdp','1-ip','1-sn',"
+                        "'1-mbusiness','1-accountant','1-wifi','1-proxy',"
+                        "'1-jira','1-figma','1-gitlab',"
+                        "'1-mpulse','1-mpulse-schedule','1-mpulse-checkin','1-mpulse-code','1-mpulse-news')"
+                    ))
+        except Exception as e:
+            print(f"HOTFIX-2 (stage_tasks info_read) failed: {e}")
+
+        # HOTFIX-3: telegram_contacts.tg_user_id INTEGER -> BIGINT (миграция 027).
+        # TG id 5506243702 > int32 max -> asyncpg DataError в webhook. Только PostgreSQL.
+        try:
+            if engine.dialect.name == "postgresql":
+                async with engine.begin() as conn:
+                    if await _table_exists(conn, "telegram_contacts"):
+                        cur = await conn.execute(_text(
+                            "SELECT data_type FROM information_schema.columns "
+                            "WHERE table_name = 'telegram_contacts' AND column_name = 'tg_user_id'"
+                        ))
+                        row = cur.first()
+                        if row is not None and row[0] != "bigint":
+                            await conn.execute(_text("ALTER TABLE telegram_contacts ALTER COLUMN tg_user_id TYPE BIGINT"))
+                            print("HOTFIX-3: telegram_contacts.tg_user_id converted to BIGINT")
+        except Exception as e:
+            print(f"HOTFIX-3 (tg_user_id BIGINT) failed: {e}")
+
+        print("HOTFIX checks completed")
     except Exception as e:
         print(f"HOTFIX failed: {e}")
 
@@ -170,6 +204,7 @@ app.add_middleware(
 )
 
 from app.routes import admin, auth, integrations, notifications, progress, services, stages  # noqa: E402
+from app.routes.v2 import applications as v2_applications, public as v2_public
 
 app.include_router(auth.router, prefix="/api", tags=["auth"])
 app.include_router(progress.router, prefix="/api", tags=["progress"])
@@ -178,6 +213,10 @@ app.include_router(admin.router, prefix="/api", tags=["admin"])
 app.include_router(integrations.router, prefix="/api", tags=["integrations"])
 app.include_router(services.router, prefix="/api", tags=["services"])
 app.include_router(notifications.router, prefix="/api", tags=["notifications"])
+
+# V2 Routers
+app.include_router(v2_applications.router, prefix="/api", tags=["v2-applications"])
+app.include_router(v2_public.router, prefix="/api", tags=["v2-public"])
 
 
 @app.websocket("/ws/admin")
@@ -243,4 +282,10 @@ async def ws_me(websocket: WebSocket):
 
 @app.get("/api/health")
 async def health():
+    return {"ok": True}
+
+
+@app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
+async def root_health():
+    """Render health check (HEAD / от Render dashboard)."""
     return {"ok": True}
