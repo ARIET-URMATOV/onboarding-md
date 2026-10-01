@@ -1,8 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Check, LayoutDashboard, Lock, Map as MapIcon, Sparkles, FileText, Users, Video, ListChecks, ClipboardCheck } from 'lucide-react';
+import { ArrowRight, Check, LayoutDashboard, Lock, Map as MapIcon, Sparkles, FileText, Users, Video, ListChecks, ClipboardCheck, Trophy } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
+import { Button } from '../ui/button';
+import { Badge } from '../ui/badge';
+import { Checkbox } from '../ui/checkbox';
+import { Card, CardContent } from '../ui/card';
+import { Alert, AlertDescription } from '../ui/alert';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Separator } from '../ui/separator';
+import { CountUp, ShinyText } from '../bits';
+import { cn } from '../../lib/utils';
 import { STAGES as FALLBACK_STAGES } from '../../data/stages';
 import type { StageId } from '../../data/stages';
 import type { StageStatus } from '../../store/useOnboarding';
@@ -149,29 +158,24 @@ export function IsometricRoadmap({ statuses, done }: Props) {
           <img src="/mdigital-logo.svg" alt="logo" width={100} />
         </div>
 
-        <motion.div className="gm-tabs" initial="hidden" animate="visible" variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.06 } } }}>
-          {TABS.map((t, i) => (
-            <motion.button
+        <motion.div className="mb-3 flex gap-2" initial="hidden" animate="visible" variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.06 } } }}>
+          {TABS.map((t) => (
+            <motion.span
               key={t.id}
-              className={`gm-tab`}
-              title={t.label}
-              onClick={() => t.path && nav(t.path)}
               variants={{ hidden: { opacity: 0, scale: 0.7, y: 6 }, visible: { opacity: 1, scale: 1, y: 0 } }}
-              whileHover={{ scale: 1.0001, y: -2 }}
-              whileTap={{ scale: 0.92 }}
-              transition={{ type: 'spring', stiffness: 420, damping: 18 }}
             >
-              <t.Icon size={14} strokeWidth={1.7} />
-              {i === 1 && <motion.span layoutId="activeTab" className="gm-tabActive" />}
-            </motion.button>
+              <Button size="icon" variant="outline" title={t.label} onClick={() => t.path && nav(t.path)}>
+                <t.Icon />
+              </Button>
+            </motion.span>
           ))}
         </motion.div>
 
-        <div className="gm-sect">
-          <div className="gs-rule" />
-          <div className="gs-meta font-mono">
+        <div className="mb-3">
+          <Separator className="mb-2 bg-primary/30" />
+          <div className="flex justify-between font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
             <span>Прогресс</span>
-            <motion.span key={done} initial={{ scale: 1.25, color: '#fff' }} animate={{ scale: 1, color: '#3B82F6' }} transition={{ duration: 0.35 }} className="gs-count">{done}/5</motion.span>
+            <span className="font-bold text-primary"><CountUp to={done} />/5</span>
           </div>
         </div>
 
@@ -208,7 +212,16 @@ export function IsometricRoadmap({ statuses, done }: Props) {
                     </span>
                     <span className="gc-body">
                       <span className="gc-name">{s.shortLabel}</span>
-                      <span className="gc-state">{st === 'locked' ? 'Закрыто' : st === 'current' ? 'Сейчас' : 'Пройдено'}</span>
+                      <Badge
+                        variant={st === 'done' ? 'default' : 'secondary'}
+                        className={cn(
+                          'w-fit px-1.5 py-0 text-[9px] uppercase tracking-widest',
+                          st === 'locked' && 'bg-muted text-muted-foreground',
+                          st === 'current' && 'bg-primary/20 text-primary-foreground',
+                        )}
+                      >
+                        {st === 'locked' ? 'Закрыто' : st === 'current' ? 'Сейчас' : 'Пройдено'}
+                      </Badge>
                     </span>
                     <span className="gc-num font-mono">0{s.id}</span>
                     {isUnlocking && <span className="gc-shine" aria-hidden />}
@@ -260,9 +273,18 @@ export function IsometricRoadmap({ statuses, done }: Props) {
                 {selStatus === 'locked' ? 'Этап закрыт' : selStatus === 'current' ? 'Текущий этап' : 'Этап пройден'}
               </div>
             </div>
-            <motion.div layout className={`gr-emblem ${selStatus}`} animate={unlockingId === selected ? { scale: [1, 1.12, 1] } : {}} transition={{ duration: 0.6 }}>
-              <span className="ge-ring" />
-              <span className="ge-core font-orbitron">{selected}</span>
+            <motion.div
+              layout
+              className={cn(
+                'grid h-11 w-11 shrink-0 place-items-center rounded-full border font-mono text-sm font-extrabold',
+                selStatus === 'done'
+                  ? 'border-primary/60 bg-primary/15 text-primary'
+                  : 'border-border bg-muted text-muted-foreground',
+              )}
+              animate={unlockingId === selected ? { scale: [1, 1.12, 1] } : {}}
+              transition={{ duration: 0.6 }}
+            >
+              {selected}
             </motion.div>
           </div>
 
@@ -303,58 +325,57 @@ export function IsometricRoadmap({ statuses, done }: Props) {
                   const done = selDoneIds.includes(t.id);
                   const videoBlock = selected === 3 && !videoEnded && !done;
                   return (
-                    <motion.label
+                    <motion.div
                       key={t.id}
-                      className={`task-row ${done ? 'is-done' : ''} ${videoBlock ? 'video-blocked' : ''}`}
+                      className={cn(
+                        'flex cursor-pointer items-center gap-2.5 rounded-lg border border-border bg-card/60 px-3 py-2.5 text-sm transition-colors hover:border-primary/40 hover:bg-primary/5',
+                        videoBlock && 'pointer-events-none opacity-50',
+                      )}
                       initial={{ opacity: 0, x: -8 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: i * 0.05 }}
-                      whileHover={videoBlock ? {} : { x: 2 }}
+                      onClick={() => { if (!videoBlock) toggleTask(selected, t.id); }}
                     >
-                      <span className="task-box">
-                        {done && (
-                          <motion.svg initial={{ scale: 0 }} animate={{ scale: 1 }} viewBox="0 0 24 24" fill="none" strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="20 6 9 17 4 12" />
-                          </motion.svg>
-                        )}
-                      </span>
-                      <span className="task-title">{t.title}</span>
-                      <span className="task-xp">+{t.xp} XP</span>
-                      <input type="checkbox" checked={done} disabled={videoBlock} onChange={() => toggleTask(selected, t.id)} style={{ display: 'none' }} />
-                    </motion.label>
+                      <Checkbox checked={done} disabled={videoBlock} onCheckedChange={() => { if (!videoBlock) toggleTask(selected, t.id); }} />
+                      <span className={cn('min-w-0 flex-1 leading-snug', done && 'text-muted-foreground line-through opacity-70')}>{t.title}</span>
+                      <Badge variant="secondary" className="shrink-0 text-[10px]">+{t.xp} XP</Badge>
+                    </motion.div>
                   );
                 })}
-                <motion.div className="reward" initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.3 }}>
-                  <svg viewBox="0 0 24 24" fill="none" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
-                    <path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" />
-                    <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" />
-                    <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
-                  </svg>
-                  <div>
-                    <b className="font-orbitron">Ачивка «{sel.rewardName.replace('Ачивка «', '').replace('»', '')}»</b>
-                    <span>{sel.rewardDesc}</span>
-                  </div>
+                <motion.div initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.3 }}>
+                  <Card className="border-dashed border-amber-500/40 bg-amber-500/5">
+                    <CardContent className="flex items-center gap-2.5 pt-4">
+                      <Trophy className="h-4 w-4 shrink-0 text-amber-400" />
+                      <div>
+                        <div className="text-[11px] font-bold tracking-wide text-amber-300">Ачивка «{sel.rewardName.replace('Ачивка «', '').replace('»', '')}»</div>
+                        <div className="mt-0.5 text-xs text-muted-foreground">{sel.rewardDesc}</div>
+                      </div>
+                    </CardContent>
+                  </Card>
                 </motion.div>
               </div>
             )}
 
             {selStatus === 'locked' && (
-              <div className="locked-body">
-                <div className="locked-icon">🔒</div>
-                <div className="locked-title">Этот этап пока недоступен</div>
-                <div className="locked-desc">Пройди предыдущий этап, чтобы открыть «{sel.title}».</div>
+              <div className="py-3 text-center">
+                <div className="mx-auto mb-2 grid h-10 w-10 place-items-center rounded-full bg-muted text-muted-foreground">
+                  <Lock className="h-4 w-4" />
+                </div>
+                <div className="mb-1 text-xs font-semibold">Этот этап пока недоступен</div>
+                <div className="mx-auto max-w-xs text-xs leading-relaxed text-muted-foreground">Пройди предыдущий этап, чтобы открыть «{sel.title}».</div>
               </div>
             )}
 
             {selected === 3 && selStatus === 'current' && !allDoneForGate && (
-              <div className="gr-gate">Открой каждый документ и пролистай до конца — иначе этап не засчитается.</div>
+              <Alert className="mb-2.5 border-dashed border-primary/40 bg-primary/5">
+                <AlertDescription className="text-xs text-primary">Открой каждый документ и пролистай до конца — иначе этап не засчитается.</AlertDescription>
+              </Alert>
             )}
 
             <div className="gr-tasksLabel font-mono" style={{ marginTop: 16 }}>
               {selected === 3 ? 'Шаги этапа' : 'Задачи этапа'}
             </div>
-            <div className="gr-chips">
+            <div className="flex flex-wrap items-center gap-1.5 pt-3">
               {selected === 3 ? (
                 (() => {
                   const d3 = (doneTasks[3] || []);
@@ -368,32 +389,37 @@ export function IsometricRoadmap({ statuses, done }: Props) {
                     return (
                       <motion.span
                         key={s.label}
-                        className={`gr-chip ${done ? 'is-done' : ''}`}
                         title={`${s.label} · ${s.hint}`}
                         initial={{ opacity: 0, scale: 0.6 }}
                         animate={{ opacity: 1, scale: 1 }}
                         transition={{ delay: i * 0.06, type: 'spring', stiffness: 420, damping: 18 }}
                       >
-                        {done ? '✓' : i + 1}
+                        <Badge className={cn('grid h-8 w-8 place-items-center rounded-full p-0 text-[11px]', done ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground')}>
+                          {done ? <Check className="h-3.5 w-3.5" /> : i + 1}
+                        </Badge>
                       </motion.span>
                     );
                   });
                 })()
               ) : (
-                selDoneTasks.map((t, i) => (
-                  <motion.span
-                    key={t.id}
-                    className={`gr-chip ${selDoneIds.includes(t.id) || selStatus === 'done' ? 'is-done' : ''}`}
-                    title={t.title}
-                    initial={{ opacity: 0, scale: 0.6 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: i * 0.06, type: 'spring', stiffness: 420, damping: 18 }}
-                  >
-                    {selDoneIds.includes(t.id) || selStatus === 'done' ? '✓' : i + 1}
-                  </motion.span>
-                ))
+                selDoneTasks.map((t, i) => {
+                  const done = selDoneIds.includes(t.id) || selStatus === 'done';
+                  return (
+                    <motion.span
+                      key={t.id}
+                      title={t.title}
+                      initial={{ opacity: 0, scale: 0.6 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: i * 0.06, type: 'spring', stiffness: 420, damping: 18 }}
+                    >
+                      <Badge className={cn('grid h-8 w-8 place-items-center rounded-full p-0 text-[11px]', done ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground')}>
+                        {done ? <Check className="h-3.5 w-3.5" /> : i + 1}
+                      </Badge>
+                    </motion.span>
+                  );
+                })
               )}
-              <span className="gr-chipLabel">
+              <span className="ml-1 text-[10px] text-muted-foreground">
                 {selected === 3 ? '3 шага' : `${selDoneTasks.length} задач${selDoneTasks.length === 1 ? 'а' : selDoneTasks.length < 5 ? 'и' : ''}`}
               </span>
             </div>
@@ -404,26 +430,18 @@ export function IsometricRoadmap({ statuses, done }: Props) {
               {selStatus === 'locked' ? 'Пройди предыдущий этап' : selStatus === 'current' && !allDoneForGate ? 'Выполни все задачи' : selStatus === 'current' && selected === 3 && !videoEnded ? 'Досмотри видео до конца' : selStatus === 'done' && hasNext ? 'Готово → следующий этап' : selStatus === 'done' ? 'Все этапы пройдены' : 'Готов к завершению'}
             </span>
             {selStatus === 'locked' ? (
-              <button className="gr-cta" disabled>Этап закрыт</button>
+              <Button disabled>Этап закрыт</Button>
             ) : selStatus === 'current' ? (
               allDoneForGate && (selected !== 3 || videoEnded) ? (
-                hasNext ? (
-                  <motion.button className="gr-cta" onClick={handleComplete} whileHover={{ scale: 1.02, y: -1 }} whileTap={{ scale: 0.98 }}>
-                    Завершить →
-                  </motion.button>
-                ) : (
-                  <motion.button className="gr-cta" onClick={handleComplete} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>Завершить →</motion.button>
-                )
+                <Button onClick={handleComplete}>Завершить <ArrowRight /></Button>
               ) : (
-                <button className="gr-cta" disabled>{selected === 3 && !videoEnded ? 'Досмотри видео' : 'Сначала задачи'}</button>
+                <Button disabled>{selected === 3 && !videoEnded ? 'Досмотри видео' : 'Сначала задачи'}</Button>
               )
             ) : (
               hasNext ? (
-                <motion.button className="gr-cta" onClick={handleNext} whileHover={{ scale: 1.02, y: -1 }} whileTap={{ scale: 0.98 }}>
-                  Следующий →
-                </motion.button>
+                <Button onClick={handleNext}>Следующий <ArrowRight /></Button>
               ) : (
-                <button className="gr-cta" onClick={() => nav('/complete')}>Достижения →</button>
+                <Button onClick={() => nav('/complete')}>Достижения <ArrowRight /></Button>
               )
             )}
           </div>
@@ -435,7 +453,7 @@ export function IsometricRoadmap({ statuses, done }: Props) {
         {xpToast && (
           <motion.div
             key={xpToast.id}
-            className="xp-toast"
+            className="pointer-events-none absolute right-5 top-20 z-10 rounded-full bg-primary px-4 py-2 text-[11px] font-extrabold tracking-widest text-primary-foreground shadow-lg"
             initial={{ opacity: 0, y: 12, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -18, scale: 0.9 }}
@@ -447,16 +465,22 @@ export function IsometricRoadmap({ statuses, done }: Props) {
       </AnimatePresence>
 
       {/* финал */}
-      {finale && (
-        <div className="gm-finale">
-          <div className="gf-flash" />
-          <div className="gf-banner">
-            <div className="gf-title">Добро пожаловать в ряды MDIGITAL</div>
-            <div className="gf-sub">Все этапы успешно завершены!</div>
-            <button className="gf-cta" onClick={() => nav('/complete')}>Получить сертификат →</button>
-          </div>
-        </div>
-      )}
+      <Dialog open={finale} onOpenChange={(o) => { if (!o) setFinale(false); }}>
+        <DialogContent className="max-w-md text-center">
+          <DialogHeader>
+            <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-full bg-primary/10 text-primary">
+              <Trophy className="h-6 w-6" />
+            </div>
+            <DialogTitle className="text-xl">
+              <ShinyText text="Добро пожаловать в ряды MDIGITAL" />
+            </DialogTitle>
+            <DialogDescription>Все этапы успешно завершены!</DialogDescription>
+          </DialogHeader>
+          <Button size="lg" className="w-full" onClick={() => nav('/complete')}>
+            Получить сертификат <ArrowRight />
+          </Button>
+        </DialogContent>
+      </Dialog>
 
      <style>{`
         /* ===== ROADMAP — MOBILE-FIRST · BLUE · Cinzel/Marcellus ===== */
@@ -495,21 +519,6 @@ export function IsometricRoadmap({ statuses, done }: Props) {
         .gl-eyebrow{ font-family:'Open Sans',sans-serif; font-size:11px; font-weight:800; letter-spacing:.14em; color:#fff }
         .gl-sub{ font-family:'Open Sans',sans-serif; font-size:10px; color:#a9a6c2; letter-spacing:.06em; margin-top:2px }
 
-        .gm-tabs{ display:flex; gap:8px; margin-bottom:12px }
-        .gm-tab{
-          width:34px; height:34px; border-radius:50%; display:grid; place-items:center; position:relative;
-          background:rgba(255,255,255,.04); border:1px solid rgba(30,58,138,.22);
-          color:#8c88a6; cursor:pointer; transition:all .18s ease;
-        }
-        .gm-tab svg{ width:14px; height:14px; position:relative; z-index:2; }
-        .gm-tab:hover{ color:#DBEAFE; border-color:rgba(37,99,235,.5) }
-        .gm-tab.on{ color:#fff; border-color:#2563EB; box-shadow:0 0 0 3px rgba(30,58,138,.18), 0 0 16px rgba(30,58,138,.45); background:rgba(30,58,138,.14); }
-        .gm-tabActive{ position:absolute; inset:0; border-radius:50%; background:rgba(30,58,138,.16); z-index:1; }
-
-        .gm-sect{ margin-bottom:12px }
-        .gs-rule{ height:1px; margin:8px 0; background:linear-gradient(90deg, rgba(37,99,235,.55), transparent) }
-        .gs-meta{ display:flex; justify-content:space-between; font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:#8c88a6 }
-        .gs-count{ color:#3B82F6 }
 
         .gm-list{ flex:1; display:flex; flex-direction:column; min-height:0; overflow:visible; padding-right:0; gap:6px; max-width:100%; width:100%; }
         .gm-itemWrap{ flex:0 0 auto; width:100%; display:flex; flex-direction:column; align-items:stretch; }
@@ -554,12 +563,10 @@ export function IsometricRoadmap({ statuses, done }: Props) {
 
         .gc-body{ flex:1; min-width:0; display:flex; flex-direction:column; gap:3px }
         .gc-name{ font-family:'Open Sans',sans-serif; font-size:14px; font-weight:800; color:#f1f5f9; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-        .gc-state{ font-family:'Open Sans',sans-serif; font-size:9.5px; letter-spacing:.11em; text-transform:uppercase; color:#c4c0db }
         .gc-num{ align-self:center; font-size:9px; opacity:.62; flex-shrink:0 }
 
         .gm-card.current{ background:linear-gradient(100deg, rgba(37,99,235,.9), rgba(30,58,138,.85)) }
         .gm-card.current .gc-name{ color:#fff }
-        .gm-card.current .gc-state{ color:rgba(255,255,255,.8) }
         .gm-card.current .gc-ico{ background:rgba(255,255,255,.18); border-color:rgba(255,255,255,.5); color:#fff }
         .gm-cardWrap.sel:not(:has(.gm-card.current)) .gm-card:not(.locked){ background:linear-gradient(100deg, rgba(30,58,138,.28), rgba(37,99,235,.28)); }
         .gm-card.done .gc-name{ color:#DBEAFE }
@@ -576,74 +583,14 @@ export function IsometricRoadmap({ statuses, done }: Props) {
         .gr-head{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px }
         .gr-title{ font-family:'Open Sans',sans-serif; font-size:16px; font-weight:800; color:#fff; line-height:1.2; text-shadow:0 1px 8px rgba(0,0,0,.3) }
         .gr-subtitle{ font-family:'Open Sans',sans-serif; font-size:10px; letter-spacing:.13em; text-transform:uppercase; color:#93C5FD; margin-top:3px }
-        .gr-emblem{ position:relative; width:40px; height:40px; flex-shrink:0 }
-        .ge-ring{
-          position:absolute; inset:0; border-radius:50%;
-          background:conic-gradient(from 0deg, transparent 0 70%, rgba(37,99,235,.8) 85%, transparent 100%);
-          animation:geSpin 3.2s linear infinite;
-          -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
-          mask:radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
-        }
-        @keyframes geSpin{ to{ transform:rotate(360deg) } }
-        .ge-core{
-          position:absolute; inset:5px; border-radius:50%;
-          display:grid; place-items:center; font-size:12px; font-weight:800; color:#DBEAFE;
-          background:rgba(30,58,138,.12); border:1px solid rgba(37,99,235,.3);
-          box-shadow:inset 0 0 18px rgba(30,58,138,.2);
-        }
-        .gr-emblem.done .ge-core{ color:#3B82F6; border-color:rgba(37,99,235,.45) }
 
         .gr-divider{ height:1px; margin:12px 0; background:linear-gradient(90deg, rgba(37,99,235,.4), rgba(37,99,235,.06)) }
 
         .gr-body{ flex:1; min-height:0; overflow-y:auto; overflow-x:hidden; padding-right:4px; padding-bottom:24px; }
         .gr-desc{ font-family:'Open Sans',sans-serif; font-size:16px; line-height:1.55; color:#E2E8F0; margin:0 0 12px; word-break:break-word; }
-        .gr-gate{
-          padding:8px 10px; border-radius:10px; margin-bottom:10px;
-          background:rgba(59,130,246,.06); border:1px dashed rgba(59,130,246,.3);
-          color:#93C5FD; font-size:11.5px; line-height:1.2; font-family:'Open Sans',sans-serif;
-        }
         .gr-tasksLabel{ font-size:10.5px; letter-spacing:.18em; text-transform:uppercase; color:#b8b5cc; margin-bottom:8px }
-        .gr-chips{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; padding:12px 0 0; }
-        .gr-chip{
-          width:30px; height:30px; border-radius:50%; display:grid; place-items:center;
-          font-family:'Open Sans',sans-serif; font-size:10.5px; font-weight:700; color:#3B82F6;
-          background:rgba(30,58,138,.08); border:1px solid rgba(37,99,235,.35);
-        }
-        .gr-chip.is-done{ background:rgba(37,99,235,.14); border-color:#3B82F6; color:#fff; box-shadow:0 0 10px rgba(37,99,235,.35); }
-        .gr-chipLabel{ font-family:'Open Sans',sans-serif; font-size:10px; color:#c4c0db; margin-left:4px }
 
-        /* ===== SUB TASKS (MOBILE-FIRST: УВЕЛИЧЕНО ДЛЯ МАЛЫХ ЭКРАНОВ) ===== */
-        .sub-tasks{ display:flex; flex-direction:column; gap:9px; max-width:100%; }
-        .task-row{
-          display:flex; align-items:center; gap:10px; padding:11px 13px;
-          background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08);
-          border-radius:10px; cursor:pointer; font-size:13px; max-width:100%;
-          transition:background .15s ease, border-color .15s ease;
-        }
-        .task-row:hover{ background:rgba(59,130,246,.08); border-color:rgba(59,130,246,.3) }
-        .task-row.is-done{ color:#94a3b8; }
-        .task-row.is-done .task-title{ text-decoration:line-through; opacity:.65 }
-        .task-row.video-blocked{ opacity:.5; cursor:not-allowed; pointer-events:none }
-        .task-box{ width:18px; height:18px; border-radius:5px; border:1px solid rgba(147,197,253,.5); display:grid; place-items:center; flex-shrink:0; }
-        .task-box svg{ width:10px; height:10px; stroke:#fff; }
-        .task-row.is-done .task-box{ background:#2563EB; border-color:#2563EB; }
-        .task-title{ flex:1; font-size:14px; line-height:1.4; color:#E2E8F0; min-width:0; word-break:break-word; }
-        .task-xp{ font-size:11px; color:#a9a6c2; font-weight:600; letter-spacing:.04em; flex-shrink:0; }
-        .reward{
-          display:flex; align-items:center; gap:9px; margin-top:10px; padding:10px 12px;
-          border:1px dashed rgba(251,191,36,.32); border-radius:10px; background:rgba(251,191,36,.06);
-          position:relative; overflow:hidden; max-width:100%;
-        }
-        .reward::after{ content:''; position:absolute; inset:0; background:linear-gradient(100deg, transparent 40%, rgba(255,255,255,.16) 50%, transparent 60%); transform:translateX(-100%); animation: rewardShine 3.8s ease infinite; }
-        @keyframes rewardShine{ 60%{ transform:translateX(100%)} 100%{ transform:translateX(100%)} }
-        .reward svg{ width:15px; height:15px; stroke:#fbbf24; flex-shrink:0 }
-        .reward b{ font-family:'Open Sans',sans-serif; font-size:11px; letter-spacing:.03em; color:#fbbf24; display:block }
-        .reward span{ font-size:12px; color:#cbd5e1; display:block; margin-top:2px }
 
-        .locked-body{ text-align:center; padding:10px 0 6px; }
-        .locked-icon{ font-size:20px; opacity:.55; margin-bottom:6px; }
-        .locked-title{ font-family:'Open Sans',sans-serif; font-size:10.5px; color:#fff; margin-bottom:6px; }
-        .locked-desc{ font-size:12px; color:#cbd5e1; line-height:1.5; max-width:100%; margin:0 auto; }
 
         .gr-foot{
           display:flex; justify-content:space-between; align-items:center; gap:8px;
@@ -652,75 +599,22 @@ export function IsometricRoadmap({ statuses, done }: Props) {
           background:none; flex-wrap:wrap;
         }
         .gr-hint{ font-size:9px; letter-spacing:.12em; color:#a9a6c2; text-transform:uppercase; flex:1 1 200px; min-width:0 }
-        .gr-cta{
-          display:inline-flex; align-items:center; gap:6px;
-          padding:10px 18px; border:none; cursor:pointer; flex-shrink:0; min-width:44px; min-height:40px;
-          font-family:'Open Sans',sans-serif; font-size:10px; font-weight:700; letter-spacing:.09em; text-transform:uppercase;
-          color:#fff; background:linear-gradient(90deg,#1E3A8A 0%,#1D4ED8 100%);
-          clip-path:polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
-          transition:filter .16s ease, transform .16s ease; max-width:100%;
-        }
-        .gr-cta:hover:not(:disabled){ filter:brightness(1.15) drop-shadow(0 0 12px rgba(30,58,138,.5)); transform:translateY(-1px) }
-        .gr-cta:disabled{ opacity:.4; cursor:not-allowed }
 
-        .xp-toast{
-          position:absolute; right:22px; top:78px; z-index:12;
-          padding:8px 14px; border-radius:999px;
-          background:linear-gradient(135deg, #2563EB, #1E3A8A); color:#fff;
-          font-family:'Open Sans',sans-serif; font-size:11px; font-weight:800; letter-spacing:.08em;
-          box-shadow:0 8px 24px rgba(30,58,138,.45), 0 0 0 1px rgba(255,255,255,.15) inset;
-          pointer-events:none;
-        }
 
-        /* финал */
-        .gm-finale{ position:fixed; inset:0; z-index:100; display:grid; place-items:center; background:rgba(10,15,30,.82); backdrop-filter:blur(8px); animation:gfin .3s ease; overflow:hidden }
-        @keyframes gfin{ from{opacity:0} to{opacity:1} }
-        .gf-flash{ position:absolute; inset:0; background:#fff; opacity:0; pointer-events:none; animation:gflash .32s ease .05s }
-        @keyframes gflash{ 0%{opacity:0} 20%{opacity:.85} 100%{opacity:0} }
-        .gf-banner{
-          position:relative; text-align:center; padding:30px 26px; max-width:520px; width:calc(100% - 24px);
-          background:linear-gradient(170deg, rgba(13,21,38,.96), rgba(10,15,30,.98));
-          border:1px solid rgba(37,99,235,.3);
-          clip-path:polygon(22px 0, 100% 0, 100% calc(100% - 22px), calc(100% - 22px) 100%, 0 100%, 0 22px);
-          box-shadow:0 24px 64px rgba(0,0,0,.55);
-        }
-        .gf-title{
-          font-family:'Open Sans',sans-serif; font-weight:800; font-size:17px; line-height:1.35; margin-bottom:10px;
-          background:linear-gradient(90deg,#3B82F6,#93C5FD,#3B82F6);
-          -webkit-background-clip:text; background-clip:text; color:transparent;
-        }
-        .gf-sub{ font-family:'Open Sans',sans-serif; font-size:13px; color:#94a3b8; margin-bottom:20px }
-        .gf-cta{
-          padding:13px 26px; border:none; cursor:pointer;
-          font-family:'Open Sans',sans-serif; font-size:11px; font-weight:700; letter-spacing:.12em; text-transform:uppercase;
-          color:#fff; background:linear-gradient(90deg,#1E3A8A,#1D4ED8);
-          clip-path:polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%);
-          transition:filter .16s;
-        }
-        .gf-cta:hover{ filter:brightness(1.15) }
 
         /* ===== ТЕЛЕФОНЫ (≤480) — компактный UI ===== */
         @media (max-width:480px){
           .gm-left{ padding:10px 8px 8px; }
           .gm-card{ padding:9px 10px; gap:8px; }
-          .gc-name{ font-size:11.5px; } .gc-state{ font-size:7px; } .gc-ico{ width:26px; height:26px; }
-          .gr-title{ font-size:15px; } .gr-chip{ width:24px; height:24px; font-size:9px; }
+          .gc-name{ font-size:11.5px; } .gc-ico{ width:26px; height:26px; }
+          .gr-title{ font-size:15px; }
           .gm-right{ padding:10px 8px 8px; }
           .gr-desc{ font-size:13px; line-height:1.45; }
-          .gr-emblem{ width:34px; height:34px; } .ge-core{ font-size:11px; }
-          .task-row{ padding:9px 10px; font-size:12px; gap:8px; }
-          .task-box{ width:16px; height:16px; border-radius:4px; } .task-box svg{ width:9px; height:9px; }
-          .task-title{ font-size:12.5px; } .task-xp{ font-size:9.5px; }
-          .reward{ padding:8px 10px; gap:7px; } .reward svg{ width:13px; height:13px; } .reward b{ font-size:10px; } .reward span{ font-size:9.5px; }
-          .gr-gate{ padding:6px 8px; font-size:10.5px; }
-          .gr-chips{ gap:6px; } .gr-chipLabel{ font-size:9px; }
+
         }
         @media (max-width:380px){
           .gr-title{ font-size:14px; }
           .gr-desc{ font-size:12px; }
-          .task-row{ padding:8px 8px; font-size:11.5px; gap:6px; }
-          .task-title{ font-size:11.5px; }
-          .gr-cta{ padding:8px 12px; font-size:8.5px; min-height:36px; }
         }
 
         /* ===== ДЕСКТОП / ТАБЛЕТ (≥861) — app-shell: страница не скроллится,
@@ -745,9 +639,6 @@ export function IsometricRoadmap({ statuses, done }: Props) {
           .gl-brand{ gap:10px; margin-bottom:14px }
           .gl-mark{ width:32px; height:32px; border-radius:8px; } .gl-mark svg{ width:16px; height:16px; }
           .gl-eyebrow{ font-size:12px; letter-spacing:.16em } .gl-sub{ font-size:10.5px; margin-top:2px }
-          .gm-tabs{ gap:10px; margin-bottom:14px }
-          .gm-tab{ width:38px; height:38px; } .gm-tab svg{ width:16px; height:16px; }
-          .gm-sect{ margin-bottom:12px } .gs-title{ font-size:14px } .gs-rule{ margin:8px 0 } .gs-meta{ font-size:10px }
           .gm-list{ overflow:visible; padding-right:2px; gap:1px; }
           .gm-connector{ height:10px; margin-left:22px; }
           .gm-cardWrap{ filter:drop-shadow(0 2px 8px rgba(0,0,0,.3)); }
@@ -756,20 +647,15 @@ export function IsometricRoadmap({ statuses, done }: Props) {
           .gm-card:hover{ transform:translateX(2px) }
           .gc-ico{ width:34px; height:34px; } .gc-ico svg{ width:15px; height:15px; }
           .gc-spark{ font-size:14px; }
-          .gc-body{ gap:3px } .gc-name{ font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } .gc-state{ font-size:9.5px; letter-spacing:.12em } .gc-num{ font-size:8px }
+          .gc-body{ gap:3px } .gc-name{ font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } .gc-num{ font-size:8px }
           .gm-right{ padding:16px 18px 18px; height:100%; overflow:hidden; scrollbar-gutter:stable; }
-          .gr-head{ gap:12px } .gr-title{ font-size:15px; text-shadow:none } .gr-subtitle{ font-size:9.5px; letter-spacing:.14em; margin-top:3px } .gr-emblem{ width:46px; height:46px } .ge-core{ font-size:13px }
+          .gr-head{ gap:12px } .gr-title{ font-size:15px; text-shadow:none } .gr-subtitle{ font-size:9.5px; letter-spacing:.14em; margin-top:3px }
           .gr-divider{ margin:12px 0 }
           .gr-desc{ font-size:12px; line-height:1.6; margin:0 0 12px }
           .gr-body{ overflow-y:auto; overflow-x:hidden; scrollbar-gutter:stable; }
-          .gr-gate{ padding:8px 10px; font-size:10.5px; margin-bottom:12px }
           .gr-tasksLabel{ font-size:9.5px; margin-bottom:8px }
-          .gr-chips{ gap:8px } .gr-chip{ width:34px; height:34px; font-size:11px; border-width:1.5px } .gr-chipLabel{ font-size:10px }
-          .sub-tasks{ gap:6px } .task-row{ padding:8px 10px; font-size:10.5px; gap:8px } .task-box{ width:16px; height:16px; border-radius:4px } .task-box svg{ width:9px; height:9px } .task-title{ font-size:11.5px } .task-xp{ font-size:9px }
-          .reward{ gap:8px; margin-top:10px; padding:9px 11px } .reward svg{ width:14px; height:14px } .reward b{ font-size:10.5px } .reward span{ font-size:10px }
-          .locked-body{ padding:14px 0 6px } .locked-icon{ font-size:22px; margin-bottom:8px } .locked-title{ font-size:11px } .locked-desc{ font-size:10.5px; max-width:260px }
-          .gr-foot{ gap:10px; padding:14px 0 0; margin-top:auto } .gr-hint{ font-size:9px; flex:1 1 160px } .gr-cta{ display:inline-flex; align-items:center; gap:6px; padding:10px 22px; font-size:10.5px; letter-spacing:.11em; clip-path:polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%) }
-          .gr-emblem.done .ge-core{ color:#3B82F6 }
+          .sub-tasks{ gap:6px }
+          .gr-foot{ gap:10px; padding:14px 0 0; margin-top:auto } .gr-hint{ font-size:9px; flex:1 1 160px }
         }
         /* ===== МОБАЙЛ-НАВИГАЦИЯ: ≤640px нижняя таб-панель ===== */
         .gm-bottombar{ display:none; }
@@ -798,12 +684,12 @@ export function IsometricRoadmap({ statuses, done }: Props) {
           .btab-dot.current{ background:#fff; box-shadow:0 0 6px rgba(255,255,255,.7) }
           .gm-btab:disabled{ opacity:.35; -webkit-tap-highlight-color:transparent }
           .gm-btab:disabled .btab-icon{ background:none; box-shadow:none }
-          .gr-hint{ font-size:8px; letter-spacing:.1em } .gr-cta{ padding:8px 14px; font-size:9px; min-height:38px; clip-path:none; border-radius:8px }
+          .gr-hint{ font-size:8px; letter-spacing:.1em }
           .gm-right{ padding-bottom:calc(76px + env(safe-area-inset-bottom, 0px)); }
           .gr-body{ padding-bottom:8px; }
         }
         @media (prefers-reduced-motion: reduce){
-          .gc-spark, .ge-ring, .gr-chip, .gm-cardWrap.shake, .reward::after{ animation:none !important }
+          .gc-spark, .gm-cardWrap.shake{ animation:none !important }
           .gm-right{ animation:none }
         }
       `}</style>

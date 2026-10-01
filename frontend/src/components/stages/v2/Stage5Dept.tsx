@@ -1,45 +1,43 @@
+import { Building2, FlaskConical } from 'lucide-react';
 import type { StageId } from '../../../data/stages';
 import { useOnboarding } from '../../../store/useOnboarding';
+import { Button } from '../../ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 
-export function Stage5Dept({}: { stageId: StageId }) {
-  const user = useOnboarding((s: any) => s.user);
-  
-  const deptLabel = typeof user?.department === 'string' 
-    ? user.department 
+export function Stage5Dept(_props: { stageId: StageId }) {
+  const user = useOnboarding((s) => s.user);
+
+  const deptLabel = typeof user?.department === 'string'
+    ? user.department
     : user?.department?.display_name || 'Твой департамент';
 
   return (
-    <div className="s5-dept">
-      <div className="dept-banner">
-        <div className="dept-icon">🏢</div>
-        <div>
-          <h3 style={{ margin: '0 0 4px', fontSize: '15px', color: '#fff' }}>Добро пожаловать в {deptLabel}!</h3>
-          <p style={{ margin: 0, fontSize: '13px', color: '#9CA3AF' }}>Задачи ниже настроены специально для твоего направления. Выполни их для успешного завершения онбординга.</p>
-        </div>
-      </div>
-      
-      <div style={{ marginTop: '20px', padding: '16px', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', border: '1px solid rgba(59,130,246,0.2)' }}>
-        <h4 style={{ margin: '0 0 10px', color: '#60A5FA', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Финальный тест</h4>
-        <p style={{ margin: '0 0 14px', fontSize: '13px', color: '#cbd5e1' }}>Пройди тест по пройденному материалу, чтобы закрепить знания и получить сертификат.</p>
-        <button 
-          className="btn-primary" 
-          onClick={() => alert('Здесь будет открыт финальный тест для ' + deptLabel)}
-          style={{ padding: '8px 16px', fontSize: '12px', borderRadius: '8px' }}
-        >
-          НАЧАТЬ ТЕСТ
-        </button>
-      </div>
+    <div className="flex flex-col gap-4">
+      <Card className="border-primary/25 bg-gradient-to-br from-primary/10 to-emerald-500/5">
+        <CardContent className="flex items-center gap-4 pt-5">
+          <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-primary/15 text-primary">
+            <Building2 className="h-6 w-6" />
+          </div>
+          <div>
+            <CardTitle className="text-[15px]">Добро пожаловать в {deptLabel}!</CardTitle>
+            <CardDescription className="mt-1 text-[13px]">Задачи ниже настроены специально для твоего направления. Выполни их для успешного завершения онбординга.</CardDescription>
+          </div>
+        </CardContent>
+      </Card>
 
-      <style>{`
-        .s5-dept { display: flex; flex-direction: column; gap: 16px; }
-        .dept-banner {
-          display: flex; gap: 16px; align-items: center;
-          padding: 16px; border-radius: 12px;
-          background: linear-gradient(135deg, rgba(37,99,235,0.1), rgba(16,185,129,0.05));
-          border: 1px solid rgba(37,99,235,0.2);
-        }
-        .dept-icon { font-size: 32px; }
-      `}</style>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-[13px] uppercase tracking-wider text-primary">
+            <FlaskConical className="h-4 w-4" /> Финальный тест
+          </CardTitle>
+          <CardDescription className="text-[13px]">Пройди тест по пройденному материалу, чтобы закрепить знания и получить сертификат.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button size="sm" onClick={() => alert('Здесь будет открыт финальный тест для ' + deptLabel)}>
+            Начать тест
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }

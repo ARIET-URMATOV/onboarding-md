@@ -1,29 +1,59 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { REGEXP_ONLY_DIGITS } from 'input-otp';
+import { ArrowRight, BadgeCheck, LoaderCircle, Mail, ShieldCheck, Sparkles } from 'lucide-react';
 import { api } from '../api/client';
 import { usePageMeta } from '../hooks/usePageMeta';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Checkbox } from '../components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
+import { Badge } from '../components/ui/badge';
+import { Separator } from '../components/ui/separator';
+import { Skeleton } from '../components/ui/skeleton';
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '../components/ui/input-otp';
+import { SplitText, BlurText, FadeContent, SpotlightCard, CountUp, Magnet, ShinyText } from '../components/bits';
+
+interface IntroContent {
+  title: string;
+  mission: string;
+  values: string[];
+  instruction: string;
+}
+
+const FALLBACK_CONTENT: IntroContent = {
+  title: 'Добро пожаловать в MDIGITAL',
+  mission: 'Мы создаём цифровое будущее, разрабатывая инновационные финтех-решения. Наша миссия — упрощать жизнь миллионов людей с помощью технологий.',
+  values: ['Скорость', 'Инновации', 'Ответственность', 'Команда'],
+  instruction: 'Заполни заявку ниже. Решение HR занимает до 2 рабочих дней. Данные для входа в корпоративную сеть придут на указанную личную почту.',
+};
 
 export function PublicIntroPage() {
   usePageMeta('MDIGITAL — Старт карьеры', 'Знакомство с компанией и подача заявки на онбординг.');
   const nav = useNavigate();
   const [searchParams] = useSearchParams();
 
-  // Intro content state
-  const [content, setContent] = useState<any>(null);
+  const [content, setContent] = useState<IntroContent | null>(null);
   const [contentLoading, setContentLoading] = useState(true);
 
-  // Application state
   const [step, setStep] = useState<'form' | 'verify' | 'success'>('form');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   const [formData, setFormData] = useState(() => {
     const saved = localStorage.getItem('onboarding_draft');
     if (saved) {
-      try { return JSON.parse(saved); } catch (e) { /* ignore */ }
+      try {
+        return JSON.parse(saved);
+      } catch {
+        /* ignore */
+      }
     }
     return {
-      name: '', email: searchParams.get('email') || '', phone: '', 
+      name: '', email: searchParams.get('email') || '', phone: '',
       department: '', position: '', planned_date: '', lead_name: '', consent_given: false,
     };
   });
@@ -32,16 +62,9 @@ export function PublicIntroPage() {
   const [ticketNumber, setTicketNumber] = useState<string | null>(null);
 
   useEffect(() => {
-    api.get('/api/public/intro')
-      .then(setContent)
-      .catch(() => {
-        setContent({
-          title: 'Добро пожаловать в MDIGITAL',
-          mission: 'Мы создаём цифровое будущее, разрабатывая инновационные финтех-решения. Наша миссия — упрощать жизнь миллионов людей с помощью технологий.',
-          values: ['Скорость', 'Инновации', 'Ответственность', 'Команда'],
-          instruction: 'Заполни заявку ниже. Решение HR занимает до 2 рабочих дней. Данные для входа в корпоративную сеть придут на указанную личную почту.',
-        });
-      })
+    api.get<IntroContent>('/api/public/intro')
+      .then((res) => setContent(res))
+      .catch(() => setContent(FALLBACK_CONTENT))
       .finally(() => setContentLoading(false));
   }, []);
 
@@ -51,12 +74,9 @@ export function PublicIntroPage() {
     }
   }, [formData, step]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value, type } = e.target;
-    setFormData((prev: any) => ({
-      ...prev,
-      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value,
-    }));
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev: typeof formData) => ({ ...prev, [name]: value }));
   };
 
   const onSubmitForm = async (e: FormEvent) => {
@@ -70,8 +90,8 @@ export function PublicIntroPage() {
     try {
       await api.post('/api/applications', formData);
       setStep('verify');
-    } catch (err: any) {
-      const msg = err.message || 'Ошибка отправки заявки';
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Ошибка отправки заявки';
       if (msg.includes('Активная заявка уже существует')) {
         setError('duplicate');
       } else {
@@ -93,8 +113,8 @@ export function PublicIntroPage() {
       setTicketNumber(res.ticket_number);
       localStorage.removeItem('onboarding_draft');
       setStep('success');
-    } catch (err: any) {
-      setError(err.message || 'Неверный код');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Неверный код');
     } finally {
       setLoading(false);
     }
@@ -104,308 +124,246 @@ export function PublicIntroPage() {
     document.getElementById('apply-form')?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  if (contentLoading) {
-    return <div className="landing-wrap centered text-muted">Загрузка...</div>;
+  if (contentLoading || !content) {
+    return (
+      <div className="mx-auto w-full max-w-3xl space-y-4 px-6 py-16">
+        <Skeleton className="mx-auto h-6 w-32" />
+        <Skeleton className="mx-auto h-12 w-3/4" />
+        <Skeleton className="mx-auto h-20 w-full max-w-xl" />
+        <div className="grid grid-cols-2 gap-4 pt-8 sm:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-24 w-full" />)}
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="landing-wrap">
-      {/* Header */}
-      <header className="landing-header">
-        <div className="logo-row">
-          <div className="logo-mark sm">
-            <svg viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
+    <div className="flex min-h-screen flex-col">
+      <header className="flex items-center justify-between border-b border-border bg-background px-5 py-4 sm:px-8">
+        <div className="flex items-center gap-3">
+          <div className="grid h-8 w-8 place-items-center rounded-md bg-primary shadow">
+            <svg viewBox="0 0 24 24" className="h-4 w-4 stroke-primary-foreground" fill="none" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 2l3 4-3 4-3-4 3-4z" />
               <path d="M4 7l4 3v7l-4-3V7z" />
               <path d="M20 7l-4 3v7l4-3V7z" />
               <path d="M8 17l4 3 4-3" />
             </svg>
           </div>
-          <span className="logo-text font-orbitron">MDIGITAL</span>
+          <span className="font-mono text-base font-bold tracking-wider">MDIGITAL</span>
         </div>
-        <button className="btn-ghost sm" onClick={() => nav('/status')}>Проверить статус</button>
+        <Button variant="ghost" size="sm" onClick={() => nav('/status')}>Проверить статус</Button>
       </header>
 
-      <main className="landing-main">
-        {/* Hero Section */}
-        <section className="hero-section">
-          <div className="hero-badge animate-in">Онбординг V2</div>
-          <h1 className="hero-title animate-in" style={{ animationDelay: '0.1s' }}>
-            {content?.title}
-          </h1>
-          <p className="hero-mission animate-in" style={{ animationDelay: '0.2s' }}>
-            {content?.mission}
-          </p>
-          <div className="hero-actions animate-in" style={{ animationDelay: '0.3s' }}>
-            <button className="btn-primary" onClick={scrollToForm}>Подать заявку →</button>
-          </div>
-        </section>
+      <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-14">
+        <section className="mb-16 text-center">
+          <FadeContent>
+            <Badge variant="secondary" className="mb-6 border-primary/30 bg-primary/10 text-primary">
+              <Sparkles className="mr-1 h-3 w-3" /> Онбординг V2
+            </Badge>
+          </FadeContent>
+          <SplitText as="h1" text={content.title} className="mb-6 text-4xl font-extrabold leading-tight tracking-tight sm:text-5xl" />
+          <BlurText text={content.mission} className="mx-auto mb-8 block max-w-xl text-lg leading-relaxed text-muted-foreground" />
+          <FadeContent delay={0.3}>
+            <Magnet>
+              <Button size="lg" onClick={scrollToForm}>
+                Подать заявку <ArrowRight />
+              </Button>
+            </Magnet>
+          </FadeContent>
 
-        {/* Values Section */}
-        <section className="values-section animate-in" style={{ animationDelay: '0.4s' }}>
-          <h2 className="section-title">Наши ценности</h2>
-          <div className="values-grid">
-            {content?.values?.map((v: string, i: number) => (
-              <div key={i} className="value-card glass">
-                <div className="value-icon">✦</div>
-                <div className="value-text">{v}</div>
+          <FadeContent delay={0.4}>
+            <div className="mx-auto mt-12 grid max-w-lg grid-cols-3 gap-4">
+              <div className="rounded-lg border border-border bg-card p-4">
+                <div className="text-2xl font-bold text-primary"><CountUp to={5} /></div>
+                <div className="mt-1 text-xs text-muted-foreground">этапов онбординга</div>
               </div>
-            ))}
-          </div>
+              <div className="rounded-lg border border-border bg-card p-4">
+                <div className="text-2xl font-bold text-primary"><CountUp to={1540} /></div>
+                <div className="mt-1 text-xs text-muted-foreground">XP за программу</div>
+              </div>
+              <div className="rounded-lg border border-border bg-card p-4">
+                <div className="text-2xl font-bold text-primary"><CountUp to={2} /></div>
+                <div className="mt-1 text-xs text-muted-foreground">дня на решение HR</div>
+              </div>
+            </div>
+          </FadeContent>
         </section>
 
-        {/* Instruction Section */}
-        <section className="instruction-section glass animate-in" style={{ animationDelay: '0.5s' }}>
-          <h2 className="section-title" style={{ marginBottom: '12px' }}>Как пройдёт первый день?</h2>
-          <p className="instruction-text">{content?.instruction}</p>
-        </section>
-
-        {/* Application Form Section */}
-        <section id="apply-form" className="form-section">
-          <div className="form-container glass-strong">
-            {step === 'form' && (
-              <>
-                <div className="form-header">
-                  <h2>Заявка кандидата</h2>
-                  <p>Заполни форму для получения доступов к корпоративной сети.</p>
-                </div>
-
-                {error === 'duplicate' ? (
-                  <div className="duplicate-alert animate-in">
-                    <h3>У вас уже есть активная заявка</h3>
-                    <p>Заявка с почтой <b>{formData.email}</b> уже зарегистрирована в системе.</p>
-                    <button className="btn-primary" onClick={() => nav(`/status?email=${encodeURIComponent(formData.email)}`)}>
-                      Узнать статус заявки
-                    </button>
+        <FadeContent>
+          <section className="mb-16">
+            <h2 className="mb-6 text-xl font-semibold tracking-tight">Наши ценности</h2>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {content.values?.map((v: string, i: number) => (
+                <SpotlightCard key={i} className="rounded-xl border border-border bg-card">
+                  <div className="flex items-center gap-3 p-5">
+                    <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-primary/10 text-sm font-bold text-primary">{i + 1}</div>
+                    <div className="text-[15px] font-medium">{v}</div>
                   </div>
-                ) : (
-                  <form onSubmit={onSubmitForm} className="apply-form animate-in">
-                    {error && <div className="error">{error}</div>}
-                    
-                    <div className="form-grid">
-                      <label className="field">
-                        <span>ФИО</span>
-                        <input type="text" name="name" value={formData.name} onChange={handleInputChange} placeholder="Иванов Иван" required />
-                      </label>
-                      <label className="field">
-                        <span>Личная почта</span>
-                        <input type="email" name="email" value={formData.email} onChange={handleInputChange} placeholder="you@mdigital.kg" required />
-                      </label>
-                      <label className="field">
-                        <span>Телефон</span>
-                        <input type="tel" name="phone" value={formData.phone} onChange={handleInputChange} placeholder="+996 555 123 456" required />
-                      </label>
-                      <label className="field">
-                        <span>Дата выхода</span>
-                        <input type="date" name="planned_date" value={formData.planned_date} onChange={handleInputChange} required />
-                      </label>
-                      <label className="field">
-                        <span>Департамент</span>
-                        <select name="department" value={formData.department} onChange={handleInputChange} required>
-                          <option value="" disabled>Выбрать...</option>
-                          <option value="Frontend">Frontend</option>
-                          <option value="Backend">Backend</option>
-                          <option value="Design">Design</option>
-                        </select>
-                      </label>
-                      <label className="field">
-                        <span>Должность</span>
-                        <input type="text" name="position" value={formData.position} onChange={handleInputChange} placeholder="Middle React Dev" required />
-                      </label>
-                      <label className="field" style={{ gridColumn: '1 / -1' }}>
-                        <span>Имя руководителя</span>
-                        <input type="text" name="lead_name" value={formData.lead_name} onChange={handleInputChange} placeholder="ФИО Лида" required />
-                      </label>
-                    </div>
+                </SpotlightCard>
+              ))}
+            </div>
+          </section>
+        </FadeContent>
 
-                    <label className="checkbox-field">
-                      <input type="checkbox" name="consent_given" checked={formData.consent_given} onChange={handleInputChange} />
-                      <div className="checkbox-text">Я даю согласие на обработку моих персональных данных в соответствии с политикой конфиденциальности.</div>
-                    </label>
+        <FadeContent>
+          <Card className="mb-16">
+            <CardHeader>
+              <CardTitle className="text-lg">Как пройдёт первый день?</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-[15px] leading-relaxed text-muted-foreground">{content.instruction}</p>
+            </CardContent>
+          </Card>
+        </FadeContent>
 
-                    <button type="submit" className="btn-primary w-full" disabled={loading}>
-                      {loading ? 'Отправка...' : 'Продолжить →'}
-                    </button>
-                  </form>
+        <section id="apply-form" className="mb-16 scroll-mt-8">
+          <FadeContent>
+            <Card>
+              <CardHeader className="text-center">
+                <CardTitle className="text-2xl">Заявка кандидата</CardTitle>
+                <CardDescription>Заполни форму для получения доступов к корпоративной сети.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {step === 'form' && (
+                  <>
+                    {error === 'duplicate' ? (
+                      <Alert>
+                        <ShieldCheck />
+                        <AlertTitle>У вас уже есть активная заявка</AlertTitle>
+                        <AlertDescription className="mt-2 flex flex-col gap-4">
+                          <span>Заявка с почтой <b className="text-foreground">{formData.email}</b> уже зарегистрирована в системе.</span>
+                          <Button onClick={() => nav(`/status?email=${encodeURIComponent(formData.email)}`)}>
+                            Узнать статус заявки
+                          </Button>
+                        </AlertDescription>
+                      </Alert>
+                    ) : (
+                      <form onSubmit={onSubmitForm} className="space-y-5">
+                        {error && (
+                          <Alert variant="destructive">
+                            <AlertDescription>{error}</AlertDescription>
+                          </Alert>
+                        )}
+                        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label htmlFor="name">ФИО</Label>
+                            <Input id="name" name="name" value={formData.name} onChange={handleInputChange} placeholder="Иванов Иван" required />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="email">Личная почта</Label>
+                            <Input id="email" type="email" name="email" value={formData.email} onChange={handleInputChange} placeholder="you@example.com" required />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="phone">Телефон</Label>
+                            <Input id="phone" type="tel" name="phone" value={formData.phone} onChange={handleInputChange} placeholder="+996 555 123 456" required />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="planned_date">Дата выхода</Label>
+                            <Input id="planned_date" type="date" name="planned_date" value={formData.planned_date} onChange={handleInputChange} required />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="department">Департамент</Label>
+                            <Select value={formData.department} onValueChange={(v) => setFormData((p: typeof formData) => ({ ...p, department: v }))} required>
+                              <SelectTrigger id="department">
+                                <SelectValue placeholder="Выбрать..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Frontend">Frontend</SelectItem>
+                                <SelectItem value="Backend">Backend</SelectItem>
+                                <SelectItem value="Design">Design</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="position">Должность</Label>
+                            <Input id="position" name="position" value={formData.position} onChange={handleInputChange} placeholder="Middle React Dev" required />
+                          </div>
+                          <div className="space-y-2 sm:col-span-2">
+                            <Label htmlFor="lead_name">Имя руководителя</Label>
+                            <Input id="lead_name" name="lead_name" value={formData.lead_name} onChange={handleInputChange} placeholder="ФИО лида" required />
+                          </div>
+                        </div>
+
+                        <div className="flex items-start gap-3">
+                          <Checkbox
+                            id="consent"
+                            checked={formData.consent_given}
+                            onCheckedChange={(c) => setFormData((p: typeof formData) => ({ ...p, consent_given: c === true }))}
+                          />
+                          <Label htmlFor="consent" className="text-[13px] font-normal leading-snug text-muted-foreground">
+                            Я даю согласие на обработку моих персональных данных в соответствии с политикой конфиденциальности.
+                          </Label>
+                        </div>
+
+                        <Button type="submit" className="w-full" size="lg" disabled={loading}>
+                          {loading && <LoaderCircle className="animate-spin" />}
+                          {loading ? 'Отправка...' : 'Продолжить'}
+                          {!loading && <ArrowRight />}
+                        </Button>
+                      </form>
+                    )}
+                  </>
                 )}
-              </>
-            )}
 
-            {step === 'verify' && (
-              <div className="verify-block animate-in">
-                <div className="verify-icon">✉️</div>
-                <h2>Подтверди почту</h2>
-                <p>Мы отправили 6-значный код на <b>{formData.email}</b>. Он действителен 15 минут.</p>
-                <form onSubmit={onSubmitVerify}>
-                  {error && <div className="error">{error}</div>}
-                  <input 
-                    className="code-input"
-                    type="text" 
-                    maxLength={6} 
-                    value={code} 
-                    onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, ''))} 
-                    placeholder="123456" 
-                    autoFocus
-                    required 
-                  />
-                  <div className="verify-actions">
-                    <button type="button" className="btn-ghost" onClick={() => setStep('form')} disabled={loading}>Назад</button>
-                    <button type="submit" className="btn-primary" disabled={loading || code.length < 6}>
-                      {loading ? 'Проверка...' : 'Подтвердить'}
-                    </button>
+                {step === 'verify' && (
+                  <div className="mx-auto max-w-sm text-center">
+                    <div className="mx-auto mb-5 grid h-14 w-14 place-items-center rounded-full bg-primary/10 text-primary">
+                      <Mail className="h-6 w-6" />
+                    </div>
+                    <h2 className="mb-2 text-xl font-semibold">Подтверди почту</h2>
+                    <p className="mb-6 text-sm leading-relaxed text-muted-foreground">
+                      Мы отправили 6-значный код на <b className="text-foreground">{formData.email}</b>. Он действителен 15 минут.
+                    </p>
+                    <form onSubmit={onSubmitVerify} className="space-y-6">
+                      {error && (
+                        <Alert variant="destructive">
+                          <AlertDescription>{error}</AlertDescription>
+                        </Alert>
+                      )}
+                      <div className="flex justify-center">
+                        <InputOTP maxLength={6} pattern={REGEXP_ONLY_DIGITS} value={code} onChange={setCode}>
+                          <InputOTPGroup>
+                            {[0, 1, 2, 3, 4, 5].map((i) => <InputOTPSlot key={i} index={i} />)}
+                          </InputOTPGroup>
+                        </InputOTP>
+                      </div>
+                      <div className="flex gap-3">
+                        <Button type="button" variant="ghost" className="flex-1" onClick={() => setStep('form')} disabled={loading}>Назад</Button>
+                        <Button type="submit" className="flex-1" disabled={loading || code.length < 6}>
+                          {loading && <LoaderCircle className="animate-spin" />}
+                          {loading ? 'Проверка...' : 'Подтвердить'}
+                        </Button>
+                      </div>
+                    </form>
                   </div>
-                </form>
-              </div>
-            )}
+                )}
 
-            {step === 'success' && ticketNumber && (
-              <div className="success-block animate-in">
-                <div className="success-icon">✓</div>
-                <h2>Заявка успешно отправлена!</h2>
-                <p>Твой номер заявки (тикет Service Desk):</p>
-                <div className="ticket-box">{ticketNumber}</div>
-                <p className="success-hint">
-                  Мы отправили этот номер на <b>{formData.email}</b>. Используй его для проверки статуса. Ожидай письма с решением HR.
-                </p>
-                <button className="btn-primary w-full" onClick={() => nav(`/status?email=${encodeURIComponent(formData.email)}`)}>
-                  Перейти к трекеру статуса
-                </button>
-              </div>
-            )}
-          </div>
+                {step === 'success' && ticketNumber && (
+                  <div className="mx-auto max-w-sm text-center">
+                    <div className="mx-auto mb-5 grid h-14 w-14 place-items-center rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
+                      <BadgeCheck className="h-6 w-6" />
+                    </div>
+                    <h2 className="mb-2 text-xl font-semibold">
+                      <ShinyText text="Заявка успешно отправлена!" />
+                    </h2>
+                    <p className="mb-4 text-sm text-muted-foreground">Твой номер заявки (тикет Service Desk):</p>
+                    <div className="mb-6 rounded-lg border border-dashed border-border bg-muted/30 p-4 font-mono text-2xl font-bold tracking-widest">
+                      {ticketNumber}
+                    </div>
+                    <p className="mb-8 text-sm leading-relaxed text-muted-foreground">
+                      Мы отправили этот номер на <b className="text-foreground">{formData.email}</b>. Используй его для проверки статуса. Ожидай письма с решением HR.
+                    </p>
+                    <Separator className="mb-8" />
+                    <Button className="w-full" size="lg" onClick={() => nav(`/status?email=${encodeURIComponent(formData.email)}`)}>
+                      Перейти к трекеру статуса <ArrowRight />
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </FadeContent>
         </section>
       </main>
-
-      <style>{`
-        .landing-wrap {
-          min-height: 100vh;
-          display: flex;
-          flex-direction: column;
-        }
-        .landing-header {
-          display: flex; justify-content: space-between; align-items: center;
-          padding: 20px 32px;
-          border-bottom: 1px solid var(--border);
-          background: var(--background);
-        }
-        .logo-row { display: flex; align-items: center; gap: 12px; }
-        .logo-mark.sm { width: 32px; height: 32px; border-radius: 8px; }
-        .logo-text { font-size: 16px; font-weight: bold; color: var(--foreground); }
-        
-        .landing-main {
-          flex: 1;
-          max-width: 900px;
-          margin: 0 auto;
-          padding: 60px 24px;
-          width: 100%;
-        }
-
-        .hero-section { text-align: center; margin-bottom: 64px; }
-        .hero-badge {
-          display: inline-block; padding: 4px 12px; border-radius: 999px;
-          font-size: 12px; font-weight: 600; color: var(--primary);
-          background: var(--accent); border: 1px solid var(--border);
-          margin-bottom: 24px;
-        }
-        .hero-title {
-          font-size: 42px; font-weight: 800; line-height: 1.1;
-          color: var(--foreground); margin-bottom: 24px;
-          letter-spacing: -0.03em;
-        }
-        .hero-mission {
-          font-size: 18px; color: var(--muted-foreground);
-          max-width: 600px; margin: 0 auto 32px; line-height: 1.6;
-        }
-
-        .section-title {
-          font-size: 20px; font-weight: 600; color: var(--foreground);
-          margin-bottom: 24px; letter-spacing: -0.02em;
-        }
-
-        .values-grid {
-          display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-          gap: 16px; margin-bottom: 64px;
-        }
-        .value-card {
-          padding: 20px; display: flex; align-items: center; gap: 12px;
-          background: rgba(255,255,255,0.02);
-        }
-        .value-icon { color: var(--primary); font-size: 18px; }
-        .value-text { font-weight: 500; font-size: 15px; }
-
-        .instruction-section {
-          padding: 32px; border-radius: var(--radius);
-          background: rgba(255,255,255,0.02);
-          margin-bottom: 64px;
-        }
-        .instruction-text {
-          font-size: 15px; color: var(--muted-foreground); line-height: 1.6;
-        }
-
-        .form-section { margin-bottom: 64px; }
-        .form-container {
-          padding: 40px; border-radius: var(--radius);
-          background: var(--card); border: 1px solid var(--border);
-        }
-        .form-header { margin-bottom: 32px; text-align: center; }
-        .form-header h2 { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
-        .form-header p { color: var(--muted-foreground); font-size: 14px; }
-
-        .form-grid {
-          display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
-        }
-        @media (max-width: 640px) { .form-grid { grid-template-columns: 1fr; } }
-        
-        .checkbox-field {
-          display: flex; align-items: flex-start; gap: 12px; margin: 24px 0;
-          cursor: pointer;
-        }
-        .checkbox-field input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--primary); }
-        .checkbox-text { font-size: 13px; color: var(--muted-foreground); line-height: 1.5; }
-
-        .w-full { width: 100%; padding: 14px; font-size: 15px; }
-
-        .duplicate-alert {
-          text-align: center; padding: 32px; background: rgba(37,99,235,0.05);
-          border: 1px solid rgba(37,99,235,0.2); border-radius: var(--radius);
-        }
-        .duplicate-alert h3 { color: var(--foreground); margin-bottom: 8px; font-size: 18px; }
-        .duplicate-alert p { color: var(--muted-foreground); font-size: 14px; margin-bottom: 24px; }
-
-        /* Verify Block */
-        .verify-block, .success-block { text-align: center; max-width: 400px; margin: 0 auto; }
-        .verify-icon, .success-icon {
-          width: 56px; height: 56px; border-radius: 50%;
-          display: grid; place-items: center; font-size: 24px;
-          margin: 0 auto 20px;
-        }
-        .verify-icon { background: var(--accent); color: var(--primary); }
-        .success-icon { background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.2); }
-        
-        .verify-block h2, .success-block h2 { font-size: 22px; margin-bottom: 8px; }
-        .verify-block p, .success-block p { color: var(--muted-foreground); font-size: 14px; line-height: 1.5; margin-bottom: 24px; }
-        
-        .code-input {
-          width: 100%; padding: 16px; font-size: 24px; letter-spacing: 0.2em;
-          text-align: center; background: var(--background);
-          border: 1px solid var(--border); border-radius: var(--radius);
-          margin-bottom: 24px; color: var(--foreground); outline: none;
-        }
-        .code-input:focus { border-color: var(--primary); }
-        .verify-actions { display: flex; gap: 12px; }
-        .verify-actions button { flex: 1; padding: 14px; }
-
-        .ticket-box {
-          font-family: ui-monospace, SFMono-Regular, monospace;
-          font-size: 24px; font-weight: bold; letter-spacing: 0.1em;
-          padding: 16px; background: rgba(255,255,255,0.03);
-          border: 1px dashed var(--border); border-radius: var(--radius);
-          color: var(--foreground); margin-bottom: 24px;
-        }
-        .success-hint { margin-bottom: 32px !important; }
-
-        .centered { display: grid; place-items: center; }
-      `}</style>
     </div>
   );
 }

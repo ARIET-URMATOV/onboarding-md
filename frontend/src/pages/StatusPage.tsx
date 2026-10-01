@@ -1,10 +1,22 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowRight, Check, LoaderCircle, Search, Send, X } from 'lucide-react';
 import { api } from '../api/client';
 import { usePageMeta } from '../hooks/usePageMeta';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Textarea } from '../components/ui/textarea';
+import { Alert, AlertDescription } from '../components/ui/alert';
+import { Badge } from '../components/ui/badge';
+import { Progress } from '../components/ui/progress';
+import { Separator } from '../components/ui/separator';
+import { FadeContent } from '../components/bits';
+import { cn } from '../lib/utils';
 
 interface ApplicationStatus {
-  status: string; // new, in_review, needs_info, approved, account_created, activated, rejected
+  status: string;
   updated_at: string;
   comment?: string;
 }
@@ -25,19 +37,19 @@ export function StatusPage() {
   const [email, setEmail] = useState(searchParams.get('email') || '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   const [statusData, setStatusData] = useState<ApplicationStatus | null>(null);
   const [replyText, setReplyText] = useState('');
 
-  // Optional: Auto-fetch if both params provided in URL for quick links
   useEffect(() => {
     const qEmail = searchParams.get('email');
     const qNum = searchParams.get('number');
     if (qEmail && qNum) {
       setEmail(qEmail);
       setNumber(qNum);
-      fetchStatus(qNum, qEmail);
+      void fetchStatus(qNum, qEmail);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
   const fetchStatus = async (ticket: string, mail: string) => {
@@ -47,16 +59,11 @@ export function StatusPage() {
     try {
       const data = await api.post<ApplicationStatus>('/api/applications/status', { number: ticket, email: mail });
       setStatusData(data);
-    } catch (err: any) {
-      setError(err.message || 'Заявка не найдена');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Заявка не найдена');
     } finally {
       setLoading(false);
     }
-  }
-
-  const onCheckStatus = async (e: FormEvent) => {
-    e.preventDefault();
-    await fetchStatus(number, email);
   };
 
   const onReply = async () => {
@@ -66,8 +73,8 @@ export function StatusPage() {
       await api.post(`/api/applications/${number}/reply`, { reply: replyText, email });
       setReplyText('');
       await fetchStatus(number, email);
-    } catch (err: any) {
-      setError(err.message || 'Ошибка отправки');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Ошибка отправки');
     } finally {
       setLoading(false);
     }
@@ -80,146 +87,124 @@ export function StatusPage() {
     if (s === 'account_created') return 3;
     if (s === 'approved') return 2;
     if (s === 'in_review' || s === 'needs_info') return 1;
-    return 0; // new
+    return 0;
   };
 
+  const progressValue = statusData?.status === 'rejected' ? 0 : Math.min(100, (currentStepIndex() / STEPS.length) * 100);
+
   return (
-    <div className="landing-wrap centered" style={{ padding: '24px' }}>
-      <div className="auth-card glass-strong" style={{ maxWidth: 500, width: '100%' }}>
-        <div className="auth-head">
-          <div className="logo-mark sm" style={{ margin: '0 auto 24px' }}>
-            <svg viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" />
-            </svg>
-          </div>
-          <h1>Статус заявки</h1>
-          <p>Введи данные для отслеживания процесса</p>
-        </div>
+    <div className="grid min-h-screen place-items-center p-6">
+      <FadeContent className="w-full max-w-lg">
+        <Card>
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-lg bg-primary text-primary-foreground shadow">
+              <Search className="h-5 w-5" />
+            </div>
+            <CardTitle className="text-xl">Статус заявки</CardTitle>
+            <CardDescription>Введи данные для отслеживания процесса</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {error && (
+              <Alert variant="destructive" className="mb-5">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
 
-        {error && <div className="error animate-in">{error}</div>}
-
-        {!statusData ? (
-          <form onSubmit={onCheckStatus} className="animate-in">
-            <label className="field">
-              <span>Номер заявки (Тикет)</span>
-              <input type="text" value={number} onChange={(e) => setNumber(e.target.value.trim())} placeholder="ONB-2026-0001" required />
-            </label>
-            <label className="field">
-              <span>Личная почта</span>
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value.trim())} placeholder="you@mdigital.kg" required />
-            </label>
-            <button type="submit" className="btn-primary w-full" disabled={loading} style={{ marginTop: '8px' }}>
-              {loading ? 'Ищем...' : 'Проверить статус →'}
-            </button>
-            <button type="button" className="btn-ghost w-full" onClick={() => nav('/intro')} style={{ marginTop: '12px' }}>
-              Назад
-            </button>
-          </form>
-        ) : (
-          <div className="status-view animate-in">
-            <div className="ticket-badge">{number}</div>
-            
-            {statusData.status === 'rejected' ? (
-              <div className="rejected-state">
-                <div className="icon">✗</div>
-                <h3>Заявка отклонена</h3>
-                {statusData.comment && <p>{statusData.comment}</p>}
-              </div>
+            {!statusData ? (
+              <form onSubmit={onSubmitForm} className="space-y-5">
+                <div className="space-y-2">
+                  <Label htmlFor="ticket">Номер заявки (тикет)</Label>
+                  <Input id="ticket" value={number} onChange={(e) => setNumber(e.target.value.trim())} placeholder="ONB-2026-0001" required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="status-email">Личная почта</Label>
+                  <Input id="status-email" type="email" value={email} onChange={(e) => setEmail(e.target.value.trim())} placeholder="you@example.com" required />
+                </div>
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading && <LoaderCircle className="animate-spin" />}
+                  {loading ? 'Ищем...' : 'Проверить статус'}
+                  {!loading && <ArrowRight />}
+                </Button>
+                <Button type="button" variant="ghost" className="w-full" onClick={() => nav('/intro')}>
+                  Назад
+                </Button>
+              </form>
             ) : (
-              <div className="stepper">
-                {STEPS.map((step, idx) => {
-                  const active = currentStepIndex() === idx;
-                  const done = currentStepIndex() > idx;
-                  return (
-                    <div key={step.id} className={`step-item ${active ? 'active' : ''} ${done ? 'done' : ''}`}>
-                      <div className="step-circle">{done ? '✓' : (idx + 1)}</div>
-                      <div className="step-label">{step.label}</div>
-                      {idx < STEPS.length - 1 && <div className="step-line" />}
+              <div>
+                <div className="mb-2 flex items-center justify-between">
+                  <Badge variant="secondary" className="bg-primary/10 font-mono tracking-widest text-primary">{number}</Badge>
+                  <span className="text-xs text-muted-foreground">{Math.round(progressValue)}%</span>
+                </div>
+                <Progress value={progressValue} className="mb-8" />
+
+                {statusData.status === 'rejected' ? (
+                  <div className="py-6 text-center">
+                    <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-full border border-destructive/30 bg-destructive/10 text-destructive">
+                      <X className="h-5 w-5" />
                     </div>
-                  );
-                })}
+                    <h3 className="mb-2 text-lg font-semibold">Заявка отклонена</h3>
+                    {statusData.comment && <p className="text-sm text-muted-foreground">{statusData.comment}</p>}
+                  </div>
+                ) : (
+                  <ol className="mb-8">
+                    {STEPS.map((s, idx) => {
+                      const active = currentStepIndex() === idx;
+                      const done = currentStepIndex() > idx;
+                      return (
+                        <li key={s.id} className="relative flex gap-4 pb-8 last:pb-0">
+                          {idx < STEPS.length - 1 && (
+                            <span className={cn('absolute left-[13px] top-7 h-[calc(100%-1.75rem)] w-0.5', done ? 'bg-primary' : 'bg-border')} />
+                          )}
+                          <span className={cn(
+                            'z-10 grid h-7 w-7 shrink-0 place-items-center rounded-full border-2 text-xs font-bold transition-colors',
+                            done && 'border-primary bg-primary text-primary-foreground',
+                            active && 'border-primary text-primary shadow-[0_0_0_4px_rgba(37,99,235,0.15)]',
+                            !done && !active && 'border-border bg-background text-muted-foreground',
+                          )}>
+                            {done ? <Check className="h-3.5 w-3.5" /> : idx + 1}
+                          </span>
+                          <span className={cn('pt-1 text-[15px]', done || active ? 'font-semibold text-foreground' : 'text-muted-foreground')}>
+                            {s.label}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                )}
+
+                {statusData.comment && statusData.status !== 'rejected' && (
+                  <Alert className="mb-6 border-primary/30 bg-primary/5">
+                    <AlertDescription>
+                      <span className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-primary">Сообщение от HR</span>
+                      <span className="text-sm leading-relaxed text-foreground">{statusData.comment}</span>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {statusData.status === 'needs_info' && (
+                  <div className="space-y-3">
+                    <Textarea placeholder="Напиши свой ответ здесь..." value={replyText} onChange={(e) => setReplyText(e.target.value)} className="min-h-20" />
+                    <Button className="w-full" onClick={onReply} disabled={loading || !replyText.trim()}>
+                      {loading ? <LoaderCircle className="animate-spin" /> : <Send />}
+                      Ответить
+                    </Button>
+                  </div>
+                )}
+
+                <Separator className="my-6" />
+                <Button variant="ghost" className="w-full" onClick={() => setStatusData(null)}>
+                  Проверить другую заявку
+                </Button>
               </div>
             )}
-
-            {statusData.comment && statusData.status !== 'rejected' && (
-              <div className="status-comment">
-                <div className="comment-label">Сообщение от HR:</div>
-                <div className="comment-body">{statusData.comment}</div>
-              </div>
-            )}
-
-            {statusData.status === 'needs_info' && (
-              <div className="reply-section">
-                <textarea 
-                  className="field" 
-                  placeholder="Напиши свой ответ здесь..." 
-                  value={replyText} 
-                  onChange={(e) => setReplyText(e.target.value)}
-                  style={{ minHeight: '80px', marginBottom: '12px' }}
-                />
-                <button className="btn-primary w-full" onClick={onReply} disabled={loading || !replyText.trim()}>
-                  Ответить
-                </button>
-              </div>
-            )}
-
-            <button className="btn-ghost w-full" onClick={() => setStatusData(null)} style={{ marginTop: '32px' }}>
-              Проверить другую заявку
-            </button>
-          </div>
-        )}
-      </div>
-
-      <style>{`
-        .w-full { width: 100%; padding: 12px; }
-        
-        /* Stepper */
-        .stepper { display: flex; flex-direction: column; gap: 0; margin: 32px 0; }
-        .step-item { display: flex; gap: 16px; position: relative; padding-bottom: 32px; }
-        .step-item:last-child { padding-bottom: 0; }
-        
-        .step-circle {
-          width: 28px; height: 28px; border-radius: 50%;
-          background: var(--background); border: 2px solid var(--border);
-          display: grid; place-items: center; font-size: 12px; font-weight: bold;
-          color: var(--muted-foreground); z-index: 2;
-          transition: all 0.3s;
-        }
-        .step-line {
-          position: absolute; top: 28px; left: 13px; width: 2px; height: calc(100% - 28px);
-          background: var(--border); z-index: 1; transition: background 0.3s;
-        }
-        .step-label {
-          padding-top: 4px; font-size: 15px; font-weight: 500;
-          color: var(--muted-foreground); transition: color 0.3s;
-        }
-
-        .step-item.active .step-circle { border-color: var(--primary); color: var(--primary); box-shadow: 0 0 0 4px rgba(37,99,235,0.1); }
-        .step-item.active .step-label { color: var(--foreground); font-weight: 600; }
-        
-        .step-item.done .step-circle { background: var(--primary); border-color: var(--primary); color: var(--primary-foreground); }
-        .step-item.done .step-line { background: var(--primary); }
-        .step-item.done .step-label { color: var(--foreground); }
-
-        .ticket-badge {
-          display: inline-block; padding: 6px 12px; border-radius: 6px;
-          background: var(--accent); color: var(--primary);
-          font-family: ui-monospace, monospace; font-size: 14px; font-weight: bold;
-          margin-bottom: 24px; letter-spacing: 1px;
-        }
-
-        .status-comment {
-          background: rgba(37,99,235,0.05); border-left: 3px solid var(--primary);
-          padding: 16px; border-radius: 4px; margin-bottom: 24px;
-        }
-        .comment-label { font-size: 11px; color: var(--primary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; font-weight: bold; }
-        .comment-body { font-size: 14px; color: var(--foreground); line-height: 1.5; }
-
-        .rejected-state { text-align: center; padding: 24px 0; }
-        .rejected-state .icon { width: 48px; height: 48px; border-radius: 50%; background: rgba(239,68,68,0.1); color: #ef4444; display: grid; place-items: center; font-size: 24px; margin: 0 auto 16px; }
-        .rejected-state h3 { color: var(--foreground); margin-bottom: 8px; font-size: 18px; }
-        .rejected-state p { color: var(--muted-foreground); font-size: 14px; }
-      `}</style>
+          </CardContent>
+        </Card>
+      </FadeContent>
     </div>
   );
+
+  async function onSubmitForm(e: FormEvent) {
+    e.preventDefault();
+    await fetchStatus(number, email);
+  }
 }

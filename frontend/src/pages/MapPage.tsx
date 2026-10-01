@@ -6,6 +6,7 @@ import { useOnboarding, getAllStatuses, getProgress } from '../store/useOnboardi
 import type { StageStatus } from '../store/useOnboarding';
 import type { StageId } from '../data/stages';
 import { usePageMeta } from '../hooks/usePageMeta';
+import { Badge } from '../components/ui/badge';
 
 type Pt = { x: number; y: number };
 type Step = {
@@ -127,9 +128,9 @@ export function MapPage() {
               </g>
             </svg>
             <h1 className="mp-tag">MDIGITAL ROADMAP</h1>
-            <div className="mp-progress-pill">
+            <Badge variant="secondary" className="border-primary/30 bg-primary/10 px-4 py-1.5 text-primary">
               {done}/{total} · осталось {remaining}
-            </div>
+            </Badge>
           </div>
           <p className="mp-subtitle">
             Интерактивная карта этапов онбординга: пройдено {done} из {total}, осталось {remaining}. Кликай на узлы и двигайся по неоновой дороге к финалу.
@@ -328,18 +329,6 @@ export function MapPage() {
           color: #94A3B8;
           line-height: 1.5;
           max-width: 640px;
-        }
-        .mp-progress-pill {
-          font-size: 11px;
-          font-weight: 600;
-          letter-spacing: 0.08em;
-          color: #BFF8FF;
-          padding: 5px 12px;
-          border-radius: 999px;
-          background: rgba(8, 20, 40, 0.5);
-          border: 1px solid rgba(0, 242, 254, 0.35);
-          backdrop-filter: blur(10px);
-          box-shadow: 0 0 16px rgba(0, 229, 255, 0.2);
         }
 
         .mp-scene {
@@ -629,7 +618,6 @@ export function MapPage() {
         @media (min-width: 768px) {
           .mp-page { padding: 20px 28px 56px; }
           .mp-brand { margin: 6px 0 20px; gap: 14px; }
-          .mp-progress-pill { font-size: 12px; padding: 6px 16px; }
           .mp-scene { border-radius: 22px; }
           .mp-text { width: 210px; padding: 11px 14px; }
           .mp-name { font-size: 1rem; }

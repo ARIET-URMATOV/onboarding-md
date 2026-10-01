@@ -1,8 +1,16 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ArrowRight, ArrowUpRight, LoaderCircle, TriangleAlert } from 'lucide-react';
 import { api, type MeResponse } from '../api/client';
 import { useOnboarding } from '../store/useOnboarding';
 import { usePageMeta } from '../hooks/usePageMeta';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
+import { Separator } from '../components/ui/separator';
+import { FadeContent } from '../components/bits';
 
 const DEMO_ENABLED = import.meta.env.VITE_DEMO_ENABLED === 'true';
 
@@ -19,7 +27,6 @@ export function LoginPage() {
   const nav = useNavigate();
 
   useEffect(() => {
-    // warm-up ping: будим спящий бэкенд, пока юзер вводит данные
     api.get('/api/health').catch(() => { /* ignore */ });
     api.get<{ ldap_configured: boolean }>('/api/auth/ldap-status')
       .then((r) => setLdapConfigured(r.ldap_configured))
@@ -68,202 +75,85 @@ export function LoginPage() {
     }
   };
 
-  const STAGE_LABELS: Record<number, string> = {
-    1: 'Этап 1',
-    2: 'Этап 2',
-    3: 'Этап 3',
-    4: 'Этап 4',
-    5: 'Этап 5',
-  };
-
   return (
-    <div className="auth-wrap">
-      <div className="auth-card glass-strong">
-        <div className="auth-head">
-          <div className="logo-mark">
-            <svg viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 2l3 4-3 4-3-4 3-4z" />
-              <path d="M4 7l4 3v7l-4-3V7z" />
-              <path d="M20 7l-4 3v7l4-3V7z" />
-              <path d="M8 17l4 3 4-3" />
-            </svg>
-          </div>
-          <h1 className="font-orbitron">MDIGITAL ONBOARDING</h1>
-          <p>Войди, чтобы продолжить путь</p>
-        </div>
-
-        {!ldapConfigured && !oidcConfigured && (
-          <div className="ldap-warning">
-            ⚠️ Ни LDAP, ни OIDC не настроены — доступен только демо-режим
-          </div>
-        )}
-
-        {oidcConfigured && (
-          <a href="/auth/start" className="btn-oidc">
-            ВОЙТИ ЧЕРЕЗ ПОРТАЛ ↗
-          </a>
-        )}
-
-        {oidcConfigured && (
-          <div className="oidc-divider"><span>или</span></div>
-        )}
-
-        <form onSubmit={onSubmit}>
-          <label className="field">
-            <span>Email</span>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@mdigital.kg" required />
-          </label>
-          <label className="field">
-            <span>Пароль</span>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required />
-          </label>
-          {error && <div className="error">{error}</div>}
-          <button type="submit" className="btn-primary" disabled={loading}>
-            {loading ? 'Входим…' : 'ВОЙТИ →'}
-          </button>
-        </form>
-
-        {DEMO_ENABLED && (
-          <>
-            <div className="demo-divider"><span>или</span></div>
-            <button type="button" className="btn-demo" onClick={() => onDemo()} disabled={demoLoading}>
-              {demoLoading ? 'Входим…' : 'ДЕМО-С НАЧАЛА'}
-            </button>
-            <div className="demo-stage-grid">
-              <div className="demo-stage-label">Быстрый старт:</div>
-              <div className="demo-stage-btns">
-                {[2, 3, 4, 5].map((stage) => (
-                  <button
-                    key={stage}
-                    type="button"
-                    className="btn-demo-stage"
-                    onClick={() => onDemo(stage)}
-                    disabled={demoLoading}
-                  >
-                    → {STAGE_LABELS[stage]}
-                  </button>
-                ))}
-              </div>
+    <div className="grid min-h-screen place-items-center p-6">
+      <FadeContent className="w-full max-w-md">
+        <Card>
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-lg bg-primary text-primary-foreground shadow">
+              <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2l3 4-3 4-3-4 3-4z" />
+                <path d="M4 7l4 3v7l-4-3V7z" />
+                <path d="M20 7l-4 3v7l4-3V7z" />
+                <path d="M8 17l4 3 4-3" />
+              </svg>
             </div>
-          </>
-        )}
-      </div>
+            <CardTitle className="font-mono text-base tracking-widest">MDIGITAL ONBOARDING</CardTitle>
+            <CardDescription>Войди, чтобы продолжить путь</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!ldapConfigured && !oidcConfigured && (
+              <Alert className="mb-5 border-amber-500/40 bg-amber-500/10">
+                <TriangleAlert className="text-amber-400" />
+                <AlertTitle className="text-amber-300">Только демо-режим</AlertTitle>
+                <AlertDescription className="text-amber-200/80">Ни LDAP, ни OIDC не настроены</AlertDescription>
+              </Alert>
+            )}
 
-      <style>{`
-        .auth-wrap{
-          min-height:100vh; display:grid; place-items:center; padding:24px;
-        }
-        .auth-card{
-          width:100%; max-width:420px;
-          padding:38px 32px;
-          border-radius:18px;
-        }
-        .auth-head{ text-align:center; margin-bottom:28px }
-        .logo-mark{
-          width:54px; height:54px; border-radius:14px;
-          background:linear-gradient(135deg,#3B82F6,#2563EB);
-          display:grid; place-items:center;
-          margin:0 auto 16px;
-          box-shadow:0 0 32px rgba(59,130,246,.55);
-        }
-        .logo-mark svg{width:26px; height:26px; stroke:#02060d}
-        .auth-head h1{ font-size:14px; letter-spacing:.18em; color:#fff; margin-bottom:8px }
-        .auth-head p{ font-size:13px; color:var(--muted) }
+            {oidcConfigured && (
+              <>
+                <Button className="w-full" size="lg" asChild>
+                  <a href="/auth/start">Войти через портал <ArrowUpRight /></a>
+                </Button>
+                <div className="my-4 flex items-center gap-3 text-[11px] uppercase tracking-widest text-muted-foreground">
+                  <Separator className="flex-1" /> или <Separator className="flex-1" />
+                </div>
+              </>
+            )}
 
-        .field{ display:block; margin-bottom:16px }
-        .field span{ display:block; font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:var(--muted); margin-bottom:8px }
-        .field input{
-          width:100%; padding:13px 16px;
-          background:rgba(255,255,255,.04);
-          border:1px solid var(--border);
-          border-radius:10px; color:var(--text); font-size:14px;
-          outline:none; transition:border-color .15s ease, box-shadow .15s ease;
-        }
-        .field input:focus{ border-color:var(--cyan-l); box-shadow:0 0 0 3px rgba(59,130,246,.15) }
+            <form onSubmit={onSubmit} className="space-y-5">
+              <div className="space-y-2">
+                <Label htmlFor="login-email">Email</Label>
+                <Input id="login-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@mdigital.kg" required />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="login-password">Пароль</Label>
+                <Input id="login-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required />
+              </div>
+              {error && (
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading && <LoaderCircle className="animate-spin" />}
+                {loading ? 'Входим…' : 'Войти'}
+                {!loading && <ArrowRight />}
+              </Button>
+            </form>
 
-        .error{
-          margin:8px 0 14px; padding:10px 14px;
-          border:1px solid rgba(248,113,113,.4);
-          background:rgba(248,113,113,.08);
-          color:#FCA5A5; font-size:12.5px; border-radius:10px;
-        }
-        .btn-primary{ width:100%; margin-top:8px }
-
-        .ldap-warning{
-          margin-bottom:16px; padding:10px 14px;
-          border:1px solid rgba(251,191,36,.4);
-          background:rgba(251,191,36,.08);
-          color:#FCD34D; font-size:12px; border-radius:10px;
-          text-align:center;
-        }
-
-        .demo-divider{
-          display:flex; align-items:center; gap:12px;
-          margin:20px 0 16px; color:var(--muted); font-size:11px;
-          letter-spacing:.12em; text-transform:uppercase;
-        }
-        .demo-divider::before,.demo-divider::after{
-          content:''; flex:1; height:1px; background:var(--border);
-        }
-
-        .btn-demo{
-          width:100%; padding:13px 16px;
-          background:transparent;
-          border:1px solid var(--cyan-l);
-          border-radius:12px; color:var(--cyan-l);
-          font-size:12px; font-weight:700; letter-spacing:.14em;
-          cursor:pointer; transition:all .18s ease;
-          font-family:'Orbitron',sans-serif;
-        }
-        .btn-demo:hover:not(:disabled){
-          background:rgba(0,242,254,.08);
-          box-shadow:0 0 20px rgba(0,242,254,.2);
-        }
-        .btn-demo:disabled{opacity:.5;cursor:not-allowed}
-
-        .btn-oidc{
-          display:block; width:100%; padding:14px 16px; margin-bottom:8px;
-          background:linear-gradient(135deg, rgba(37,99,235,.15), rgba(59,130,246,.1));
-          border:1px solid rgba(37,99,235,.5); border-radius:12px;
-          color:#93C5FD; font-size:12px; font-weight:700; letter-spacing:.14em;
-          text-align:center; text-decoration:none;
-          cursor:pointer; transition:all .18s ease;
-          font-family:'Orbitron',sans-serif;
-        }
-        .btn-oidc:hover{
-          background:linear-gradient(135deg, rgba(37,99,235,.25), rgba(59,130,246,.15));
-          border-color:#3B82F6; box-shadow:0 0 20px rgba(59,130,246,.3);
-        }
-
-        .oidc-divider{
-          display:flex; align-items:center; gap:12px;
-          margin:14px 0; color:var(--muted); font-size:11px;
-          letter-spacing:.12em; text-transform:uppercase;
-        }
-        .oidc-divider::before,.oidc-divider::after{
-          content:''; flex:1; height:1px; background:var(--border);
-        }
-
-        .demo-stage-grid{margin-top:14px}
-        .demo-stage-label{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;text-align:center}
-        .demo-stage-btns{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
-        .btn-demo-stage{
-          padding:8px 12px;background:rgba(0,242,254,.06);
-          border:1px solid rgba(0,242,254,.2);border-radius:8px;
-          color:var(--cyan-l);font-size:11px;font-weight:600;cursor:pointer;
-          transition:all .15s ease;font-family:'Open Sans',sans-serif;
-        }
-        .btn-demo-stage:hover:not(:disabled){background:rgba(0,242,254,.12);border-color:var(--cyan-l)}
-        @media (max-width: 480px){
-          .auth-wrap{ padding:16px }
-          .auth-card{ padding:30px 22px }
-          .auth-head h1{ font-size:20px; letter-spacing:.1em }
-          .auth-head p{ font-size:12.5px }
-          .logo-mark{ width:60px; height:60px }
-          .logo-mark svg{ width:30px; height:30px }
-        }
-        .btn-demo-stage:disabled{opacity:.5;cursor:not-allowed}
-      `}</style>
+            {DEMO_ENABLED && (
+              <>
+                <div className="my-4 flex items-center gap-3 text-[11px] uppercase tracking-widest text-muted-foreground">
+                  <Separator className="flex-1" /> или <Separator className="flex-1" />
+                </div>
+                <Button type="button" variant="outline" className="w-full" onClick={() => onDemo()} disabled={demoLoading}>
+                  {demoLoading && <LoaderCircle className="animate-spin" />}
+                  {demoLoading ? 'Входим…' : 'Демо — с начала'}
+                </Button>
+                <p className="mb-2 mt-4 text-center text-[11px] uppercase tracking-widest text-muted-foreground">Быстрый старт</p>
+                <div className="flex flex-wrap justify-center gap-2">
+                  {[2, 3, 4, 5].map((stage) => (
+                    <Button key={stage} type="button" variant="secondary" size="sm" onClick={() => onDemo(stage)} disabled={demoLoading}>
+                      Этап {stage}
+                    </Button>
+                  ))}
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </FadeContent>
     </div>
   );
 }

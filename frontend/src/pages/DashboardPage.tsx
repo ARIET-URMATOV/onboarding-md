@@ -1,11 +1,14 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { ArrowRight, Map as MapIcon, Volume2, VolumeX } from 'lucide-react';
 import { TopBar } from '../components/layout/TopBar';
 import { useOnboarding, getAllStatuses, getProgress } from '../store/useOnboarding';
 import { STAGES } from '../data/stages';
 import { usePageMeta } from '../hooks/usePageMeta';
 import { SlaBanner } from '../components/ui/SlaBanner';
+import { Button } from '../components/ui/button';
+import { Progress } from '../components/ui/progress';
 
 type Phase = 'dark' | 'flight' | 'done';
 const DUR = 900;
@@ -255,8 +258,12 @@ export function DashboardPage() {
           </p>
 
           <motion.div className="h-actions" initial={{ opacity: 0, y: 12 }} animate={revealed ? { opacity: 1, y: 0 } : {}} transition={{ delay: 0.46, duration: 0.6 }}>
-            <Link to="/stages" className="btn-f primary"><span className="btn-glow" aria-hidden />Начать</Link>
-            <Link to="/map" className="btn-f secondary">Карта</Link>
+            <Button size="lg" asChild>
+              <Link to="/stages">Начать <ArrowRight /></Link>
+            </Button>
+            <Button size="lg" variant="outline" asChild>
+              <Link to="/map"><MapIcon /> Карта</Link>
+            </Button>
           </motion.div>
 
           <motion.div className="h-progress" initial={{ opacity: 0 }} animate={revealed ? { opacity: 1 } : {}} transition={{ delay: 0.54, duration: 0.6 }}>
@@ -264,32 +271,18 @@ export function DashboardPage() {
               <span>Прогресс онбординга · Уровень {lvl}</span>
               <span>{progress.done}/5{current ? ` · Этап 0${current.id}` : ''}</span>
             </div>
-            <div className="hp-bar"><i style={{ width: `${progress.pct}%` }}><span className="hp-shine" aria-hidden /></i></div>
+            <Progress value={progress.pct} className="h-2 bg-white/10" />
             <div className="hp-sla">
               <SlaBanner compact />
             </div>
           </motion.div>
         </div>
 
-        {/* futuristic voice controls — right side */}
+        {/* voice controls — right side */}
         <div className="hero-tools" aria-label="Управление звуком">
-          <button className={`voice-btn ${voiceOn ? 'on' : 'off'}`} onClick={toggleVoice} aria-label={voiceOn ? 'Выключить звук' : 'Включить звук'} title={voiceOn ? 'Звук вкл.' : 'Звук выкл.'}>
-            <span className="vb-ico" aria-hidden>
-              {voiceOn ? (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M11 5L6 9H2v6h4l5 4V5z" />
-                  <path d="M15.5 8.5a5 5 0 0 1 0 7" />
-                  <path d="M17.8 6.2a8 8 0 0 1 0 11.6" />
-                </svg>
-              ) : (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M11 5L6 9H2v6h4l5 4V5z" />
-                  <path d="M16 9l4 4M20 9l-4 4" />
-                </svg>
-              )}
-            </span>
-            <span className="vb-ring" aria-hidden />
-          </button>
+          <Button size="icon" variant="outline" className="rounded-full" onClick={toggleVoice} aria-label={voiceOn ? 'Выключить звук' : 'Включить звук'} title={voiceOn ? 'Звук вкл.' : 'Звук выкл.'}>
+            {voiceOn ? <Volume2 /> : <VolumeX />}
+          </Button>
         </div>
         {/* hidden studio audio */}
         <audio ref={audioRef} src="/voice.mp3" preload="auto" playsInline />
@@ -438,59 +431,6 @@ export function DashboardPage() {
           display:flex; gap:14px; justify-content:center; flex-wrap:wrap;
         }
 
-.btn-f {
-  /* Размеры и Сетка */
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 12px 28px;
-  position: relative;
-  
-  /* Типографика & Spacing */
-  font-family: 'Syne', sans-serif;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  text-decoration: none;
-  line-height: 1;
-  
-  /* Форма и Переходы */
-  cursor: pointer;
-  clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 8px, 100% calc(100% - 8px), calc(100% - 8px) 100%, 8px 100%, 0 calc(100% - 8px), 0 8px);
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.btn-f:active {
-  transform: scale(0.98);
-}
-
-.btn-f.primary {
-  background: #60A5FA;
-  color: #0d0714;
-  border: none;
-  box-shadow: 0 0 12px rgba(96, 165, 250, 0.2);
-}
-
-.btn-f.primary:hover {
-  background: #DBEAFE;
-  box-shadow: 0 0 20px rgba(96, 165, 250, 0.4);
-  transform: translateY(-1px);
-}
-
-.btn-f.secondary {
-  background: rgba(13, 7, 20, 0.6);
-  color: #DBEAFE;
-  border: 1px solid rgba(96, 165, 250, 0.4);
-}
-
-.btn-f.secondary:hover {
-  background: rgba(96, 165, 250, 0.08);
-  border-color: #60A5FA;
-  color: #ffffff;
-  box-shadow: 0 0 15px rgba(96, 165, 250, 0.25);
-  transform: translateY(-1px);
-}
         .h-progress{
           max-width:500px; margin:40px auto 0;
         }
@@ -498,45 +438,13 @@ export function DashboardPage() {
           display:flex; justify-content:space-between; gap:10px; margin-bottom:10px;
           font-family:'Space Grotesk',sans-serif; font-size:10px; font-weight:500; letter-spacing:.16em; text-transform:uppercase; color:#DBEAFE; opacity:.9;
         }
-        .hp-bar{ height:4px; background:rgba(245,240,255,.10); border-radius:999px; overflow:hidden; position:relative; }
-        .hp-bar i{
-          display:block; height:100%; border-radius:999px; position:relative; overflow:hidden;
-          background:linear-gradient(90deg,#2563EB 0%, #1E3A8A 55%, #3B82F6 100%);
-          box-shadow:0 0 14px rgba(37,99,235,.45);
-          transition:width .7s cubic-bezier(.16,1,.3,1);
-        }
-        .hp-shine{
-          position:absolute; inset:0;
-          background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,.7) 50%, transparent 70%);
-          transform: translateX(-100%); animation: hpShine 2.8s ease 1s infinite;
-        }
-        @keyframes hpShine{ 60%{ transform:translateX(100%) } 100%{ transform:translateX(100%) } }
-
+        
         .hp-sla{ display:flex; justify-content:center; margin-top:12px; }
 
         .hero-tools{
           position:absolute; right:16px; bottom:16px; z-index:3;
           display:flex; flex-direction:column; gap:10px; align-items:center;
         }
-        .voice-btn{
-          width:44px; height:44px; border-radius:12px; position:relative;
-          display:grid; place-items:center; cursor:pointer;
-          background:rgba(37,99,235,.08); border:1px solid rgba(37,99,235,.18);
-          backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
-          color:#93C5FD; transition: all .22s ease;
-          box-shadow: 0 4px 20px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.06);
-        }
-        .voice-btn:hover{ background:rgba(37,99,235,.14); border-color:rgba(37,99,235,.32); color:#fff; transform:translateY(-1px); }
-        .voice-btn.on{ color:#fff; border-color:rgba(37,99,235,.34); box-shadow:0 0 16px rgba(37,99,235,.28), 0 4px 20px rgba(0,0,0,.25); }
-        .voice-btn.off{ opacity:.72; }
-        .vb-ico{ width:18px; height:18px; display:grid; place-items:center; }
-        .vb-ico svg{ width:18px; height:18px; }
-        .voice-btn.on .vb-ring{
-          position:absolute; inset:-2px; border-radius:12px; pointer-events:none;
-          border:1px solid rgba(37,99,235,.35);
-          animation: vbPulse 2.4s ease infinite;
-        }
-        @keyframes vbPulse{ 0%{ opacity:.7; transform:scale(1)} 50%{ opacity:.15; transform:scale(1.08)} 100%{ opacity:0; transform:scale(1.14)} }
 
         /* ===== ИНТРО ОВЕРЛЕЙ — честное осветление ===== */
         .intro{
@@ -600,10 +508,8 @@ export function DashboardPage() {
           }
           .h-sub{ font-size:17px; line-height:1.45; margin:0 auto 55px; max-width:92vw; }
           .h-actions{ flex-direction:column; align-items:stretch; gap:10px; width:100%; max-width:320px; margin:0 auto; }
-          .btn-f{ width:100%; padding:13px 18px; font-size:10.5px; letter-spacing:.14em; justify-content:center; min-height:42px; }
           .h-progress{ margin:28px auto 0; max-width:92vw; }
           .hero-tools{ right:10px; bottom:10px; gap:8px; }
-          .voice-btn,
         }
         @media (max-width:480px){
           .hero-inner{ padding:26px 16px 20px; }
@@ -612,7 +518,6 @@ export function DashboardPage() {
           .h-title{ font-size:clamp(38px, 12.5vw, 50px); }
           .k-text{ font-size:9.5px; letter-spacing:.34em; }
           .h-sub{ font-size:15.5px; }
-          .btn-f{ padding:12px 16px; font-size:10.5px; min-height:40px; }
            .h-orn{ position:absolute; left:50%; top:75%; width:min(480px,96%); height:22px; transform:translate(-50%,-50%); z-index:-1; pointer-events:none; opacity:.92; filter: drop-shadow(0 0 10px rgba(233,213,255,.55)); }
         }
         @media (max-width:380px){

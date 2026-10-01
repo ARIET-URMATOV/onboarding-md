@@ -1,11 +1,29 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
+import { Check, LoaderCircle, RefreshCw, X } from 'lucide-react';
 import { api } from '../api/client';
 import { useToast } from '../components/ui/ToastProvider';
 import { useOnboarding } from '../store/useOnboarding';
 import { AdminApplications } from '../components/admin/AdminApplications';
 import { AdminAnalytics } from '../components/admin/AdminAnalytics';
 import { AdminOutbox } from '../components/admin/AdminOutbox';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Input } from '../components/ui/input';
+import { Textarea } from '../components/ui/textarea';
+import { Label } from '../components/ui/label';
+import { Checkbox } from '../components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Alert, AlertDescription } from '../components/ui/alert';
+import { Badge } from '../components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { Skeleton } from '../components/ui/skeleton';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '../components/ui/alert-dialog';
+import { FadeContent } from '../components/bits';
+import { cn } from '../lib/utils';
 
 interface AdminUser {
   id: number;
@@ -218,6 +236,7 @@ export function AdminPage() {
   const toast = useToast();
   const [rejectFor, setRejectFor] = useState<number | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [svcToDelete, setSvcToDelete] = useState<{ key: string; title: string } | null>(null);
 
   const DOC_TITLES: Record<string, string> = {
     '1-dogovor': 'Договор об оказании услуг (2 экз., подписан)',
@@ -415,204 +434,210 @@ export function AdminPage() {
 
   const renderTasks = (u: AdminUser) => {
     const tasks = [...DOC_TASKS, ...ACCESS_TASKS].filter((t) => u.done_stage1.includes(t));
-    if (!tasks.length) return <span style={{ opacity: 0.5 }}>нет отметок</span>;
+    if (!tasks.length) return <span className="text-xs opacity-50">нет отметок</span>;
     return (
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+      <div className="flex flex-wrap gap-1.5">
         {tasks.map((t) => (
-          <button key={t} type="button" onClick={() => verify(u.id, t)} className="admin-verify-btn" title="Подтвердить">
-            {t} ✓
-          </button>
+          <Button key={t} type="button" size="sm" variant="outline" onClick={() => verify(u.id, t)} title="Подтвердить" className="h-7 text-xs">
+            {t} <Check className="h-3 w-3" />
+          </Button>
         ))}
       </div>
     );
   };
 
+  const TABS = [
+    { id: 'applications', label: 'Заявки V2', count: v2Pending },
+    { id: 'analytics', label: 'Аналитика', count: 0 },
+    { id: 'outbox', label: 'Очередь (Outbox)', count: 0 },
+    { id: 'pending', label: 'Ожидают', count: pending.length },
+    { id: 'users', label: 'Сотрудники', count: 0 },
+    { id: 'audit', label: 'Журнал', count: audit.length },
+    { id: 'codes', label: 'Коды и ссылки', count: 0 },
+    { id: 'wifi', label: 'Wi-Fi запросы', count: 0 },
+    { id: 'services', label: 'Сервисы', count: svcList.length },
+    { id: 'settings', label: 'Настройки', count: 0 },
+  ] as const;
+
   return (
-    <div className="admin-page">
-      <h1 className="admin-title">
-        HR-панель · Этап 1 «Документы и доступы»{' '}
-        <span className={`admin-live ${liveOn ? 'on' : ''}`} title={liveOn ? 'Live-подключение активно' : 'Live недоступен, polling 15с'}>
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-3 py-4 pb-20 sm:px-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="text-lg font-extrabold tracking-tight">HR-панель · Этап 1 «Документы и доступы»</h1>
+        <Badge variant="outline" className={cn(liveOn ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300' : 'text-muted-foreground')} title={liveOn ? 'Live-подключение активно' : 'Live недоступен, polling 15с'}>
           {liveOn ? '● live' : '○ polling'}
-        </span>
-      </h1>
-      <div className="admin-tabs">
-        {(['applications', 'analytics', 'outbox', 'pending', 'users', 'audit', 'codes', 'wifi', 'settings', 'services'] as const).map((t) => (
-          <button key={t} type="button" onClick={() => setTab(t)} className={`admin-tab ${tab === t ? 'active' : ''}`}>
-            {t === 'applications' ? `Заявки V2 ${v2Pending > 0 ? `(${v2Pending}🔴)` : ''}` : t === 'analytics' ? 'Аналитика' : t === 'outbox' ? 'Очередь (Outbox)' : t === 'pending' ? `Ожидают (${pending.length})` : t === 'users' ? 'Сотрудники' : t === 'audit' ? `Журнал (${audit.length})` : t === 'codes' ? 'Коды и ссылки' : t === 'wifi' ? 'Wi-Fi запросы' : t === 'services' ? `Сервисы (${svcList.length})` : 'Настройки'}
-          </button>
-        ))}
-        <button type="button" onClick={() => { load(); loadExtras(); }} className="admin-tab" disabled={loading}>↻</button>
+        </Badge>
       </div>
-      {msg && <div className="admin-msg">{msg}</div>}
 
-      {tab === 'applications' && <AdminApplications />}
-      {tab === 'analytics' && <AdminAnalytics />}
-      {tab === 'outbox' && <AdminOutbox />}
+      <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
+        <div className="flex items-start gap-2">
+          <TabsList className="flex h-auto flex-wrap justify-start">
+            {TABS.map((t) => (
+              <TabsTrigger key={t.id} value={t.id} className="gap-1.5">
+                {t.label}
+                {t.count > 0 && (
+                  <Badge variant="secondary" className="h-5 min-w-5 bg-primary/15 px-1 text-[10px] text-primary">{t.count}</Badge>
+                )}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+          <Button type="button" size="sm" variant="ghost" onClick={() => { load(); loadExtras(); }} disabled={loading} className="shrink-0">
+            <RefreshCw className={cn(loading && 'animate-spin')} />
+          </Button>
+        </div>
 
-      {tab === 'pending' && (
-        <div className="admin-list">
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        {msg && (
+          <Alert className="mt-3 border-emerald-500/30 bg-emerald-500/10">
+            <AlertDescription className="text-emerald-200">{msg}</AlertDescription>
+          </Alert>
+        )}
+
+        <TabsContent value="applications" className="mt-4"><AdminApplications /></TabsContent>
+        <TabsContent value="analytics" className="mt-4"><AdminAnalytics /></TabsContent>
+        <TabsContent value="outbox" className="mt-4"><AdminOutbox /></TabsContent>
+
+      <TabsContent value="pending" className="mt-4">
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap gap-1.5">
             {['all', '1-mbusiness', '1-accountant', '1-wifi', '1-proxy', '1-telegram', '1-jira', '1-figma', '1-gitlab'].map((f) => (
-              <button key={f} type="button" onClick={() => setTaskFilter(f)} className={`admin-tab ${taskFilter === f ? 'active' : ''}`}>
+              <Button key={f} type="button" size="sm" variant={taskFilter === f ? 'secondary' : 'ghost'} onClick={() => setTaskFilter(f)}>
                 {f === 'all' ? 'Все' : f.replace('1-', '')}
-              </button>
+              </Button>
             ))}
           </div>
           {loading && !pending.length && [0, 1, 2].map((i) => (
-            <div key={i} className="admin-card admin-skel"><div className="skel-line" /><div className="skel-line short" /></div>
+            <Card key={i}>
+              <CardContent className="space-y-2 pt-5">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-2/3" />
+              </CardContent>
+            </Card>
           ))}
           {pendingGroups.filter((g) => g.rows.some((r) => DOC_TASKS.includes(r.task_id))).map((g) => {
             const first = g.rows[0];
             const docRows = g.rows.filter((r) => DOC_TASKS.includes(r.task_id));
             return (
-              <div key={g.user_id} className="admin-card hr-doc">
-                <div className="admin-card-head">
-                  <span className="admin-avatar">{(g.name || g.email).slice(0, 1).toUpperCase()}</span>
-                  <div>
-                    <b>{g.name}</b>
-                    <div className="admin-email">{g.email} · отправлено {first.created_at ? ago(first.created_at) : '—'}</div>
-          </div>
-
-          <div className="admin-card">
-            <div className="admin-card-head"><b>Контент: Знакомство с компанией (Этап 1 V2)</b></div>
-            <div className="admin-card-sub">Редактирование публичной страницы.</div>
-            
-            <label style={{ fontSize: 11, color: 'var(--muted)', marginTop: 8 }}>Заголовок</label>
-            <input value={contacts['intro.title'] ?? ''} onChange={(e) => setContacts(p => ({ ...p, 'intro.title': e.target.value }))} className="admin-input" placeholder="Добро пожаловать в MDIGITAL" />
-            <button type="button" onClick={() => saveContact('intro.title')} className="admin-btn small" style={{ marginBottom: 12 }}>Сохранить заголовок</button>
-
-            <label style={{ fontSize: 11, color: 'var(--muted)' }}>Миссия (подзаголовок)</label>
-            <textarea value={contacts['intro.mission'] ?? ''} onChange={(e) => setContacts(p => ({ ...p, 'intro.mission': e.target.value }))} rows={2} className="admin-input" />
-            <button type="button" onClick={() => saveContact('intro.mission')} className="admin-btn small" style={{ marginBottom: 12 }}>Сохранить миссию</button>
-
-            <label style={{ fontSize: 11, color: 'var(--muted)' }}>Ценности (JSON array)</label>
-            <input value={contacts['intro.values'] ?? ''} onChange={(e) => setContacts(p => ({ ...p, 'intro.values': e.target.value }))} className="admin-input" placeholder='["Скорость", "Инновации"]' />
-            <button type="button" onClick={() => saveContact('intro.values')} className="admin-btn small" style={{ marginBottom: 12 }}>Сохранить ценности</button>
-
-            <label style={{ fontSize: 11, color: 'var(--muted)' }}>Инструкция</label>
-            <textarea value={contacts['intro.instruction'] ?? ''} onChange={(e) => setContacts(p => ({ ...p, 'intro.instruction': e.target.value }))} rows={3} className="admin-input" />
-            <button type="button" onClick={() => saveContact('intro.instruction')} className="admin-btn small">Сохранить инструкцию</button>
-          </div>
-
-          <div className="admin-card">
-            <div className="admin-card-head"><b>Задачи Этапа 5 (Департаменты)</b></div>
-            <div className="admin-card-sub">Настройка задач по департаментам (JSON формат: [&#123;"title": "Задача", "url": "https...", "xp": 100&#125;])</div>
-
-            {['Frontend', 'Backend', 'Design'].map((dept) => {
-              const key = `stage5.${dept.toLowerCase()}`;
-              return (
-                <div key={dept} style={{ marginTop: 12 }}>
-                  <label style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 'bold' }}>{dept}</label>
-                  <textarea 
-                    value={contacts[key] ?? ''} 
-                    onChange={(e) => setContacts(p => ({ ...p, [key]: e.target.value }))} 
-                    rows={2} 
-                    className="admin-input" 
-                    placeholder='[{"title":"Пройти тест", "url":"link", "xp": 50}]'
-                  />
-                  <button type="button" onClick={() => saveContact(key)} className="admin-btn small" style={{ marginTop: 6 }}>Сохранить {dept}</button>
-                </div>
-              );
-            })}
-          </div>
-
-        </div>
-                <div className="admin-card-sub">Пакет документов на физическую проверку — сверьте 5 пунктов, затем подтвердите:</div>
-                <ul className="hr-checklist">
-                  {DOC_TASKS.map((tid) => {
-                    const sent = docRows.some((r) => r.task_id === tid);
-                    return (
-                      <li key={tid} className={sent ? 'sent' : 'missing'}>
-                        <span className="hr-check">{sent ? '✓' : '○'}</span> {DOC_TITLES[tid]}
-                      </li>
-                    );
-                  })}
-                </ul>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <button type="button" onClick={() => verifyBatch(g.user_id)} className="admin-btn small">
-                    Подтвердить получение и проверку документов
-                  </button>
-                  <button type="button" onClick={() => { setRejectFor(rejectFor === g.user_id ? null : g.user_id); setRejectReason(''); }} className="admin-reject-btn">
-                    Отклонить
-                  </button>
-                </div>
-                {rejectFor === g.user_id && (
-                  <div className="hr-reject">
-                    <textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} placeholder="Причина отклонения (мин 10 символов), например: не хватает справки о несудимости" rows={2} className="admin-input" />
-                    <button type="button" onClick={() => rejectBatch(g.user_id)} className="admin-reject-btn" disabled={rejectReason.trim().length < 10}>
-                      Отклонить пакет
-                    </button>
-                  </div>
-                )}
-              </div>
+              <FadeContent key={g.user_id}>
+                <Card className="border-primary/30 bg-primary/5">
+                  <CardContent className="flex flex-col gap-3 pt-5">
+                    <div className="flex items-center gap-3">
+                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary text-sm font-extrabold text-primary-foreground">
+                        {(g.name || g.email).slice(0, 1).toUpperCase()}
+                      </span>
+                      <div>
+                        <b className="text-sm">{g.name}</b>
+                        <div className="text-xs text-muted-foreground">{g.email} · отправлено {first.created_at ? ago(first.created_at) : '—'}</div>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Пакет документов на физическую проверку — сверьте 5 пунктов, затем подтвердите:</p>
+                    <ul className="flex flex-col gap-1.5">
+                      {DOC_TASKS.map((tid) => {
+                        const sent = docRows.some((r) => r.task_id === tid);
+                        return (
+                          <li key={tid} className={cn('flex items-center gap-2 rounded-md border border-border bg-card px-2.5 py-2 text-xs', sent ? 'border-emerald-500/30' : 'opacity-55')}>
+                            <span className={cn('font-extrabold', sent ? 'text-emerald-400' : 'text-muted-foreground')}>
+                              {sent ? <Check className="h-3.5 w-3.5" /> : <span className="inline-block h-3.5 w-3.5 text-center">○</span>}
+                            </span>
+                            {DOC_TITLES[tid]}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    <div className="flex flex-wrap gap-2">
+                      <Button type="button" size="sm" onClick={() => verifyBatch(g.user_id)}>
+                        <Check /> Подтвердить получение и проверку документов
+                      </Button>
+                      <Button type="button" size="sm" variant="destructive" onClick={() => { setRejectFor(rejectFor === g.user_id ? null : g.user_id); setRejectReason(''); }}>
+                        Отклонить
+                      </Button>
+                    </div>
+                    {rejectFor === g.user_id && (
+                      <div className="flex flex-col gap-2">
+                        <Textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} placeholder="Причина отклонения (мин 10 символов), например: не хватает справки о несудимости" rows={2} />
+                        <Button type="button" size="sm" variant="destructive" onClick={() => rejectBatch(g.user_id)} disabled={rejectReason.trim().length < 10}>
+                          Отклонить пакет
+                        </Button>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </FadeContent>
             );
           })}
           {pending.filter((r) => !DOC_TASKS.includes(r.task_id)).map((r) => (
-            <div key={r.id} className="admin-card">
-              <div className="admin-card-head">
-                <b>{r.name}</b> <span className="admin-email">{r.email}</span>
-              </div>
-              <div className="admin-card-sub">
-                <b>{taskLabel(r.task_id)}</b>
-                {' · '}
-                {r.created_at ? ago(r.created_at) : '—'}
-                {r.note ? ` · «${r.note}»` : ''}
-              </div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button type="button" onClick={() => verifyRow(r)} className="admin-verify-btn">Подтвердить ✓</button>
-                <button type="button" onClick={() => rejectRow(r)} className="admin-reject-btn">Отклонить</button>
-              </div>
-            </div>
+            <Card key={r.id}>
+              <CardContent className="flex flex-col gap-2 pt-5">
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <b>{r.name}</b> <span className="text-xs text-muted-foreground">{r.email}</span>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  <b className="text-foreground">{taskLabel(r.task_id)}</b>
+                  {' · '}
+                  {r.created_at ? ago(r.created_at) : '—'}
+                  {r.note ? ` · «${r.note}»` : ''}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" onClick={() => verifyRow(r)}><Check /> Подтвердить</Button>
+                  <Button type="button" size="sm" variant="destructive" onClick={() => rejectRow(r)}>Отклонить</Button>
+                </div>
+              </CardContent>
+            </Card>
           ))}
-          {!pending.length && !loading && <div className="admin-empty">Нет ожидающих запросов</div>}
+          {!pending.length && !loading && <p className="py-5 text-center text-sm text-muted-foreground">Нет ожидающих запросов</p>}
         </div>
-      )}
+      </TabsContent>
 
-      {tab === 'wifi' && (
-        <div className="admin-list">
-          <div className="admin-card">
-            <div className="admin-card-head"><b>Wi-Fi запросы</b></div>
-            <div className="admin-card-sub">MAC от сотрудников · введите пароль → Сохранить → система покажет его сотруднику под полем MAC.</div>
-          </div>
+      <TabsContent value="wifi" className="mt-4">
+        <div className="flex flex-col gap-3">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Wi-Fi запросы</CardTitle>
+              <CardDescription>MAC от сотрудников · введите пароль → Сохранить → система покажет его сотруднику под полем MAC.</CardDescription>
+            </CardHeader>
+          </Card>
           {wifiReqs.map((w) => (
-            <div key={`${w.user_id}-${w.mac}`} className="admin-card">
-              <div className="admin-card-head">
-                <b>{w.name}</b> <span className="admin-email">{w.email}</span>
-                {w.verified && <span className="admin-staff-badge">подтверждён</span>}
-                {!w.verified && w.has_password && <span className="admin-staff-badge">пароль задан</span>}
-              </div>
-              <div className="admin-card-sub">
-                MAC: <code style={{ fontFamily: 'monospace' }}>{w.mac}</code> · отправлен {w.sent_at ? ago(w.sent_at) : '—'}
-              </div>
-              {!w.verified && (
-                <div className="admin-search">
-                  <input
-                    value={wifiPwForm[w.user_id] ?? ''}
-                    onChange={(e) => setWifiPwForm((p) => ({ ...p, [w.user_id]: e.target.value }))}
-                    placeholder="Пароль (пусто = сгенерировать)"
-                    className="admin-input"
-                  />
-                  <button type="button" onClick={() => setWifiPwAdmin(w.user_id)} className="admin-btn small">Сохранить</button>
+            <Card key={`${w.user_id}-${w.mac}`}>
+              <CardContent className="flex flex-col gap-2 pt-5">
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <b>{w.name}</b> <span className="text-xs text-muted-foreground">{w.email}</span>
+                  {w.verified && <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/10 text-emerald-300">подтверждён</Badge>}
+                  {!w.verified && w.has_password && <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-300">пароль задан</Badge>}
                 </div>
-              )}
-              {wifiPw[w.user_id] && (
-                <div className="admin-once">
-                  <code>{wifiPw[w.user_id]}</code>
-                  <span>— показан один раз, сотрудник уже видит его в интерфейсе</span>
+                <div className="text-xs text-muted-foreground">
+                  MAC: <code className="font-mono">{w.mac}</code> · отправлен {w.sent_at ? ago(w.sent_at) : '—'}
                 </div>
-              )}
-            </div>
+                {!w.verified && (
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Input
+                      value={wifiPwForm[w.user_id] ?? ''}
+                      onChange={(e) => setWifiPwForm((p) => ({ ...p, [w.user_id]: e.target.value }))}
+                      placeholder="Пароль (пусто = сгенерировать)"
+                    />
+                    <Button type="button" size="sm" onClick={() => setWifiPwAdmin(w.user_id)} className="shrink-0">Сохранить</Button>
+                  </div>
+                )}
+                {wifiPw[w.user_id] && (
+                  <Alert className="border-amber-500/40 bg-amber-500/10">
+                    <AlertDescription className="text-amber-200">
+                      <code className="font-mono text-sm text-foreground">{wifiPw[w.user_id]}</code>
+                      {' '}— показан один раз, сотрудник уже видит его в интерфейсе
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </CardContent>
+            </Card>
           ))}
-          {!wifiReqs.length && !loading && <div className="admin-empty">MAC-адресов пока нет</div>}
+          {!wifiReqs.length && !loading && <p className="py-5 text-center text-sm text-muted-foreground">MAC-адресов пока нет</p>}
         </div>
-      )}
+      </TabsContent>
 
-      {tab === 'settings' && (
-        <div className="admin-list">
-          <div className="admin-card">
-            <div className="admin-card-head"><b>Настройки → Контакты</b></div>
-            <div className="admin-card-sub">Email ответственных (можно несколько через запятую). Уведомления о запросах уходят сюда; если пусто — HR. Меняются в любой момент без редеплоя.</div>
-          </div>
+      <TabsContent value="settings" className="mt-4">
+        <div className="flex flex-col gap-3">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Настройки → Контакты</CardTitle>
+              <CardDescription>Email ответственных (можно несколько через запятую). Уведомления о запросах уходят сюда; если пусто — HR. Меняются в любой момент без редеплоя.</CardDescription>
+            </CardHeader>
+          </Card>
           {[
             { key: 'contacts.hr_email', label: 'HR' },
             { key: 'contacts.sysadmin_email', label: 'Сетевик(и) — можно несколько через запятую' },
@@ -620,317 +645,380 @@ export function AdminPage() {
             { key: 'contacts.accountant_email', label: 'Бухгалтер' },
             { key: 'contacts.teamlead_email', label: 'Тимлид' },
           ].map((c) => (
-            <div key={c.key} className="admin-card">
-              <div className="admin-card-head"><b>{c.label}</b></div>
-              <div className="admin-search">
-                <input
-                  value={contacts[c.key] ?? ''}
-                  onChange={(e) => setContacts((p) => ({ ...p, [c.key]: e.target.value }))}
-                  placeholder="email@example.com"
-                  className="admin-input"
-                />
-                <button type="button" onClick={() => saveContact(c.key)} className="admin-btn small">Сохранить</button>
-              </div>
-            </div>
+            <Card key={c.key}>
+              <CardContent className="flex flex-col gap-2 pt-5">
+                <Label className="text-sm font-semibold">{c.label}</Label>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Input
+                    value={contacts[c.key] ?? ''}
+                    onChange={(e) => setContacts((p) => ({ ...p, [c.key]: e.target.value }))}
+                    placeholder="email@example.com"
+                  />
+                  <Button type="button" size="sm" onClick={() => saveContact(c.key)} className="shrink-0">Сохранить</Button>
+                </div>
+              </CardContent>
+            </Card>
           ))}
-          <div className="admin-card">
-            <div className="admin-card-head"><b>Инструкция для бухгалтера</b></div>
-            <div className="admin-card-sub">Показывается сотруднику в задаче «Доступ бухгалтеру».</div>
-            <textarea
-              value={contacts['instruction.accountant'] ?? ''}
-              onChange={(e) => setContacts((p) => ({ ...p, ['instruction.accountant']: e.target.value }))}
-              rows={3}
-              className="admin-input"
-              placeholder="Текст инструкции (пока заглушка)…"
-            />
-            <div><button type="button" onClick={() => saveContact('instruction.accountant')} className="admin-btn small">Сохранить инструкцию</button></div>
-          </div>
-        </div>
-      )}
+          <Card>
+            <CardContent className="flex flex-col gap-2 pt-5">
+              <Label className="text-sm font-semibold">Инструкция для бухгалтера</Label>
+              <p className="text-xs text-muted-foreground">Показывается сотруднику в задаче «Доступ бухгалтеру».</p>
+              <Textarea
+                value={contacts['instruction.accountant'] ?? ''}
+                onChange={(e) => setContacts((p) => ({ ...p, ['instruction.accountant']: e.target.value }))}
+                rows={3}
+                placeholder="Текст инструкции…"
+              />
+              <div><Button type="button" size="sm" onClick={() => saveContact('instruction.accountant')}>Сохранить инструкцию</Button></div>
+            </CardContent>
+          </Card>
 
-      {tab === 'services' && (
-        <div className="admin-list">
-          <div className="admin-card">
-            <div className="admin-card-head"><b>Добавить сервис</b></div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))', gap: 8 }}>
-              <input value={svcForm.key} onChange={(e) => setSvcForm((p) => ({ ...p, key: e.target.value }))} placeholder="key (slug)" className="admin-input" disabled={!!svcEditKey} />
-              <input value={svcForm.title} onChange={(e) => setSvcForm((p) => ({ ...p, title: e.target.value }))} placeholder="Название" className="admin-input" />
-              <input value={svcForm.url} onChange={(e) => setSvcForm((p) => ({ ...p, url: e.target.value }))} placeholder="URL" className="admin-input" />
-              <select value={svcForm.icon_key} onChange={(e) => setSvcForm((p) => ({ ...p, icon_key: e.target.value }))} className="admin-input">
-                {['Link','ClipboardCheck','KeyRound','Send','Smartphone','Apple','BookOpen','Globe','Lock','Wifi','FileText','MessageSquare','ExternalLink','Download'].map(i => <option key={i}>{i}</option>)}
-              </select>
-              <select value={svcForm.category} onChange={(e) => setSvcForm((p) => ({ ...p, category: e.target.value }))} className="admin-input">
-                {['access','mpulse','knowledge'].map(c => <option key={c}>{c}</option>)}
-              </select>
-              <select value={svcForm.task_id ?? ''} onChange={(e) => setSvcForm((p) => ({ ...p, task_id: e.target.value || null }))} className="admin-input">
-                <option value="">Нет задачи (info)</option>
-                {['1-jira','1-figma','1-gitlab'].map(t => <option key={t}>{t}</option>)}
-              </select>
-            </div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8, alignItems: 'center' }}>
-              <span style={{ fontSize: 11, color: 'var(--muted)' }}>Роли:</span>
-              {['frontend','backend','design'].map((r) => (
-                <label key={r} style={{ fontSize: 11, display: 'flex', gap: 4, alignItems: 'center' }}>
-                  <input type="checkbox" checked={svcForm.roles.includes(r)} onChange={(e) => setSvcForm((p) => ({ ...p, roles: e.target.checked ? [...p.roles, r] : p.roles.filter((x) => x !== r) }))} />
-                  {r}
-                </label>
-              ))}
-              <label style={{ fontSize: 11, display: 'flex', gap: 4, alignItems: 'center' }}>
-                <input type="checkbox" checked={svcForm.is_visible} onChange={(e) => setSvcForm((p) => ({ ...p, is_visible: e.target.checked }))} />
-                Видимый
-              </label>
-            </div>
-            <textarea
-              value={svcForm.details}
-              onChange={(e) => setSvcForm((p) => ({ ...p, details: e.target.value }))}
-              placeholder="Подробная инструкция (показывается в модалке «Подробнее»)"
-              className="admin-input"
-              rows={4}
-              style={{ marginTop: 8 }}
-            />
-            <button type="button" className="admin-btn small" onClick={async () => {
-              if (!svcForm.key || !svcForm.title) { setMsg('key и title обязательны'); return; }
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Контент: Знакомство с компанией (Этап 1 V2)</CardTitle>
+              <CardDescription>Редактирование публичной страницы.</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              <div className="space-y-2">
+                <Label className="text-xs">Заголовок</Label>
+                <Input value={contacts['intro.title'] ?? ''} onChange={(e) => setContacts((p) => ({ ...p, 'intro.title': e.target.value }))} placeholder="Добро пожаловать в MDIGITAL" />
+                <div><Button type="button" size="sm" variant="outline" onClick={() => saveContact('intro.title')}>Сохранить заголовок</Button></div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Миссия (подзаголовок)</Label>
+                <Textarea value={contacts['intro.mission'] ?? ''} onChange={(e) => setContacts((p) => ({ ...p, 'intro.mission': e.target.value }))} rows={2} />
+                <div><Button type="button" size="sm" variant="outline" onClick={() => saveContact('intro.mission')}>Сохранить миссию</Button></div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Ценности (JSON array)</Label>
+                <Input value={contacts['intro.values'] ?? ''} onChange={(e) => setContacts((p) => ({ ...p, 'intro.values': e.target.value }))} placeholder='["Скорость", "Инновации"]' className="font-mono" />
+                <div><Button type="button" size="sm" variant="outline" onClick={() => saveContact('intro.values')}>Сохранить ценности</Button></div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Инструкция</Label>
+                <Textarea value={contacts['intro.instruction'] ?? ''} onChange={(e) => setContacts((p) => ({ ...p, 'intro.instruction': e.target.value }))} rows={3} />
+                <div><Button type="button" size="sm" variant="outline" onClick={() => saveContact('intro.instruction')}>Сохранить инструкцию</Button></div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Задачи Этапа 5 (Департаменты)</CardTitle>
+              <CardDescription>Настройка задач по департаментам (JSON: [{`{"title": "Задача", "url": "https...", "xp": 100}`}])</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              {['Frontend', 'Backend', 'Design'].map((dept) => {
+                const key = `stage5.${dept.toLowerCase()}`;
+                return (
+                  <div key={dept} className="space-y-2">
+                    <Label className="text-xs font-bold">{dept}</Label>
+                    <Textarea
+                      value={contacts[key] ?? ''}
+                      onChange={(e) => setContacts((p) => ({ ...p, [key]: e.target.value }))}
+                      rows={2}
+                      className="font-mono text-xs"
+                      placeholder='[{"title":"Пройти тест", "url":"link", "xp": 50}]'
+                    />
+                    <div><Button type="button" size="sm" variant="outline" onClick={() => saveContact(key)}>Сохранить {dept}</Button></div>
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+        </div>
+      </TabsContent>
+
+      <TabsContent value="services" className="mt-4">
+        <div className="flex flex-col gap-3">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">{svcEditKey ? 'Редактировать сервис' : 'Добавить сервис'}</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <Input value={svcForm.key} onChange={(e) => setSvcForm((p) => ({ ...p, key: e.target.value }))} placeholder="key (slug)" disabled={!!svcEditKey} />
+                <Input value={svcForm.title} onChange={(e) => setSvcForm((p) => ({ ...p, title: e.target.value }))} placeholder="Название" />
+                <Input value={svcForm.url} onChange={(e) => setSvcForm((p) => ({ ...p, url: e.target.value }))} placeholder="URL" />
+                <Select value={svcForm.icon_key} onValueChange={(v) => setSvcForm((p) => ({ ...p, icon_key: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {['Link','ClipboardCheck','KeyRound','Send','Smartphone','Apple','BookOpen','Globe','Lock','Wifi','FileText','MessageSquare','ExternalLink','Download'].map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Select value={svcForm.category} onValueChange={(v) => setSvcForm((p) => ({ ...p, category: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {['access','mpulse','knowledge'].map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Select value={svcForm.task_id ?? ''} onValueChange={(v) => setSvcForm((p) => ({ ...p, task_id: v || null }))}>
+                  <SelectTrigger><SelectValue placeholder="Нет задачи (info)" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Нет задачи (info)</SelectItem>
+                    {['1-jira','1-figma','1-gitlab'].map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex flex-wrap items-center gap-4">
+                <span className="text-xs text-muted-foreground">Роли:</span>
+                {['frontend','backend','design'].map((r) => (
+                  <Label key={r} className="flex items-center gap-1.5 text-xs font-normal">
+                    <Checkbox checked={svcForm.roles.includes(r)} onCheckedChange={(c) => setSvcForm((p) => ({ ...p, roles: c === true ? [...p.roles, r] : p.roles.filter((x) => x !== r) }))} />
+                    {r}
+                  </Label>
+                ))}
+                <Label className="flex items-center gap-1.5 text-xs font-normal">
+                  <Checkbox checked={svcForm.is_visible} onCheckedChange={(c) => setSvcForm((p) => ({ ...p, is_visible: c === true }))} />
+                  Видимый
+                </Label>
+              </div>
+              <Textarea
+                value={svcForm.details}
+                onChange={(e) => setSvcForm((p) => ({ ...p, details: e.target.value }))}
+                placeholder="Подробная инструкция (показывается в модалке «Подробнее»)"
+                rows={4}
+              />
+              <div>
+                <Button type="button" size="sm" onClick={async () => {
+                  if (!svcForm.key || !svcForm.title) { setMsg('key и title обязательны'); return; }
+                  try {
+                    const payload = { ...svcForm, task_id: !svcForm.task_id || svcForm.task_id === 'none' ? null : svcForm.task_id };
+                    if (svcEditKey) {
+                      await api.patch(`/api/admin/services/${svcEditKey}`, payload);
+                      setMsg(`✓ «${svcForm.title}» обновлён`);
+                    } else {
+                      await api.post('/api/admin/services', payload);
+                      setMsg(`✓ «${svcForm.title}» создан`);
+                    }
+                    setSvcForm({ key: '', title: '', subtitle: '', url: '', icon_key: 'Link', category: 'access', task_id: null, roles: [], sort_order: 0, is_visible: true, open_new_tab: true, extra: {}, details: '' });
+                    setSvcEditKey(null);
+                    await loadExtras();
+                  } catch (e) { setMsg(e instanceof Error ? e.message : 'Ошибка'); }
+                }}>{svcEditKey ? 'Обновить' : 'Добавить'}</Button>
+              </div>
+            </CardContent>
+          </Card>
+          {svcList.map((s) => (
+            <Card key={s.key} className={cn(!s.is_visible && 'opacity-60')}>
+              <CardContent className="flex flex-col gap-2 pt-5">
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <b>{s.title}</b>
+                  <Badge variant="secondary">{s.category}</Badge>
+                  {s.task_id && <Badge variant="outline">{taskLabel(s.task_id)}</Badge>}
+                  {!s.is_visible && <Badge variant="destructive">скрыт</Badge>}
+                </div>
+                <div className="text-xs text-muted-foreground">{s.subtitle} · {s.url || '—'} · icon: {s.icon_key} · roles: {s.roles.length ? s.roles.join(',') : 'все'}</div>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant="outline" onClick={() => { setSvcForm({ ...s, task_id: s.task_id ?? '' }); setSvcEditKey(s.key); }}>Редактировать</Button>
+                  <Button type="button" size="sm" variant="destructive" onClick={() => setSvcToDelete({ key: s.key, title: s.title })}>Удалить</Button>
+                  <Button type="button" size="sm" variant="ghost" onClick={async () => {
+                    try { await api.patch(`/api/admin/services/${s.key}`, { is_visible: !s.is_visible }); setMsg(`✓ «${s.title}» ${s.is_visible ? 'скрыт' : 'показан'}`); await loadExtras(); } catch (e) { setMsg(e instanceof Error ? e.message : 'Ошибка'); }
+                  }}>{s.is_visible ? 'Скрыть' : 'Показать'}</Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+          {!svcList.length && !loading && <p className="py-5 text-center text-sm text-muted-foreground">Сервисов пока нет</p>}
+        </div>
+      </TabsContent>
+
+      <AlertDialog open={svcToDelete !== null} onOpenChange={(o) => { if (!o) setSvcToDelete(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить «{svcToDelete?.title}»?</AlertDialogTitle>
+            <AlertDialogDescription>Действие нельзя отменить. Сервис пропадёт из каталога сотрудников.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction onClick={async () => {
+              if (!svcToDelete) return;
               try {
-                if (svcEditKey) {
-                  await api.patch(`/api/admin/services/${svcEditKey}`, svcForm);
-                  setMsg(`✓ «${svcForm.title}» обновлён`);
-                } else {
-                  await api.post('/api/admin/services', svcForm);
-                  setMsg(`✓ «${svcForm.title}» создан`);
-                }
-                setSvcForm({ key: '', title: '', subtitle: '', url: '', icon_key: 'Link', category: 'access', task_id: null, roles: [], sort_order: 0, is_visible: true, open_new_tab: true, extra: {}, details: '' });
-                setSvcEditKey(null);
+                await api.del(`/api/admin/services/${svcToDelete.key}`);
+                setMsg(`✓ «${svcToDelete.title}» удалён`);
                 await loadExtras();
               } catch (e) { setMsg(e instanceof Error ? e.message : 'Ошибка'); }
-            }}>{svcEditKey ? 'Обновить' : 'Добавить'}</button>
-          </div>
-          {svcList.map((s) => (
-            <div key={s.key} className="admin-card" style={{ opacity: s.is_visible ? 1 : 0.6 }}>
-              <div className="admin-card-head">
-                <b>{s.title}</b>
-                <span className="admin-staff-badge">{s.category}</span>
-                {s.task_id && <span className="admin-staff-badge">{taskLabel(s.task_id)}</span>}
-                {!s.is_visible && <span className="admin-staff-badge" style={{ background: 'rgba(239,68,68,.12)', borderColor: 'rgba(239,68,68,.3)', color: '#FCA5A5' }}>скрыт</span>}
-              </div>
-              <div className="admin-card-sub">{s.subtitle} · {s.url || '—'} · icon: {s.icon_key} · roles: {s.roles.length ? s.roles.join(',') : 'все'}</div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button type="button" className="admin-verify-btn" onClick={() => { setSvcForm({ ...s }); setSvcEditKey(s.key); setTab('services'); }}>Редактировать</button>
-                <button type="button" className="admin-reject-btn" onClick={async () => {
-                  if (!confirm(`Удалить «${s.title}»?`)) return;
-                  try { await api.del(`/api/admin/services/${s.key}`); setMsg(`✓ «${s.title}» удалён`); await loadExtras(); } catch (e) { setMsg(e instanceof Error ? e.message : 'Ошибка'); }
-                }}>Удалить</button>
-                <button type="button" className="admin-btn small" onClick={async () => {
-                  try { await api.patch(`/api/admin/services/${s.key}`, { is_visible: !s.is_visible }); setMsg(`✓ «${s.title}» ${s.is_visible ? 'скрыт' : 'показан'}`); await loadExtras(); } catch (e) { setMsg(e instanceof Error ? e.message : 'Ошибка'); }
-                }}>{s.is_visible ? 'Скрыть' : 'Показать'}</button>
-              </div>
-            </div>
-          ))}
-          {!svcList.length && !loading && <div className="admin-empty">Сервисов пока нет</div>}
-        </div>
-      )}
+              setSvcToDelete(null);
+            }}>Удалить</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
-      {tab === 'users' && (
-        <div>
-          <div className="admin-search">
-            <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') search(); }} placeholder="email или имя" className="admin-input" />
-            <button type="button" onClick={search} className="admin-btn" disabled={loading}>Найти</button>
+      <TabsContent value="users" className="mt-4">
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') search(); }} placeholder="email или имя" />
+            <Button type="button" onClick={search} disabled={loading} className="shrink-0">Найти</Button>
           </div>
-          <div className="admin-list">
+          <div className="flex flex-col gap-3">
             {users.map((u) => (
-              <div key={u.id} className="admin-card">
-                <div className="admin-card-head">
-                  <b>{u.name}</b> <span className="admin-email">{u.email}</span>
-                  {u.is_staff && <span className="admin-staff-badge">staff</span>}
-                </div>
-                <div className="admin-card-sub">Stage 1: {u.done_stage1.length} задач · Лид: {u.lead_email || '— (глобальный)'}</div>
-                {renderTasks(u)}
-                <div className="admin-search">
-                  <input
-                    value={leadForm[u.id] ?? u.lead_email}
-                    onChange={(e) => setLeadForm((p) => ({ ...p, [u.id]: e.target.value }))}
-                    placeholder="Email лида (пусто = глобальный)"
-                    className="admin-input"
-                  />
-                  <button type="button" onClick={async () => {
-                    try {
-                      const updated = await api.patch<AdminUser>(`/api/admin/users/${u.id}/lead`, { lead_email: leadForm[u.id] ?? '' });
-                      setUsers((prev) => prev.map((x) => (x.id === u.id ? updated : x)));
-                      setMsg(`✓ Лид для ${u.email}: ${updated.lead_email || 'глобальный'}`);
-                    } catch (e) {
-                      setMsg(e instanceof Error ? e.message : 'Ошибка');
-                    }
-                  }} className="admin-btn small">Лид</button>
-                </div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <button type="button" onClick={() => toggleStaff(u)} className="admin-btn small">
-                    {u.is_staff ? 'Снять staff' : 'Дать staff'}
-                  </button>
-                  <button type="button" onClick={() => genWifiPassword(u)} className="admin-btn small">
-                    Wi-Fi пароль
-                  </button>
-                  <button type="button" onClick={() => verifyAllDocs(u)} className="admin-btn small">
-                    Все доки ✓
-                  </button>
-                </div>
-                {wifiPw[u.id] && (
-                  <div className="admin-once">
-                    <code>{wifiPw[u.id]}</code>
-                    <span>— показан один раз, скопируйте и передайте сотруднику</span>
+              <Card key={u.id}>
+                <CardContent className="flex flex-col gap-3 pt-5">
+                  <div className="flex flex-wrap items-center gap-2 text-sm">
+                    <b>{u.name}</b> <span className="text-xs text-muted-foreground">{u.email}</span>
+                    {u.is_staff && <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-300">staff</Badge>}
                   </div>
-                )}
-              </div>
+                  <div className="text-xs text-muted-foreground">Stage 1: {u.done_stage1.length} задач · Лид: {u.lead_email || '— (глобальный)'}</div>
+                  {renderTasks(u)}
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Input
+                      value={leadForm[u.id] ?? u.lead_email}
+                      onChange={(e) => setLeadForm((p) => ({ ...p, [u.id]: e.target.value }))}
+                      placeholder="Email лида (пусто = глобальный)"
+                    />
+                    <Button type="button" size="sm" variant="outline" onClick={async () => {
+                      try {
+                        const updated = await api.patch<AdminUser>(`/api/admin/users/${u.id}/lead`, { lead_email: leadForm[u.id] ?? '' });
+                        setUsers((prev) => prev.map((x) => (x.id === u.id ? updated : x)));
+                        setMsg(`✓ Лид для ${u.email}: ${updated.lead_email || 'глобальный'}`);
+                      } catch (e) {
+                        setMsg(e instanceof Error ? e.message : 'Ошибка');
+                      }
+                    }} className="shrink-0">Лид</Button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" size="sm" variant="outline" onClick={() => toggleStaff(u)}>
+                      {u.is_staff ? 'Снять staff' : 'Дать staff'}
+                    </Button>
+                    <Button type="button" size="sm" variant="outline" onClick={() => genWifiPassword(u)}>
+                      Wi-Fi пароль
+                    </Button>
+                    <Button type="button" size="sm" variant="outline" onClick={() => verifyAllDocs(u)}>
+                      <Check /> Все доки
+                    </Button>
+                  </div>
+                  {wifiPw[u.id] && (
+                    <Alert className="border-amber-500/40 bg-amber-500/10">
+                      <AlertDescription className="text-amber-200">
+                        <code className="font-mono text-sm text-foreground">{wifiPw[u.id]}</code>
+                        {' '}— показан один раз, скопируйте и передайте сотруднику
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </CardContent>
+              </Card>
             ))}
           </div>
         </div>
-      )}
+      </TabsContent>
 
-      {tab === 'audit' && (
-        <div className="admin-list">
+      <TabsContent value="audit" className="mt-4">
+        <div className="flex flex-col gap-2">
           {audit.map((r) => (
-            <div key={r.id} className="admin-card audit">
-              <b>{taskLabel(r.task_id)}</b> · user #{r.user_id} · {r.method} · by #{r.verified_by ?? '—'} ·{' '}
-              {r.created_at ? new Date(r.created_at).toLocaleString('ru-RU') : '—'}
-              {prettyDetails(r.details) && <span className="admin-detail"> · {prettyDetails(r.details)}</span>}
-            </div>
+            <Card key={r.id}>
+              <CardContent className="pt-4 text-xs">
+                <b>{taskLabel(r.task_id)}</b> · user #{r.user_id} · {r.method} · by #{r.verified_by ?? '—'} ·{' '}
+                {r.created_at ? new Date(r.created_at).toLocaleString('ru-RU') : '—'}
+                {prettyDetails(r.details) && <span className="text-muted-foreground"> · {prettyDetails(r.details)}</span>}
+              </CardContent>
+            </Card>
           ))}
-          {!audit.length && !loading && <div className="admin-empty">Журнал пуст</div>}
+          {!audit.length && !loading && <p className="py-5 text-center text-sm text-muted-foreground">Журнал пуст</p>}
         </div>
-      )}
+      </TabsContent>
 
-      {tab === 'codes' && (
-        <div className="admin-list">
-          <div className="admin-card">
-            <div className="admin-card-head"><b>Ротация кода MPulse</b></div>
-            <div className="admin-card-sub">Новый код деактивирует предыдущие. Сообщите код сотрудникам.</div>
-            <div className="admin-search">
-              <input value={newCode} onChange={(e) => setNewCode(e.target.value)} placeholder="Новый код" className="admin-input" />
-              <input value={newBatch} onChange={(e) => setNewBatch(e.target.value)} placeholder="Батч (напр. 09-2026)" className="admin-input" />
-              <button type="button" onClick={rotateCode} className="admin-btn">Выпустить</button>
-            </div>
-          </div>
+      <TabsContent value="codes" className="mt-4">
+        <div className="flex flex-col gap-3">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Ротация кода MPulse</CardTitle>
+              <CardDescription>Новый код деактивирует предыдущие. Сообщите код сотрудникам.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input value={newCode} onChange={(e) => setNewCode(e.target.value)} placeholder="Новый код" />
+                <Input value={newBatch} onChange={(e) => setNewBatch(e.target.value)} placeholder="Батч (напр. 09-2026)" />
+                <Button type="button" onClick={rotateCode} className="shrink-0">Выпустить</Button>
+              </div>
+            </CardContent>
+          </Card>
           {codes.map((c) => (
-            <div key={c.id} className="admin-card audit">
-              <b style={{ fontFamily: 'monospace' }}>{c.code}</b> · {c.batch_name || '—'} · {c.is_active ? 'активен ✓' : 'неактивен'} ·{' '}
-              {c.created_at ? new Date(c.created_at).toLocaleString('ru-RU') : '—'}
-            </div>
+            <Card key={c.id}>
+              <CardContent className="pt-4 text-xs">
+                <b className="font-mono">{c.code}</b> · {c.batch_name || '—'} ·{' '}
+                {c.is_active ? <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/10 text-emerald-300">активен ✓</Badge> : <Badge variant="outline">неактивен</Badge>} ·{' '}
+                {c.created_at ? new Date(c.created_at).toLocaleString('ru-RU') : '—'}
+              </CardContent>
+            </Card>
           ))}
-          {!codes.length && !loading && <div className="admin-empty">Кодов в БД нет — действует MPULSE_VERIFICATION_CODE из env</div>}
-          <div className="admin-card">
-            <div className="admin-card-head"><b>Telegram-группы (auto-add)</b></div>
-            <div className="admin-card-sub">JSON: title + chat_id + roles (frontend/backend/design; пустой = всем). Бот должен быть админом (can_invite_users). Новую группу достаточно добавить бота — chat_id подхватится сам, roles проставьте вручную.</div>
-            <textarea value={tgGroupsJson} onChange={(e) => setTgGroupsJson(e.target.value)} rows={3} className="admin-input" style={{ fontFamily: 'monospace', fontSize: 11 }} placeholder='[{"title":"Dev","chat_id":"-100123"}]' />
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button type="button" onClick={saveTgGroups} className="admin-btn small">Сохранить группы</button>
-              <button type="button" onClick={checkTgRights} className="admin-btn small">Проверить права бота</button>
-              <button type="button" onClick={registerTgWebhook} className="admin-btn small" disabled={tgWhRegistering}>{tgWhRegistering ? 'Регистрирую…' : 'Зарегистрировать webhook'}</button>
-              <button type="button" onClick={checkTgWhStatus} className="admin-btn small">Статус webhook</button>
-            </div>
-            {tgWhStatus && (
-              <div style={{ fontSize: 11.5, lineHeight: 1.7, padding: '6px 0' }}>
-                <div>URL: <code style={{ fontFamily: 'monospace', fontSize: 11 }}>{tgWhStatus.url || '—'}</code></div>
-                <div>Ожидает апдейтов: <b>{tgWhStatus.pending_update_count ?? 0}</b></div>
-                {tgWhStatus.last_error_message && <div style={{ color: '#FCA5A5' }}>Последняя ошибка: {tgWhStatus.last_error_message}</div>}
-                {tgWhStatus.has_custom_certificate !== undefined && <div>Свой сертификат: {tgWhStatus.has_custom_certificate ? 'да' : 'нет (OK)'}</div>}
+          {!codes.length && !loading && <p className="py-5 text-center text-sm text-muted-foreground">Кодов в БД нет — действует MPULSE_VERIFICATION_CODE из env</p>}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Telegram-группы (auto-add)</CardTitle>
+              <CardDescription>JSON: title + chat_id + roles (frontend/backend/design; пустой = всем). Бот должен быть админом (can_invite_users).</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+              <Textarea value={tgGroupsJson} onChange={(e) => setTgGroupsJson(e.target.value)} rows={3} className="font-mono text-[11px]" placeholder='[{"title":"Dev","chat_id":"-100123"}]' />
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" size="sm" variant="outline" onClick={saveTgGroups}>Сохранить группы</Button>
+                <Button type="button" size="sm" variant="outline" onClick={checkTgRights}>Проверить права бота</Button>
+                <Button type="button" size="sm" variant="outline" onClick={registerTgWebhook} disabled={tgWhRegistering}>
+                  {tgWhRegistering && <LoaderCircle className="animate-spin" />}
+                  {tgWhRegistering ? 'Регистрирую…' : 'Зарегистрировать webhook'}
+                </Button>
+                <Button type="button" size="sm" variant="outline" onClick={checkTgWhStatus}>Статус webhook</Button>
               </div>
-            )}
-            {tgRights && (
-              <div style={{ fontSize: 11.5, lineHeight: 1.7 }}>
-                <div>Бот: @{tgRights.bot || '—'}</div>
-                {tgRights.groups.map((g: { title: string; chat_id?: string; ok: boolean; detail: string; roles?: string[] }) => (
-                  <div key={g.title} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <span>{g.ok ? '✓' : '✗'} {g.title} [{(g.roles && g.roles.length ? g.roles : ['все']).join(',')}] — {g.detail}</span>
-                    {g.chat_id && (
-                      <button
-                        type="button"
-                        className="admin-reject-btn"
-                        onClick={async () => {
-                          try {
-                            const cur = JSON.parse(tgGroupsJson || '[]') as { title: string; chat_id: string; roles?: string[] }[];
-                            const rest = cur.filter((x) => String(x.chat_id) !== String(g.chat_id));
-                            await api.patch('/api/admin/settings', { key: 'telegram.groups_json', value: JSON.stringify(rest), mode: 'replace' });
-                            setMsg(`✓ Группа ${g.title} удалена`);
-                            await loadTgGroups();
-                          } catch (e) {
-                            setMsg(e instanceof Error ? e.message : 'Ошибка удаления');
-                          }
-                        }}
-                      >
-                        Удалить
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-          <div className="admin-card">
-            <div className="admin-card-head"><b>Ссылки внешних систем</b></div>
-            <div className="admin-card-sub">TZ: онбординг даёт ссылки, LDAP — настройки самих систем.</div>
-            {links && (
-              <div style={{ fontSize: 12, lineHeight: 1.8 }}>
-                <div>Telegram: {links.telegram_invite_link || '— (TELEGRAM_INVITE_LINK)'}</div>
-                <div>Figma: {links.figma_team_url || '— (FIGMA_TEAM_URL)'}</div>
-                <div>Confluence: {links.confluence_url}</div>
-                <div>MPulse Android: {links.mpulse_android_url}</div>
-                <div>MPulse iOS: {links.mpulse_ios_url}</div>
-              </div>
-            )}
-          </div>
+              {tgWhStatus && (
+                <div className="text-xs leading-relaxed">
+                  <div>URL: <code className="font-mono">{tgWhStatus.url || '—'}</code></div>
+                  <div>Ожидает апдейтов: <b>{tgWhStatus.pending_update_count ?? 0}</b></div>
+                  {tgWhStatus.last_error_message && <div className="text-destructive">Последняя ошибка: {tgWhStatus.last_error_message}</div>}
+                  {tgWhStatus.has_custom_certificate !== undefined && <div>Свой сертификат: {tgWhStatus.has_custom_certificate ? 'да' : 'нет (OK)'}</div>}
+                </div>
+              )}
+              {tgRights && (
+                <div className="text-xs leading-relaxed">
+                  <div>Бот: @{tgRights.bot || '—'}</div>
+                  {tgRights.groups.map((g: { title: string; chat_id?: string; ok: boolean; detail: string; roles?: string[] }) => (
+                    <div key={g.title} className="flex flex-wrap items-center gap-2">
+                      <span>{g.ok ? <Check className="mr-1 inline h-3 w-3 text-emerald-400" /> : <X className="mr-1 inline h-3 w-3 text-destructive" />}{g.title} [{(g.roles && g.roles.length ? g.roles : ['все']).join(',')}] — {g.detail}</span>
+                      {g.chat_id && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="destructive"
+                          onClick={async () => {
+                            try {
+                              const cur = JSON.parse(tgGroupsJson || '[]') as { title: string; chat_id: string; roles?: string[] }[];
+                              const rest = cur.filter((x) => String(x.chat_id) !== String(g.chat_id));
+                              await api.patch('/api/admin/settings', { key: 'telegram.groups_json', value: JSON.stringify(rest), mode: 'replace' });
+                              setMsg(`✓ Группа ${g.title} удалена`);
+                              await loadTgGroups();
+                            } catch (e) {
+                              setMsg(e instanceof Error ? e.message : 'Ошибка удаления');
+                            }
+                          }}
+                        >
+                          Удалить
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Ссылки внешних систем</CardTitle>
+              <CardDescription>Онбординг даёт ссылки, LDAP — настройки самих систем.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {links && (
+                <div className="text-xs leading-loose">
+                  <div>Telegram: {links.telegram_invite_link || '— (TELEGRAM_INVITE_LINK)'}</div>
+                  <div>Figma: {links.figma_team_url || '— (FIGMA_TEAM_URL)'}</div>
+                  <div>Confluence: {links.confluence_url}</div>
+                  <div>MPulse Android: {links.mpulse_android_url}</div>
+                  <div>MPulse iOS: {links.mpulse_ios_url}</div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
-      )}
+      </TabsContent>
 
-      <style>{`
-        .admin-page{ display:flex; flex-direction:column; gap:14px; padding:16px 14px; max-width:900px; margin:0 auto; padding-bottom:80px }
-        .admin-title{ font-size:17px; font-weight:800; color:var(--text); letter-spacing:-.02em }
-        .admin-tabs{ display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch; padding-bottom:2px; flex-wrap:wrap }
-        .admin-tabs::-webkit-scrollbar{ display:none }
-        .admin-tab{ padding:7px 12px; border-radius:8px; border:1px solid rgba(255,255,255,.1); background:rgba(255,255,255,.03); color:var(--text); font-size:11.5px; cursor:pointer; white-space:nowrap; transition:all .15s }
-        .admin-tab:hover{ border-color:rgba(255,255,255,.2); background:rgba(255,255,255,.06) }
-        .admin-tab.active{ border-color:rgba(59,130,246,.5); background:rgba(59,130,246,.12); color:#93C5FD }
-        .admin-msg{ font-size:12px; padding:8px 12px; border-radius:8px; background:rgba(34,197,94,.1); border:1px solid rgba(34,197,94,.25); color:#86EFAC }
-        .admin-list{ display:flex; flex-direction:column; gap:10px }
-        .admin-card{ padding:12px 14px; border-radius:10px; background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.07); display:flex; flex-direction:column; gap:8px }
-        .admin-card-head{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; font-size:13px }
-        .admin-email{ font-size:11.5px; color:var(--muted) }
-        .admin-staff-badge{ font-size:9px; letter-spacing:.1em; text-transform:uppercase; padding:2px 7px; border-radius:999px; background:rgba(251,191,36,.12); border:1px solid rgba(251,191,36,.3); color:#FBBF24 }
-        .admin-card-sub{ font-size:11.5px; color:var(--muted); line-height:1.5 }
-        .admin-verify-btn{ padding:5px 10px; border-radius:7px; border:1px solid rgba(34,197,94,.35); background:rgba(34,197,94,.08); color:#86EFAC; font-size:11px; cursor:pointer }
-        .admin-verify-btn:hover{ background:rgba(34,197,94,.18) }
-        .admin-reject-btn{ padding:5px 10px; border-radius:7px; border:1px solid rgba(239,68,68,.35); background:rgba(239,68,68,.08); color:#FCA5A5; font-size:11px; cursor:pointer }
-        .admin-reject-btn:hover{ background:rgba(239,68,68,.18) }
-        .admin-live{ font-size:10px; font-weight:400; color:#64748b; }
-        .admin-live.on{ color:#86EFAC; }
-        .admin-detail{ color:var(--muted); font-size:11px; }
-        .admin-search{ display:flex; gap:8px; flex-wrap:wrap }
-        .admin-input{ flex:1; min-width:0; padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,.1); background:rgba(0,0,0,.22); color:var(--text); font-size:12.5px }
-        .admin-btn{ padding:8px 14px; border-radius:8px; border:none; cursor:pointer; font-size:11px; font-weight:800; text-transform:uppercase; background:linear-gradient(90deg,#1E3A8A,#2563EB); color:#fff; white-space:nowrap }
-        .admin-btn.small{ align-self:flex-start; padding:6px 10px; font-size:10px }
-        .admin-card.audit{ font-size:12px }
-        .admin-empty{ font-size:12.5px; color:var(--muted); text-align:center; padding:20px }
-        .admin-once{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:8px 10px; border-radius:8px; background:rgba(251,191,36,.08); border:1px dashed rgba(251,191,36,.4); font-size:11.5px; color:#FDE68A }
-        .admin-once code{ font-family:monospace; font-size:13px; color:#fff; user-select:all }
-        .admin-card.hr-doc{ border-color:rgba(59,130,246,.3); background:rgba(37,99,235,.05); }
-        .admin-avatar{ width:34px; height:34px; border-radius:50%; display:grid; place-items:center; flex-shrink:0; font-weight:800; font-size:14px; color:#fff; background:linear-gradient(135deg,#1E3A8A,#2563EB); }
-        .hr-checklist{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; font-size:12px; }
-        .hr-checklist li{ display:flex; gap:8px; align-items:center; padding:7px 10px; border-radius:8px; background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.06); }
-        .hr-checklist li.sent{ border-color:rgba(34,197,94,.25); }
-        .hr-checklist li.missing{ opacity:.55; }
-        .hr-check{ color:#86EFAC; font-weight:800; }
-        .hr-checklist li.missing .hr-check{ color:#64748b; }
-        .hr-reject{ display:flex; flex-direction:column; gap:8px; }
-        .hr-reject textarea{ min-height:56px; resize:vertical; }
-        .admin-skel{ pointer-events:none; }
-        .skel-line{ height:14px; border-radius:6px; background:linear-gradient(90deg, rgba(255,255,255,.04), rgba(255,255,255,.1), rgba(255,255,255,.04)); background-size:200% 100%; animation:skel 1.2s ease-in-out infinite; }
-        .skel-line.short{ width:55%; }
-        @keyframes skel{ to{ background-position:-200% 0 } }
-        @media (max-width:480px){
-          .admin-page{ padding:12px 10px }
-          .admin-tab{ padding:6px 10px; font-size:10.5px }
-          .admin-card{ padding:10px 12px }
-          .admin-search{ flex-direction:column }
-          .admin-search .admin-btn{ width:100%; text-align:center }
-        }
-      `}</style>
+      </Tabs>
     </div>
   );
 }

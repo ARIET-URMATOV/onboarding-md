@@ -1,11 +1,23 @@
 import { useEffect, useState } from 'react';
-import { Bell, User as UserIcon, Sparkles, BellDot } from 'lucide-react';
+import { Bell, BellDot, LogOut, Sparkles, User as UserIcon } from 'lucide-react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useOnboarding, getProgress } from '../../store/useOnboarding';
 import { api } from '../../api/client';
+import { Button } from '../ui/button';
+import { Badge } from '../ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
+import { Progress } from '../ui/progress';
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from '../ui/dropdown-menu';
+import { ScrollArea } from '../ui/scroll-area';
+import { Separator } from '../ui/separator';
+import { cn } from '../../lib/utils';
 
 export function DefaultAvatar({ size = 18 }: { size?: number }) {
-  return <UserIcon size={size} color="#8FA3B8" />;
+  return <UserIcon size={size} className="text-muted-foreground" />;
 }
 
 export function TopBar() {
@@ -23,10 +35,10 @@ export function TopBar() {
   const unreadCount = useOnboarding((s) => s.unreadCount);
   const fetchNotifications = useOnboarding((s) => s.fetchNotifications);
   const markAllNotificationsRead = useOnboarding((s) => s.markAllNotificationsRead);
-  const [showNotifPanel, setShowNotifPanel] = useState(false);
+  const logout = useOnboarding((s) => s.logout);
+  const [notifOpen, setNotifOpen] = useState(false);
   const notifications = useOnboarding((s) => s.notifications);
 
-  // HR Notification Count Polling (30s)
   useEffect(() => {
     if (!isStaff) {
       setPendingCount(0);
@@ -49,7 +61,6 @@ export function TopBar() {
     };
   }, [isStaff]);
 
-  // Employee notifications: fetch on mount
   useEffect(() => {
     if (!isStaff) {
       fetchNotifications();
@@ -58,520 +69,136 @@ export function TopBar() {
     }
   }, [isStaff, fetchNotifications]);
 
+  const onLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
+
   return (
-    <header className={`topbar-wrapper ${isDashboard ? 'mode-overlay' : 'mode-sticky'}`}>
-      {/* Navigation */}
-      <div className="t-left">
-        <nav className="t-nav">
-          <NavLink to="/dashboard" className={({ isActive }) => `t-link ${isActive ? 'on' : ''}`}>
-            <span>Dashboard</span>
-          </NavLink>
-          <NavLink to="/stages" className={({ isActive }) => `t-link ${isActive ? 'on' : ''}`}>
-            <span>Onboarding</span>
-          </NavLink>
-        </nav>
-      </div>
+    <header className={cn(
+      'left-0 right-0 z-40 flex items-center justify-between px-4 transition-colors sm:px-10',
+      isDashboard ? 'absolute top-0 h-[76px] border-b border-white/5 bg-transparent' : 'sticky top-0 h-[68px] border-b border-border bg-background/80 shadow-lg backdrop-blur-xl',
+    )}>
+      <nav className="flex items-center gap-2">
+        <NavLink
+          to="/dashboard"
+          className={({ isActive }) => cn(
+            'rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:px-4',
+            isActive && 'bg-accent font-semibold text-foreground shadow-inner',
+          )}
+        >
+          Dashboard
+        </NavLink>
+        <NavLink
+          to="/stages"
+          className={({ isActive }) => cn(
+            'rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:px-4',
+            isActive && 'bg-accent font-semibold text-foreground shadow-inner',
+          )}
+        >
+          Onboarding
+        </NavLink>
+      </nav>
 
-      {/* User Actions & Stats */}
-      <div className="t-right">
-        {/* HR Staff Notification Bell */}
+      <div className="flex items-center gap-2 sm:gap-3.5">
         {isStaff && (
-          <button
-            type="button"
-            className="t-icon-btn t-bell"
-            onClick={() => navigate('/admin')}
-            title="HR Panel: Pending Requests"
-            aria-label="Open HR Panel"
-          >
-            <Bell size={18} />
+          <Button variant="outline" size="icon" className="relative" onClick={() => navigate('/admin')} title="HR Panel: Pending Requests" aria-label="Open HR Panel">
+            <Bell />
             {pendingCount > 0 && (
-              <span className="t-bell-badge">
+              <Badge variant="destructive" className="absolute -right-1.5 -top-1.5 h-[18px] min-w-[18px] rounded-full px-1 text-[10px]">
                 {pendingCount > 99 ? '99+' : pendingCount}
-              </span>
+              </Badge>
             )}
-          </button>
+          </Button>
         )}
 
-        {/* Employee Notification Bell */}
         {!isStaff && (
-          <button
-            type="button"
-            className="t-icon-btn t-bell"
-            onClick={() => setShowNotifPanel(!showNotifPanel)}
-            title="Уведомления"
-            aria-label="Уведомления"
-          >
-            {unreadCount > 0 ? <BellDot size={18} className="notif-active" /> : <Bell size={18} />}
-            {unreadCount > 0 && (
-              <span className="t-bell-badge">
-                {unreadCount > 99 ? '99+' : unreadCount}
-              </span>
-            )}
-          </button>
+          <Popover open={notifOpen} onOpenChange={setNotifOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="icon" className="relative" title="Уведомления" aria-label="Уведомления">
+                {unreadCount > 0 ? <BellDot className="text-amber-400" /> : <Bell />}
+                {unreadCount > 0 && (
+                  <Badge variant="destructive" className="absolute -right-1.5 -top-1.5 h-[18px] min-w-[18px] rounded-full px-1 text-[10px]">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </Badge>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[340px] p-0" align="end">
+              <div className="flex items-center justify-between px-4 py-3">
+                <span className="text-sm font-bold">Уведомления</span>
+                {unreadCount > 0 && (
+                  <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => markAllNotificationsRead()}>
+                    Прочитать все
+                  </Button>
+                )}
+              </div>
+              <Separator />
+              <ScrollArea className="max-h-[360px]">
+                {notifications.length === 0 && (
+                  <div className="px-4 py-7 text-center text-xs text-muted-foreground">Нет уведомлений</div>
+                )}
+                {notifications.slice(0, 20).map((n) => (
+                  <div
+                    key={n.id}
+                    className={cn('cursor-pointer border-b border-border/50 px-4 py-2.5 transition-colors last:border-0 hover:bg-accent/50', !n.read && 'border-l-[3px] border-l-primary bg-primary/5')}
+                    onClick={() => { if (!n.read) useOnboarding.getState().markNotificationRead(n.id); }}
+                  >
+                    <div className="mb-0.5 text-xs font-semibold">{n.title}</div>
+                    {n.body && <div className="text-[11px] leading-snug text-muted-foreground">{n.body}</div>}
+                    {n.created_at && <div className="mt-1 text-[10px] tabular-nums text-muted-foreground/70">{new Date(n.created_at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>}
+                  </div>
+                ))}
+              </ScrollArea>
+            </PopoverContent>
+          </Popover>
         )}
 
-        {/* Employee Notification Panel */}
-        {!isStaff && showNotifPanel && (
-          <div className="notif-panel">
-            <div className="notif-panel-head">
-              <span>Уведомления</span>
-              {unreadCount > 0 && (
-                <button type="button" className="notif-mark-all" onClick={() => markAllNotificationsRead()}>
-                  Прочитать все
-                </button>
-              )}
-            </div>
-            <div className="notif-panel-list">
-              {notifications.length === 0 && (
-                <div className="notif-empty">Нет уведомлений</div>
-              )}
-              {notifications.slice(0, 20).map((n) => (
-                <div
-                  key={n.id}
-                  className={`notif-item ${n.read ? '' : 'unread'}`}
-                  onClick={() => { if (!n.read) useOnboarding.getState().markNotificationRead(n.id); }}
-                >
-                  <div className="notif-item-title">{n.title}</div>
-                  {n.body && <div className="notif-item-body">{n.body}</div>}
-                  {n.created_at && <div className="notif-item-time">{new Date(n.created_at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Level & XP Widget */}
-        <div className="t-xp-widget" title={`${xp} XP · ${progress.done}/5 Tasks Completed`}>
-          <div className="t-xp-head">
-            <div className="t-badge">
-              <Sparkles size={11} className="t-badge-icon" />
-              <span>Lv.{lvl}</span>
-            </div>
-            <span className="t-xp-val">
-              {xp >= 1000 ? `${(xp / 1000).toFixed(1)}k` : xp} <small>XP</small>
+        <div className="hidden min-w-[120px] flex-col gap-1.5 rounded-xl border border-border bg-card/60 px-3.5 py-1.5 backdrop-blur md:flex" title={`${xp} XP · ${progress.done}/5 Tasks Completed`}>
+          <div className="flex items-center justify-between gap-3">
+            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-primary">
+              <Sparkles className="h-3 w-3" /> Lv.{lvl}
+            </span>
+            <span className="text-[11px] font-semibold text-muted-foreground">
+              {xp >= 1000 ? `${(xp / 1000).toFixed(1)}k` : xp} <small className="text-[9px] font-bold uppercase">XP</small>
             </span>
           </div>
-          <div className="t-progress-track">
-            <div className="t-progress-fill" style={{ width: `${pct}%` }} />
-          </div>
+          <Progress value={pct} className="h-1" />
         </div>
 
-        {/* User Profile Button */}
-        <button
-          type="button"
-          className="t-user-btn"
-          onClick={() => navigate('/profile')}
-          title="Profile"
-          aria-label="Open Profile"
-        >
-          <div className="t-avatar-ring">
-            {user?.avatar ? (
-              <img src={user.avatar} alt={user.name || 'User Avatar'} className="t-avatar-img" />
-            ) : (
-              <div className="t-avatar-fallback">
-                <DefaultAvatar />
-              </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="gap-2.5 rounded-full py-1 pl-1 pr-3.5" aria-label="Open Profile">
+              <Avatar className="h-8 w-8">
+                {user?.avatar ? <AvatarImage src={user.avatar} alt={user.name || 'User Avatar'} /> : null}
+                <AvatarFallback className="bg-secondary">
+                  <DefaultAvatar />
+                </AvatarFallback>
+              </Avatar>
+              <span className="hidden max-w-[100px] overflow-hidden text-ellipsis whitespace-nowrap text-[13px] font-semibold sm:inline">
+                {user?.name?.split(' ')[0] || 'Guest'}
+              </span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuLabel className="truncate">{user?.email || 'Guest'}</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => navigate('/profile')}>
+              <UserIcon /> Профиль
+            </DropdownMenuItem>
+            {isStaff && (
+              <DropdownMenuItem onClick={() => navigate('/admin')}>
+                <Bell /> HR-панель
+                {pendingCount > 0 && <Badge variant="destructive" className="ml-auto h-5 min-w-5 px-1 text-[10px]">{pendingCount}</Badge>}
+              </DropdownMenuItem>
             )}
-          </div>
-          <span className="t-user-name">{user?.name?.split(' ')[0] || 'Guest'}</span>
-        </button>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={onLogout}>
+              <LogOut /> Выйти
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
-
-      <style>{`
-        .topbar-wrapper {
-          left: 0;
-          right: 0;
-          z-index: 40;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 0 40px;
-          box-sizing: border-box;
-          animation: topbarFade 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-          transition: background 0.3s ease, border-color 0.3s ease, transform 0.25s ease, opacity 0.25s ease;
-        }
-
-        body.modal-open .topbar-wrapper {
-          opacity: 0 !important;
-          pointer-events: none !important;
-          transform: translateY(-100%);
-          visibility: hidden;
-        }
-
-        /* Mode: Transparent Overlay (Dashboard) */
-        .topbar-wrapper.mode-overlay {
-          position: absolute;
-          top: 0;
-          height: 76px;
-          background: transparent;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-        }
-
-        /* Mode: Glassmorphic Sticky (Roadmap & others) */
-        .topbar-wrapper.mode-sticky {
-          position: sticky;
-          top: 0;
-          height: 68px;
-          background: rgba(13, 16, 27, 0.75);
-          backdrop-filter: blur(16px) saturate(180%);
-          -webkit-backdrop-filter: blur(16px) saturate(180%);
-          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.36);
-        }
-
-        /* Left Navigation */
-        .t-left {
-          display: flex;
-          align-items: center;
-          gap: 24px;
-        }
-
-        .t-nav {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-
-        .t-link {
-          position: relative;
-          display: inline-flex;
-          align-items: center;
-          padding: 8px 16px;
-          font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-          font-size: 14px;
-          font-weight: 500;
-          color: rgba(255, 255, 255, 0.55);
-          text-decoration: none;
-          border-radius: 10px;
-          transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-
-        .t-link:hover {
-          color: rgba(255, 255, 255, 0.9);
-          background: rgba(255, 255, 255, 0.04);
-        }
-
-        .t-link.on {
-          color: #ffffff;
-          font-weight: 600;
-          background: rgba(255, 255, 255, 0.07);
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
-        }
-
-        .t-link.on::after {
-          content: '';
-          position: absolute;
-          bottom: 4px;
-          left: 50%;
-          transform: translateX(-50%);
-          width: 16px;
-          height: 2px;
-          background: #3b82f6;
-          border-radius: 4px;
-          box-shadow: 0 0 10px #3b82f6;
-        }
-
-        /* Right Section */
-        .t-right {
-          display: flex;
-          align-items: center;
-          gap: 14px;
-        }
-
-        /* Icon Button / HR Bell */
-        .t-icon-btn {
-          position: relative;
-          width: 40px;
-          height: 40px;
-          border-radius: 12px;
-          display: grid;
-          place-items: center;
-          background: rgba(255, 255, 255, 0.04);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          color: rgba(255, 255, 255, 0.75);
-          cursor: pointer;
-          outline: none;
-          transition: all 0.2s ease;
-        }
-
-        .t-icon-btn:hover {
-          background: rgba(255, 255, 255, 0.08);
-          border-color: rgba(255, 255, 255, 0.15);
-          color: #ffffff;
-          transform: translateY(-1px);
-        }
-
-        .t-bell-badge {
-          position: absolute;
-          top: -3px;
-          right: -3px;
-          min-width: 18px;
-          height: 18px;
-          padding: 0 5px;
-          border-radius: 99px;
-          background: linear-gradient(135deg, #ef4444, #dc2626);
-          color: #ffffff;
-          font-size: 10px;
-          font-weight: 700;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          border: 2px solid #0d101b;
-          box-shadow: 0 0 12px rgba(239, 68, 68, 0.5);
-        }
-
-        /* XP & Level Widget */
-        .t-xp-widget {
-          display: flex;
-          flex-direction: column;
-          gap: 5px;
-          padding: 6px 14px;
-          background: rgba(255, 255, 255, 0.03);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          border-radius: 12px;
-          min-width: 120px;
-          backdrop-filter: blur(8px);
-          transition: all 0.2s ease;
-        }
-
-        .t-xp-widget:hover {
-          background: rgba(255, 255, 255, 0.06);
-          border-color: rgba(255, 255, 255, 0.14);
-        }
-
-        .t-xp-head {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 12px;
-        }
-
-        .t-badge {
-          display: inline-flex;
-          align-items: center;
-          gap: 4px;
-          font-size: 11px;
-          font-weight: 700;
-          color: #60a5fa;
-          letter-spacing: 0.3px;
-        }
-
-        .t-badge-icon {
-          color: #93c5fd;
-        }
-
-        .t-xp-val {
-          font-size: 11px;
-          font-weight: 600;
-          color: rgba(255, 255, 255, 0.5);
-        }
-
-        .t-xp-val small {
-          font-size: 9px;
-          font-weight: 700;
-          color: rgba(255, 255, 255, 0.35);
-          text-transform: uppercase;
-        }
-
-        .t-progress-track {
-          width: 100%;
-          height: 4px;
-          border-radius: 99px;
-          background: rgba(255, 255, 255, 0.08);
-          overflow: hidden;
-        }
-
-        .t-progress-fill {
-          height: 100%;
-          border-radius: 99px;
-          background: linear-gradient(90deg, #2563eb, #60a5fa);
-          box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
-          transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
-        }
-
-        /* Profile Button */
-        .t-user-btn {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          padding: 4px 14px 4px 5px;
-          background: rgba(255, 255, 255, 0.04);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          border-radius: 99px;
-          cursor: pointer;
-          outline: none;
-          transition: all 0.2s ease;
-        }
-
-        .t-user-btn:hover {
-          background: rgba(255, 255, 255, 0.08);
-          border-color: rgba(255, 255, 255, 0.16);
-          transform: translateY(-1px);
-        }
-
-        .t-avatar-ring {
-          width: 32px;
-          height: 32px;
-          border-radius: 50%;
-          background: linear-gradient(135deg, #1e293b, #0f172a);
-          border: 1px solid rgba(255, 255, 255, 0.15);
-          display: grid;
-          place-items: center;
-          overflow: hidden;
-          flex-shrink: 0;
-        }
-
-        .t-avatar-img {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-        }
-
-        .t-avatar-fallback {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .t-user-name {
-          font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-          font-size: 13px;
-          font-weight: 600;
-          color: rgba(255, 255, 255, 0.85);
-          max-width: 100px;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
-
-        /* Responsive Breakpoints */
-        @media (max-width: 768px) {
-          .topbar-wrapper {
-            padding: 0 20px;
-          }
-          .t-xp-widget {
-            display: none;
-          }
-        }
-
-        @media (max-width: 480px) {
-          .topbar-wrapper {
-            padding: 0 14px;
-          }
-          .t-nav {
-            gap: 2px;
-          }
-          .t-link {
-            padding: 6px 10px;
-            font-size: 13px;
-          }
-          .t-user-name {
-            display: none;
-          }
-          .t-user-btn {
-            padding: 4px;
-          }
-        }
-
-        @keyframes topbarFade {
-          from {
-            opacity: 0;
-            transform: translateY(-8px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
-        .notif-active { color: #FBBF24; }
-
-        .notif-panel {
-          position: absolute;
-          top: 100%;
-          right: 16px;
-          width: 340px;
-          max-height: 420px;
-          background: rgba(13, 16, 27, 0.95);
-          backdrop-filter: blur(20px);
-          border: 1px solid rgba(255,255,255,0.1);
-          border-radius: 12px;
-          box-shadow: 0 12px 40px rgba(0,0,0,0.5);
-          z-index: 50;
-          display: flex;
-          flex-direction: column;
-          overflow: hidden;
-          animation: notifIn 0.18s ease;
-        }
-        @keyframes notifIn {
-          from { opacity: 0; transform: translateY(-6px) scale(0.97); }
-          to { opacity: 1; transform: none; }
-        }
-        .notif-panel-head {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 12px 14px;
-          border-bottom: 1px solid rgba(255,255,255,0.07);
-          font-size: 13px;
-          font-weight: 700;
-          color: rgba(255,255,255,0.85);
-        }
-        .notif-mark-all {
-          font-size: 11px;
-          color: #60A5FA;
-          background: none;
-          border: none;
-          cursor: pointer;
-          padding: 2px 6px;
-          border-radius: 6px;
-        }
-        .notif-mark-all:hover { background: rgba(59,130,246,0.12); }
-        .notif-panel-list {
-          overflow-y: auto;
-          flex: 1;
-          max-height: 360px;
-          scrollbar-width: thin;
-        }
-        .notif-empty {
-          padding: 28px 14px;
-          text-align: center;
-          font-size: 12px;
-          color: rgba(255,255,255,0.35);
-        }
-        .notif-item {
-          padding: 10px 14px;
-          border-bottom: 1px solid rgba(255,255,255,0.04);
-          cursor: pointer;
-          transition: background 0.12s;
-        }
-        .notif-item:hover { background: rgba(255,255,255,0.03); }
-        .notif-item.unread {
-          background: rgba(59,130,246,0.04);
-          border-left: 3px solid #3B82F6;
-        }
-        .notif-item-title {
-          font-size: 12.5px;
-          font-weight: 600;
-          color: rgba(255,255,255,0.85);
-          margin-bottom: 2px;
-        }
-        .notif-item-body {
-          font-size: 11.5px;
-          color: rgba(255,255,255,0.5);
-          line-height: 1.45;
-        }
-        .notif-item-time {
-          font-size: 10px;
-          color: rgba(255,255,255,0.25);
-          margin-top: 4px;
-          font-variant-numeric: tabular-nums;
-        }
-
-        @media (max-width: 480px) {
-          .notif-panel { width: calc(100vw - 20px); right: 10px; }
-        }
-      `}</style>
     </header>
   );
 }

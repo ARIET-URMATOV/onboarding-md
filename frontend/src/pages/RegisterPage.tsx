@@ -1,8 +1,15 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { ArrowRight, LoaderCircle } from 'lucide-react';
 import { api, type MeResponse } from '../api/client';
 import { useOnboarding } from '../store/useOnboarding';
 import { usePageMeta } from '../hooks/usePageMeta';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Alert, AlertDescription } from '../components/ui/alert';
+import { FadeContent } from '../components/bits';
 
 export function RegisterPage() {
   usePageMeta("Регистрация — MDIGITAL Онбординг", "Создай аккаунт в портале онбординга MDIGITAL и начни интерактивную адаптацию в команде.");
@@ -32,81 +39,53 @@ export function RegisterPage() {
   };
 
   return (
-    <div className="auth-wrap">
-      <div className="auth-card glass-strong">
-        <div className="auth-head">
-          <div className="logo-mark">
-            <svg viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 2l3 4-3 4-3-4 3-4z" />
-              <path d="M4 7l4 3v7l-4-3V7z" />
-              <path d="M20 7l-4 3v7l4-3V7z" />
-              <path d="M8 17l4 3 4-3" />
-            </svg>
-          </div>
-          <h1 className="font-orbitron">СОЗДАТЬ АККАУНТ</h1>
-          <p>Начни свой путь в команде MDIGITAL</p>
-        </div>
-
-        <form onSubmit={onSubmit}>
-          <label className="field">
-            <span>Имя</span>
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Алексей Иванов" required />
-          </label>
-          <label className="field">
-            <span>Email</span>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@mdigital.io" required />
-          </label>
-          <label className="field">
-            <span>Пароль</span>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Минимум 8 символов" required />
-          </label>
-          {error && <div className="error">{error}</div>}
-          <button type="submit" className="btn-primary" disabled={loading}>
-            {loading ? 'Создаём…' : 'СОЗДАТЬ АККАУНТ →'}
-          </button>
-        </form>
-
-        <div className="auth-foot">
-          Уже есть аккаунт? <Link to="/login">Войти</Link>
-        </div>
-      </div>
-
-      <style>{`
-        .auth-wrap{ min-height:100vh; display:grid; place-items:center; padding:24px }
-        .auth-card{ width:100%; max-width:420px; padding:38px 32px; border-radius:18px }
-        .auth-head{ text-align:center; margin-bottom:28px }
-        .logo-mark{
-          width:54px; height:54px; border-radius:14px;
-          background:linear-gradient(135deg,#3B82F6,#2563EB);
-          display:grid; place-items:center;
-          margin:0 auto 16px; box-shadow:0 0 32px rgba(59,130,246,.55);
-        }
-        .logo-mark svg{width:26px; height:26px; stroke:#02060d}
-        .auth-head h1{ font-size:14px; letter-spacing:.18em; color:#fff; margin-bottom:8px }
-        .auth-head p{ font-size:13px; color:var(--muted) }
-
-        .field{ display:block; margin-bottom:16px }
-        .field span{ display:block; font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:var(--muted); margin-bottom:8px }
-        .field input{
-          width:100%; padding:13px 16px;
-          background:rgba(255,255,255,.04);
-          border:1px solid var(--border);
-          border-radius:10px; color:var(--text); font-size:14px;
-          outline:none; transition:border-color .15s ease, box-shadow .15s ease;
-        }
-        .field input:focus{ border-color:var(--cyan-l); box-shadow:0 0 0 3px rgba(59,130,246,.15) }
-
-        .error{
-          margin:8px 0 14px; padding:10px 14px;
-          border:1px solid rgba(248,113,113,.4);
-          background:rgba(248,113,113,.08);
-          color:#FCA5A5; font-size:12.5px; border-radius:10px;
-        }
-        .btn-primary{ width:100%; margin-top:8px }
-        .auth-foot{ text-align:center; margin-top:22px; font-size:12.5px; color:var(--muted) }
-        .auth-foot a{ color:var(--cyan-l); font-weight:600 }
-        .auth-foot a:hover{ text-decoration:underline }
-      `}</style>
+    <div className="grid min-h-screen place-items-center p-6">
+      <FadeContent className="w-full max-w-md">
+        <Card>
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-lg bg-primary text-primary-foreground shadow">
+              <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2l3 4-3 4-3-4 3-4z" />
+                <path d="M4 7l4 3v7l-4-3V7z" />
+                <path d="M20 7l-4 3v7l4-3V7z" />
+                <path d="M8 17l4 3 4-3" />
+              </svg>
+            </div>
+            <CardTitle className="font-mono text-base tracking-widest">Создать аккаунт</CardTitle>
+            <CardDescription>Начни свой путь в команде MDIGITAL</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={onSubmit} className="space-y-5">
+              <div className="space-y-2">
+                <Label htmlFor="reg-name">Имя</Label>
+                <Input id="reg-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Алексей Иванов" required />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="reg-email">Email</Label>
+                <Input id="reg-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@mdigital.io" required />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="reg-password">Пароль</Label>
+                <Input id="reg-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Минимум 8 символов" required />
+              </div>
+              {error && (
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading && <LoaderCircle className="animate-spin" />}
+                {loading ? 'Создаём…' : 'Создать аккаунт'}
+                {!loading && <ArrowRight />}
+              </Button>
+            </form>
+            <p className="mt-5 text-center text-xs text-muted-foreground">
+              Уже есть аккаунт?{' '}
+              <Link to="/login" className="font-semibold text-primary hover:underline">Войти</Link>
+            </p>
+          </CardContent>
+        </Card>
+      </FadeContent>
     </div>
   );
 }
