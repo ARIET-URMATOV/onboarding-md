@@ -116,12 +116,54 @@ async def _create_notification(db, user_id: int, kind: str, title: str, body: st
     return True
 
 
+async def applications_cleanup_once(db) -> None:
+    """NFR-03: Очистка черновиков и обезличивание ПД отклонённых заявок V2."""
+    from sqlalchemy import select
+    from app.models import CandidateApplication
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime.now(timezone.utc)
+    
+    # 1. Удаление неподтверждённых черновиков старше 24 часов
+    drafts_stmt = select(CandidateApplication).where(
+        CandidateApplication.status == 'new',
+        CandidateApplication.email_verified_at.is_(None)
+    )
+    drafts = (await db.execute(drafts_stmt)).scalars().all()
+    for draft in drafts:
+        created = draft.created_at
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=timezone.utc)
+        if (now - created).total_seconds() > 24 * 3600:
+            await db.delete(draft)
+            
+    # 2. Обезличивание отклонённых заявок старше 90 дней
+    rejected_stmt = select(CandidateApplication).where(
+        CandidateApplication.status == 'rejected',
+        CandidateApplication.name != '***'
+    )
+    rejected = (await db.execute(rejected_stmt)).scalars().all()
+    for app in rejected:
+        updated = app.updated_at
+        if updated.tzinfo is None:
+            updated = updated.replace(tzinfo=timezone.utc)
+        if (now - updated).days > 90:
+            app.name = '***'
+            app.email = '***@***.***'
+            app.phone = '***'
+            # Also clean ad_login if any
+            if app.ad_login:
+                app.ad_login = '***'
+
+    await db.commit()
+
 async def sla_check_once() -> list[dict]:
     from app.database import SessionLocal
 
     try:
         async with SessionLocal() as db:
             rows = await _find_overdue(db)
+            await applications_cleanup_once(db)
     except Exception as e:
         print(f"sla: check failed: {e}")
         return []

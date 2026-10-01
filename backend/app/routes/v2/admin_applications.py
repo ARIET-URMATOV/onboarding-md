@@ -34,6 +34,53 @@ class AccountIn(BaseModel):
 
 # --- Endpoints ---
 
+class MetricsOut(BaseModel):
+    total_applications: int
+    conversion_rate: float
+    avg_hr_hours: float
+    avg_sysadmin_hours: float
+
+@router.get("/metrics", response_model=MetricsOut)
+async def get_metrics(
+    db: AsyncSession = Depends(get_db),
+    admin_user: User = Depends(require_staff)
+):
+    """Метрики по воронке онбординга."""
+    apps = (await db.execute(select(CandidateApplication))).scalars().all()
+    evts = (await db.execute(select(ApplicationEvent))).scalars().all()
+
+    total = len(apps)
+    activated = sum(1 for a in apps if a.status == 'activated')
+    conversion_rate = (activated / total * 100) if total > 0 else 0.0
+
+    hr_times = []
+    sys_times = []
+
+    for app in apps:
+        app_evts = sorted([e for e in evts if e.application_id == app.id], key=lambda x: x.created_at)
+        
+        # Time from 'new' to 'approved'/'rejected'
+        t_new = next((e.created_at for e in app_evts if e.to_status == 'new'), app.created_at)
+        t_hr_decision = next((e.created_at for e in app_evts if e.to_status in ['approved', 'rejected']), None)
+        
+        if t_new and t_hr_decision:
+            hr_times.append((t_hr_decision - t_new).total_seconds() / 3600)
+
+        # Time from 'approved' to 'account_created'
+        t_sys_decision = next((e.created_at for e in app_evts if e.to_status == 'account_created'), None)
+        if t_hr_decision and t_sys_decision:
+            sys_times.append((t_sys_decision - t_hr_decision).total_seconds() / 3600)
+
+    avg_hr = sum(hr_times) / len(hr_times) if hr_times else 0.0
+    avg_sys = sum(sys_times) / len(sys_times) if sys_times else 0.0
+
+    return MetricsOut(
+        total_applications=total,
+        conversion_rate=round(conversion_rate, 1),
+        avg_hr_hours=round(avg_hr, 1),
+        avg_sysadmin_hours=round(avg_sys, 1)
+    )
+
 @router.get("", response_model=List[ApplicationOut])
 async def get_applications(
     status: str | None = None,

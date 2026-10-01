@@ -547,6 +547,51 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
     return JSONResponse({"ok": True})
 
 
+@router.post("/integrations/servicedesk-webhook")
+@limiter.limit("60/minute")
+async def servicedesk_webhook(request: Request, db: AsyncSession = Depends(get_db)):
+    """FR-209: Синхронизация статуса из Service Desk.
+    Ожидает payload: {"ticket_number": "ONB-...", "status": "account_created", "comment": "..."}
+    """
+    import json
+    from app.models import CandidateApplication, ApplicationEvent
+    from sqlalchemy import select as _select
+
+    # simple token auth (could be from app_settings or env)
+    secret = (request.headers.get("Authorization") or "").replace("Bearer ", "").strip()
+    if secret != "SD-MOCK-SECRET":
+        raise HTTPException(status_code=403, detail="Bad webhook secret.")
+    
+    try:
+        payload = json.loads((await request.body()).decode() or "{}")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    ticket_number = payload.get("ticket_number")
+    new_status = payload.get("status")
+    comment = payload.get("comment", "Status updated by Service Desk")
+
+    if not ticket_number or not new_status:
+        raise HTTPException(status_code=400, detail="Missing ticket_number or status")
+
+    app = (await db.execute(_select(CandidateApplication).where(CandidateApplication.number == ticket_number))).scalars().first()
+    if not app:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+
+    old_status = app.status
+    app.status = new_status
+
+    evt = ApplicationEvent(
+        application_id=app.id,
+        from_status=old_status,
+        to_status=new_status,
+        comment=comment
+    )
+    db.add(evt)
+    await db.commit()
+
+    return {"ok": True}
+
 @router.get("/integrations/telegram-check-rights")
 @limiter.limit("10/minute")
 async def telegram_check_rights(

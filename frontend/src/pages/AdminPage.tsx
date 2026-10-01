@@ -4,6 +4,7 @@ import { api } from '../api/client';
 import { useToast } from '../components/ui/ToastProvider';
 import { useOnboarding } from '../store/useOnboarding';
 import { AdminApplications } from '../components/admin/AdminApplications';
+import { AdminAnalytics } from '../components/admin/AdminAnalytics';
 
 interface AdminUser {
   id: number;
@@ -98,7 +99,7 @@ export function AdminPage() {
   const [audit, setAudit] = useState<AuditRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [tab, setTab] = useState<'applications' | 'pending' | 'users' | 'audit' | 'codes' | 'wifi' | 'settings' | 'services'>('applications');
+  const [tab, setTab] = useState<'applications' | 'analytics' | 'pending' | 'users' | 'audit' | 'codes' | 'wifi' | 'settings' | 'services'>('applications');
   const [taskFilter, setTaskFilter] = useState<string>('all');
   const [contacts, setContacts] = useState<Record<string, string>>({});
   const [wifiReqs, setWifiReqs] = useState<{ user_id: number; email: string; name: string; mac: string; sent_at: string | null; has_password: boolean; verified: boolean }[]>([]);
@@ -434,9 +435,9 @@ export function AdminPage() {
         </span>
       </h1>
       <div className="admin-tabs">
-        {(['applications', 'pending', 'users', 'audit', 'codes', 'wifi', 'settings', 'services'] as const).map((t) => (
+        {(['applications', 'analytics', 'pending', 'users', 'audit', 'codes', 'wifi', 'settings', 'services'] as const).map((t) => (
           <button key={t} type="button" onClick={() => setTab(t)} className={`admin-tab ${tab === t ? 'active' : ''}`}>
-            {t === 'applications' ? `Заявки V2 ${v2Pending > 0 ? `(${v2Pending}🔴)` : ''}` : t === 'pending' ? `Ожидают (${pending.length})` : t === 'users' ? 'Сотрудники' : t === 'audit' ? `Журнал (${audit.length})` : t === 'codes' ? 'Коды и ссылки' : t === 'wifi' ? 'Wi-Fi запросы' : t === 'services' ? `Сервисы (${svcList.length})` : 'Настройки'}
+            {t === 'applications' ? `Заявки V2 ${v2Pending > 0 ? `(${v2Pending}🔴)` : ''}` : t === 'analytics' ? 'Аналитика' : t === 'pending' ? `Ожидают (${pending.length})` : t === 'users' ? 'Сотрудники' : t === 'audit' ? `Журнал (${audit.length})` : t === 'codes' ? 'Коды и ссылки' : t === 'wifi' ? 'Wi-Fi запросы' : t === 'services' ? `Сервисы (${svcList.length})` : 'Настройки'}
           </button>
         ))}
         <button type="button" onClick={() => { load(); loadExtras(); }} className="admin-tab" disabled={loading}>↻</button>
@@ -444,6 +445,7 @@ export function AdminPage() {
       {msg && <div className="admin-msg">{msg}</div>}
 
       {tab === 'applications' && <AdminApplications />}
+      {tab === 'analytics' && <AdminAnalytics />}
 
       {tab === 'pending' && (
         <div className="admin-list">
