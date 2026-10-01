@@ -12,7 +12,6 @@ import { AuthCallbackPage } from './pages/AuthCallbackPage';
 
 // Eager: public v2 pages
 import { PublicIntroPage } from './pages/PublicIntroPage';
-import { ApplyPage } from './pages/ApplyPage';
 import { StatusPage } from './pages/StatusPage';
 
 // Lazy: heavy / authenticated pages — code-split per route
@@ -37,7 +36,6 @@ export default function App() {
             <Routes>
               <Route path="/" element={<Navigate to="/intro" replace />} />
               <Route path="/intro" element={<GuestOnly><PublicIntroPage /></GuestOnly>} />
-              <Route path="/apply" element={<GuestOnly><ApplyPage /></GuestOnly>} />
               <Route path="/status" element={<GuestOnly><StatusPage /></GuestOnly>} />
               
               <Route path="/login" element={<GuestOnly><LoginPage /></GuestOnly>} />

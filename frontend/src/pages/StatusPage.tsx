@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, type FormEvent } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { usePageMeta } from '../hooks/usePageMeta';
 
@@ -9,32 +9,54 @@ interface ApplicationStatus {
   comment?: string;
 }
 
+const STEPS = [
+  { id: 'new', label: 'Заявка принята' },
+  { id: 'in_review', label: 'На рассмотрении HR' },
+  { id: 'approved', label: 'Одобрено' },
+  { id: 'account_created', label: 'Доступы готовы' },
+];
+
 export function StatusPage() {
   usePageMeta('Статус заявки — MDIGITAL', 'Проверь статус своей заявки на онбординг.');
   const nav = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [number, setNumber] = useState('');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(searchParams.get('email') || '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
   const [statusData, setStatusData] = useState<ApplicationStatus | null>(null);
   const [replyText, setReplyText] = useState('');
 
-  const onCheckStatus = async (e: FormEvent) => {
-    e.preventDefault();
+  // Optional: Auto-fetch if both params provided in URL for quick links
+  useEffect(() => {
+    const qEmail = searchParams.get('email');
+    const qNum = searchParams.get('number');
+    if (qEmail && qNum) {
+      setEmail(qEmail);
+      setNumber(qNum);
+      fetchStatus(qNum, qEmail);
+    }
+  }, [searchParams]);
+
+  const fetchStatus = async (ticket: string, mail: string) => {
     setError(null);
     setLoading(true);
     setStatusData(null);
     try {
-      // Endpoint expects POST to not leak email in URL parameters
-      const data = await api.post<ApplicationStatus>('/api/applications/status', { number, email });
+      const data = await api.post<ApplicationStatus>('/api/applications/status', { number: ticket, email: mail });
       setStatusData(data);
     } catch (err: any) {
       setError(err.message || 'Заявка не найдена');
     } finally {
       setLoading(false);
     }
+  }
+
+  const onCheckStatus = async (e: FormEvent) => {
+    e.preventDefault();
+    await fetchStatus(number, email);
   };
 
   const onReply = async () => {
@@ -43,9 +65,7 @@ export function StatusPage() {
     try {
       await api.post(`/api/applications/${number}/reply`, { reply: replyText, email });
       setReplyText('');
-      // refresh status
-      const data = await api.post<ApplicationStatus>('/api/applications/status', { number, email });
-      setStatusData(data);
+      await fetchStatus(number, email);
     } catch (err: any) {
       setError(err.message || 'Ошибка отправки');
     } finally {
@@ -53,31 +73,33 @@ export function StatusPage() {
     }
   };
 
-  const getStatusDisplay = (status: string) => {
-    switch(status) {
-      case 'new': return { label: 'Новая заявка', color: '#60A5FA' };
-      case 'in_review': return { label: 'На рассмотрении HR', color: '#FBBF24' };
-      case 'needs_info': return { label: 'Требуется уточнение', color: '#F87171' };
-      case 'approved': return { label: 'Одобрено. Ожидание учётки', color: '#34D399' };
-      case 'account_created': return { label: 'Доступы готовы', color: '#10B981' };
-      case 'activated': return { label: 'Активирована', color: '#059669' };
-      case 'rejected': return { label: 'Отклонена', color: '#9CA3AF' };
-      default: return { label: status, color: '#fff' };
-    }
+  const currentStepIndex = () => {
+    if (!statusData) return 0;
+    const s = statusData.status;
+    if (s === 'activated') return 4;
+    if (s === 'account_created') return 3;
+    if (s === 'approved') return 2;
+    if (s === 'in_review' || s === 'needs_info') return 1;
+    return 0; // new
   };
 
   return (
-    <div className="auth-wrap">
-      <div className="auth-card glass-strong" style={{ maxWidth: 460 }}>
+    <div className="landing-wrap centered" style={{ padding: '24px' }}>
+      <div className="auth-card glass-strong" style={{ maxWidth: 500, width: '100%' }}>
         <div className="auth-head">
-          <h1 className="font-orbitron">СТАТУС ЗАЯВКИ</h1>
-          <p>Введи данные для проверки</p>
+          <div className="logo-mark sm" style={{ margin: '0 auto 24px' }}>
+            <svg viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" />
+            </svg>
+          </div>
+          <h1>Статус заявки</h1>
+          <p>Введи данные для отслеживания процесса</p>
         </div>
 
-        {error && <div className="error" style={{ marginBottom: 16 }}>{error}</div>}
+        {error && <div className="error animate-in">{error}</div>}
 
         {!statusData ? (
-          <form onSubmit={onCheckStatus}>
+          <form onSubmit={onCheckStatus} className="animate-in">
             <label className="field">
               <span>Номер заявки (Тикет)</span>
               <input type="text" value={number} onChange={(e) => setNumber(e.target.value.trim())} placeholder="ONB-2026-0001" required />
@@ -86,29 +108,42 @@ export function StatusPage() {
               <span>Личная почта</span>
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value.trim())} placeholder="you@mdigital.kg" required />
             </label>
-            <button type="submit" className="btn-primary" disabled={loading} style={{ marginTop: 12, width: '100%' }}>
-              {loading ? 'ИЩЕМ...' : 'ПРОВЕРИТЬ →'}
+            <button type="submit" className="btn-primary w-full" disabled={loading} style={{ marginTop: '8px' }}>
+              {loading ? 'Ищем...' : 'Проверить статус →'}
             </button>
-            <button type="button" className="btn-link" onClick={() => nav('/intro')} style={{ width: '100%', marginTop: 16 }}>
-              НАЗАД
+            <button type="button" className="btn-ghost w-full" onClick={() => nav('/intro')} style={{ marginTop: '12px' }}>
+              Назад
             </button>
           </form>
         ) : (
-          <div className="status-view">
-            <div className="status-header">
-              <span className="ticket-badge">{number}</span>
-            </div>
+          <div className="status-view animate-in">
+            <div className="ticket-badge">{number}</div>
             
-            <div className="status-indicator">
-              <div className="status-dot" style={{ background: getStatusDisplay(statusData.status).color, boxShadow: `0 0 12px ${getStatusDisplay(statusData.status).color}` }} />
-              <div className="status-text" style={{ color: getStatusDisplay(statusData.status).color }}>
-                {getStatusDisplay(statusData.status).label}
+            {statusData.status === 'rejected' ? (
+              <div className="rejected-state">
+                <div className="icon">✗</div>
+                <h3>Заявка отклонена</h3>
+                {statusData.comment && <p>{statusData.comment}</p>}
               </div>
-            </div>
+            ) : (
+              <div className="stepper">
+                {STEPS.map((step, idx) => {
+                  const active = currentStepIndex() === idx;
+                  const done = currentStepIndex() > idx;
+                  return (
+                    <div key={step.id} className={`step-item ${active ? 'active' : ''} ${done ? 'done' : ''}`}>
+                      <div className="step-circle">{done ? '✓' : (idx + 1)}</div>
+                      <div className="step-label">{step.label}</div>
+                      {idx < STEPS.length - 1 && <div className="step-line" />}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
-            {statusData.comment && (
+            {statusData.comment && statusData.status !== 'rejected' && (
               <div className="status-comment">
-                <div className="comment-label">Комментарий HR:</div>
+                <div className="comment-label">Сообщение от HR:</div>
                 <div className="comment-body">{statusData.comment}</div>
               </div>
             )}
@@ -116,66 +151,74 @@ export function StatusPage() {
             {statusData.status === 'needs_info' && (
               <div className="reply-section">
                 <textarea 
-                  className="reply-box" 
-                  placeholder="Твой ответ..." 
+                  className="field" 
+                  placeholder="Напиши свой ответ здесь..." 
                   value={replyText} 
                   onChange={(e) => setReplyText(e.target.value)}
+                  style={{ minHeight: '80px', marginBottom: '12px' }}
                 />
-                <button className="btn-primary" onClick={onReply} disabled={loading || !replyText.trim()}>
-                  ОТВЕТИТЬ
+                <button className="btn-primary w-full" onClick={onReply} disabled={loading || !replyText.trim()}>
+                  Ответить
                 </button>
               </div>
             )}
 
-            <div style={{ marginTop: 32, textAlign: 'center' }}>
-               <button className="btn-link" onClick={() => setStatusData(null)}>← ПРОВЕРИТЬ ДРУГУЮ</button>
-            </div>
+            <button className="btn-ghost w-full" onClick={() => setStatusData(null)} style={{ marginTop: '32px' }}>
+              Проверить другую заявку
+            </button>
           </div>
         )}
       </div>
 
       <style>{`
-        .auth-wrap { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
-        .auth-card { width: 100%; padding: 38px 32px; border-radius: 18px; }
-        .auth-head { text-align: center; margin-bottom: 24px; }
-        .auth-head h1 { font-size: 16px; letter-spacing: .15em; color: #fff; margin-bottom: 8px; }
-        .auth-head p { font-size: 13px; color: var(--muted); }
-
-        .field { display: block; margin-bottom: 16px; }
-        .field span { display: block; font-size: 10px; letter-spacing: .2em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
-        .field input {
-          width: 100%; padding: 13px 16px;
-          background: rgba(255,255,255,.04); border: 1px solid var(--border);
-          border-radius: 10px; color: var(--text); font-size: 14px;
-          outline: none; transition: border-color .15s ease, box-shadow .15s ease;
-        }
-        .field input:focus { border-color: var(--cyan-l); box-shadow: 0 0 0 3px rgba(59,130,246,.15); }
-
-        .error { padding: 10px 14px; border: 1px solid rgba(248,113,113,.4); background: rgba(248,113,113,.08); color: #FCA5A5; font-size: 12.5px; border-radius: 10px; text-align: center; }
+        .w-full { width: 100%; padding: 12px; }
         
-        .btn-primary { width: 100%; padding: 14px; font-weight: 600; cursor: pointer; }
-        .btn-link { background: none; border: none; color: var(--muted); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; cursor: pointer; transition: color 0.2s; }
-        .btn-link:hover { color: #fff; }
-
-        /* Status View Styles */
-        .status-header { text-align: center; margin-bottom: 20px; }
-        .ticket-badge { background: rgba(255,255,255,0.05); padding: 6px 12px; border-radius: 6px; font-family: 'Orbitron', monospace; letter-spacing: 1px; font-size: 14px; color: #9CA3AF; }
+        /* Stepper */
+        .stepper { display: flex; flex-direction: column; gap: 0; margin: 32px 0; }
+        .step-item { display: flex; gap: 16px; position: relative; padding-bottom: 32px; }
+        .step-item:last-child { padding-bottom: 0; }
         
-        .status-indicator { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 24px; padding: 20px; background: rgba(0,0,0,0.2); border-radius: 12px; }
-        .status-dot { width: 12px; height: 12px; border-radius: 50%; }
-        .status-text { font-size: 15px; font-weight: bold; letter-spacing: 0.05em; text-transform: uppercase; }
-
-        .status-comment { background: rgba(248, 113, 113, 0.05); border-left: 3px solid #F87171; padding: 12px 16px; border-radius: 4px; margin-bottom: 20px; }
-        .comment-label { font-size: 11px; color: #F87171; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 6px; }
-        .comment-body { font-size: 13.5px; color: #E5E7EB; line-height: 1.5; }
-
-        .reply-section { display: flex; flex-direction: column; gap: 12px; }
-        .reply-box {
-          width: 100%; height: 100px; padding: 12px; background: rgba(255,255,255,0.02);
-          border: 1px solid var(--border); border-radius: 8px; color: #fff; font-family: inherit;
-          resize: none; outline: none;
+        .step-circle {
+          width: 28px; height: 28px; border-radius: 50%;
+          background: var(--background); border: 2px solid var(--border);
+          display: grid; place-items: center; font-size: 12px; font-weight: bold;
+          color: var(--muted-foreground); z-index: 2;
+          transition: all 0.3s;
         }
-        .reply-box:focus { border-color: #3B82F6; }
+        .step-line {
+          position: absolute; top: 28px; left: 13px; width: 2px; height: calc(100% - 28px);
+          background: var(--border); z-index: 1; transition: background 0.3s;
+        }
+        .step-label {
+          padding-top: 4px; font-size: 15px; font-weight: 500;
+          color: var(--muted-foreground); transition: color 0.3s;
+        }
+
+        .step-item.active .step-circle { border-color: var(--primary); color: var(--primary); box-shadow: 0 0 0 4px rgba(37,99,235,0.1); }
+        .step-item.active .step-label { color: var(--foreground); font-weight: 600; }
+        
+        .step-item.done .step-circle { background: var(--primary); border-color: var(--primary); color: var(--primary-foreground); }
+        .step-item.done .step-line { background: var(--primary); }
+        .step-item.done .step-label { color: var(--foreground); }
+
+        .ticket-badge {
+          display: inline-block; padding: 6px 12px; border-radius: 6px;
+          background: var(--accent); color: var(--primary);
+          font-family: ui-monospace, monospace; font-size: 14px; font-weight: bold;
+          margin-bottom: 24px; letter-spacing: 1px;
+        }
+
+        .status-comment {
+          background: rgba(37,99,235,0.05); border-left: 3px solid var(--primary);
+          padding: 16px; border-radius: 4px; margin-bottom: 24px;
+        }
+        .comment-label { font-size: 11px; color: var(--primary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; font-weight: bold; }
+        .comment-body { font-size: 14px; color: var(--foreground); line-height: 1.5; }
+
+        .rejected-state { text-align: center; padding: 24px 0; }
+        .rejected-state .icon { width: 48px; height: 48px; border-radius: 50%; background: rgba(239,68,68,0.1); color: #ef4444; display: grid; place-items: center; font-size: 24px; margin: 0 auto 16px; }
+        .rejected-state h3 { color: var(--foreground); margin-bottom: 8px; font-size: 18px; }
+        .rejected-state p { color: var(--muted-foreground); font-size: 14px; }
       `}</style>
     </div>
   );
