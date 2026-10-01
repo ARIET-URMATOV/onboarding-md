@@ -24,6 +24,21 @@ export function AdminApplications() {
   
   const [replyReason, setReplyReason] = useState<Record<number, string>>({});
   const [adLogin, setAdLogin] = useState<Record<number, string>>({});
+  const [expandedEvents, setExpandedEvents] = useState<Record<number, any[]>>({});
+
+  const loadEvents = async (id: number) => {
+    if (expandedEvents[id]) {
+      // Toggle off
+      const next = {...expandedEvents};
+      delete next[id];
+      setExpandedEvents(next);
+      return;
+    }
+    try {
+      const data = await api.get<any[]>(`/api/admin/applications/${id}/events`);
+      setExpandedEvents(prev => ({...prev, [id]: data}));
+    } catch { /* ignore */ }
+  };
 
   const loadApps = async () => {
     setLoading(true);
@@ -115,7 +130,34 @@ export function AdminApplications() {
             <div><b>Руководитель:</b> {app.lead_name || '—'}</div>
             <div><b>Дата выхода:</b> {app.planned_date ? new Date(app.planned_date).toLocaleDateString() : '—'}</div>
             <div style={{ gridColumn: '1 / -1' }}><b>Тикет:</b> <code style={{fontFamily: 'monospace'}}>{app.number}</code></div>
+            <div style={{ gridColumn: '1 / -1', marginTop: 4 }}>
+              <button className="btn-ghost sm" onClick={() => loadEvents(app.id)}>
+                {expandedEvents[app.id] ? 'Скрыть историю' : 'Показать историю'}
+              </button>
+            </div>
           </div>
+
+          {expandedEvents[app.id] && (
+            <div style={{ background: 'var(--background)', border: '1px solid var(--border)', borderRadius: 8, padding: 12, marginTop: 8 }}>
+              <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>История (Timeline)</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {expandedEvents[app.id].map((evt: any) => (
+                  <div key={evt.id} style={{ display: 'flex', gap: 12, fontSize: 12 }}>
+                    <div style={{ color: 'var(--primary)', flexShrink: 0, fontFamily: 'monospace' }}>
+                      {new Date(evt.created_at).toLocaleTimeString('ru-RU', {hour: '2-digit', minute:'2-digit'})}
+                    </div>
+                    <div>
+                      <div style={{ color: 'var(--foreground)' }}>
+                        <b>{evt.from_status || 'start'}</b> → <b>{evt.to_status}</b>
+                      </div>
+                      <div style={{ color: 'var(--muted-foreground)', marginTop: 2 }}>{evt.comment}</div>
+                    </div>
+                  </div>
+                ))}
+                {expandedEvents[app.id].length === 0 && <div style={{ color: 'var(--muted-foreground)', fontSize: 12 }}>Нет событий</div>}
+              </div>
+            </div>
+          )}
 
           {(app.status === 'new' || app.status === 'in_review' || app.status === 'needs_info') && (
             <div style={{ background: 'rgba(0,0,0,0.1)', padding: 12, borderRadius: 8, marginTop: 8 }}>

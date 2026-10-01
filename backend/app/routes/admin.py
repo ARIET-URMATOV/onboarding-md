@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.limiter import limiter
-from app.models import AppSetting, MpulseCode, Progress, User, VerificationLog
+from app.models import AppSetting, MpulseCode, Progress, User, VerificationLog, OutboxEvent
 from app.routes.auth import require_staff
 from app.schemas import (
     CONTACT_KEYS,
@@ -349,6 +349,37 @@ async def set_lead(
 
 @router.get("/admin/mpulse-code", response_model=list[MpulseCodeOut])
 @limiter.limit("30/minute")
+async def get_outbox(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    staff: User = Depends(require_staff),
+):
+    rows = (await db.execute(select(OutboxEvent).order_by(OutboxEvent.created_at.desc()).limit(100))).scalars().all()
+    return [{
+        "id": r.id,
+        "kind": r.kind,
+        "payload": r.payload,
+        "status": r.status,
+        "error_msg": r.error_msg,
+        "retries": r.retries,
+        "created_at": r.created_at.isoformat() if r.created_at else ""
+    } for r in rows]
+
+@router.post("/admin/outbox/{event_id}/retry")
+async def retry_outbox(
+    event_id: int,
+    db: AsyncSession = Depends(get_db),
+    staff: User = Depends(require_staff),
+):
+    evt = await db.get(OutboxEvent, event_id)
+    if not evt:
+        raise HTTPException(status_code=404, detail="Событие не найдено")
+    evt.status = "pending"
+    evt.retries += 1
+    evt.error_msg = ""
+    await db.commit()
+    return {"ok": True}
+@limiter.limit("30/minute")
 async def mpulse_codes(
     request: Request,
     db: AsyncSession = Depends(get_db),
@@ -420,12 +451,18 @@ async def get_settings(
     """Настройки из app_settings (контакты ответственных, группы TG, инструкции)."""
     from app.config import settings as _s
 
+    from app.schemas import CONTACT_KEYS, INSTRUCTION_KEYS, INTRO_KEYS, STAGE5_KEYS
+
     rows = (await db.execute(select(AppSetting))).scalars().all()
     stored = {r.key: r.value for r in rows}
     contacts = {k: stored.get(k, "") for k in CONTACT_KEYS}
     instructions = {k: stored.get(k, "") for k in INSTRUCTION_KEYS}
+    intro = {k: stored.get(k, "") for k in INTRO_KEYS}
+    stage5 = {k: stored.get(k, "") for k in STAGE5_KEYS}
     return SettingsOut(
         contacts=contacts,
+        intro=intro,
+        stage5=stage5,
         links={
             "telegram_invite_link": _s.telegram_invite_link,
             "figma_team_url": _s.figma_team_url,
@@ -573,3 +610,38 @@ async def webhook_status(
 ):
     """Текущий статус webhook (getWebhookInfo)."""
     return await _tg_api("getWebhookInfo", {})
+
+@router.get("/admin/outbox")
+@limiter.limit("30/minute")
+async def get_outbox(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    staff: User = Depends(require_staff),
+):
+    from app.models import OutboxEvent
+    rows = (await db.execute(select(OutboxEvent).order_by(OutboxEvent.created_at.desc()).limit(100))).scalars().all()
+    return [{
+        "id": r.id,
+        "kind": r.kind,
+        "payload": r.payload,
+        "status": r.status,
+        "error_msg": r.error_msg,
+        "retries": r.retries,
+        "created_at": r.created_at.isoformat() if r.created_at else ""
+    } for r in rows]
+
+@router.post("/admin/outbox/{event_id}/retry")
+async def retry_outbox(
+    event_id: int,
+    db: AsyncSession = Depends(get_db),
+    staff: User = Depends(require_staff),
+):
+    from app.models import OutboxEvent
+    evt = await db.get(OutboxEvent, event_id)
+    if not evt:
+        raise HTTPException(status_code=404, detail="Событие не найдено")
+    evt.status = "pending"
+    evt.retries += 1
+    evt.error_msg = ""
+    await db.commit()
+    return {"ok": True}

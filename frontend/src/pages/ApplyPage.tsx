@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { usePageMeta } from '../hooks/usePageMeta';
@@ -8,16 +8,20 @@ export function ApplyPage() {
   const nav = useNavigate();
 
   // Form State
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    department: '',
-    position: '',
-    planned_date: '',
-    lead_name: '',
-    consent_given: false,
+  const [formData, setFormData] = useState<any>(() => {
+    const saved = localStorage.getItem('onboarding_draft');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) { /* ignore */ }
+    }
+    return {
+      name: '', email: '', phone: '', department: '', position: '',
+      planned_date: '', lead_name: '', consent_given: false,
+    };
   });
+
+  useEffect(() => {
+    localStorage.setItem('onboarding_draft', JSON.stringify(formData));
+  }, [formData]);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +33,7 @@ export function ApplyPage() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
-    setFormData((prev) => ({
+    setFormData((prev: any) => ({
       ...prev,
       [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value,
     }));
@@ -65,6 +69,7 @@ export function ApplyPage() {
         code,
       });
       setTicketNumber(res.ticket_number);
+      localStorage.removeItem('onboarding_draft');
     } catch (err: any) {
       setError(err.message || 'Неверный код или срок действия истёк');
     } finally {

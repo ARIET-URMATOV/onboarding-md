@@ -6,7 +6,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import CandidateApplication, ApplicationEvent
+from app.models import CandidateApplication, ApplicationEvent, OutboxEvent
+from app.limiter import limiter
 from pydantic import BaseModel, EmailStr
 
 router = APIRouter(prefix="/applications")
@@ -48,6 +49,7 @@ class ReplyIn(BaseModel):
 _verification_codes = {}
 
 @router.post("")
+@limiter.limit("5/hour")
 async def create_draft_application(
     req: Request,
     app_in: ApplicationIn,
@@ -71,16 +73,27 @@ async def create_draft_application(
         "code": code,
         "expires": utcnow() + timedelta(minutes=15),
         "data": app_in.model_dump(),
-        "ip": req.client.host if req.client else ""
+        "ip": req.client.host if req.client else "",
+        "attempts": 0
     }
 
-    # In a real app, use background_tasks to send the code via SMTP here
-    print(f"Mock Email to {app_in.email}: Verification code is {code}")
+    # Queue an outbox event for the email
+    db.add(OutboxEvent(
+        kind="email",
+        payload={
+            "to": app_in.email,
+            "subject": "Код подтверждения MDIGITAL",
+            "body": f"Ваш код: {code}. Действителен 15 минут."
+        }
+    ))
+    await db.commit()
 
     return {"ok": True, "msg": "Verification code sent"}
 
 @router.post("/verify-email")
+@limiter.limit("15/hour")
 async def verify_email(
+    req: Request,
     verify_in: VerifyEmailIn,
     db: AsyncSession = Depends(get_db)
 ):
@@ -93,6 +106,10 @@ async def verify_email(
         raise HTTPException(status_code=400, detail="Срок действия кода истёк")
         
     if record["code"] != verify_in.code:
+        record["attempts"] += 1
+        if record["attempts"] >= 5:
+            del _verification_codes[verify_in.email]
+            raise HTTPException(status_code=400, detail="Слишком много попыток. Запросите код заново.")
         raise HTTPException(status_code=400, detail="Неверный код")
         
     data = record["data"]
@@ -138,7 +155,9 @@ async def verify_email(
     return {"ticket_number": ticket_number}
 
 @router.post("/status")
+@limiter.limit("10/hour")
 async def check_status(
+    req: Request,
     status_in: StatusIn,
     db: AsyncSession = Depends(get_db)
 ):

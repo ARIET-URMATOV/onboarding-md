@@ -248,7 +248,29 @@ class CandidateApplication(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 
+class OutboxEvent(Base):
+    __tablename__ = "outbox_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    kind: Mapped[str] = mapped_column(String, nullable=False, index=True) # "email", "webhook"
+    payload: Mapped[dict] = mapped_column(FlexibleJSON, nullable=False, default=dict)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="pending", index=True) # pending, failed, done
+    error_msg: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    retries: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
 class ApplicationEvent(Base):
+    __tablename__ = "outbox_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    kind: Mapped[str] = mapped_column(String, nullable=False, index=True) # "email", "webhook"
+    payload: Mapped[dict] = mapped_column(FlexibleJSON, nullable=False, default=dict)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="pending", index=True) # pending, failed, done
+    error_msg: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    retries: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
     __tablename__ = "application_events"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

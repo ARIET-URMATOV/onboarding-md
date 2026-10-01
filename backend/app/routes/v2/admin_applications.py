@@ -5,7 +5,7 @@ from typing import List
 from pydantic import BaseModel
 
 from app.database import get_db
-from app.models import CandidateApplication, ApplicationEvent, User
+from app.models import CandidateApplication, ApplicationEvent, User, OutboxEvent
 from app.routes.auth import require_staff
 
 router = APIRouter(prefix="/admin/applications")
@@ -118,6 +118,35 @@ async def get_applications(
         ))
     return out
 
+class ApplicationEventOut(BaseModel):
+    id: int
+    from_status: str
+    to_status: str
+    author_id: int | None
+    comment: str
+    created_at: str
+
+@router.get("/{app_id}/events", response_model=List[ApplicationEventOut])
+async def get_application_events(
+    app_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin_user: User = Depends(require_staff)
+):
+    evts = (await db.execute(
+        select(ApplicationEvent)
+        .where(ApplicationEvent.application_id == app_id)
+        .order_by(ApplicationEvent.created_at.desc())
+    )).scalars().all()
+    
+    return [ApplicationEventOut(
+        id=e.id,
+        from_status=e.from_status,
+        to_status=e.to_status,
+        author_id=e.author_id,
+        comment=e.comment,
+        created_at=e.created_at.isoformat() if e.created_at else ""
+    ) for e in evts]
+
 @router.post("/{app_id}/decision")
 async def hr_decision(
     app_id: int,
@@ -165,9 +194,18 @@ async def hr_decision(
         comment=decision_in.comment
     )
     db.add(evt)
-    await db.commit()
     
-    # TODO: Trigger SMTP emails to candidate
+    # Queue email to candidate
+    db.add(OutboxEvent(
+        kind="email",
+        payload={
+            "to": app.email,
+            "subject": f"Изменение статуса заявки: {target}",
+            "body": f"Ваша заявка {app.number} переведена в статус: {target}. Комментарий: {decision_in.comment}"
+        }
+    ))
+    
+    await db.commit()
     
     return {"ok": True, "new_status": target}
 
@@ -200,8 +238,17 @@ async def create_ad_account(
         comment=f"Создана учётная запись: {account_in.ad_login}"
     )
     db.add(evt)
-    await db.commit()
+
+    # Email with AD login
+    db.add(OutboxEvent(
+        kind="email",
+        payload={
+            "to": app.email,
+            "subject": "Данные для входа в корпоративную сеть",
+            "body": f"Ваш логин AD: {account_in.ad_login}. Пароль передан вторым каналом."
+        }
+    ))
     
-    # TODO: Send email with temp password
+    await db.commit()
     
     return {"ok": True, "ad_login": account_in.ad_login}
