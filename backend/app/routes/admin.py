@@ -11,6 +11,9 @@ from app.routes.auth import require_staff
 from app.schemas import (
     CONTACT_KEYS,
     INSTRUCTION_KEYS,
+    INTRO_KEYS,
+    LETTER_KEYS,
+    STAGE5_KEYS,
     AdminUserOut,
     AuditOut,
     LeadSetIn,
@@ -21,6 +24,7 @@ from app.schemas import (
     RejectIn,
     SettingIn,
     SettingsOut,
+    StaffRoleIn,
     StaffSetIn,
     WifiPasswordIn,
 )
@@ -50,6 +54,9 @@ def _admin_user_out(
         name=user.name,
         role=user.role,
         is_staff=user.is_staff,
+        staff_role=user.staff_role,
+        is_lead=getattr(user, "is_lead", False) or False,
+        department=user.department,
         created_at=user.created_at.isoformat() if user.created_at else None,
         done_stage1=done_stage1 or [],
         lead_email=lead_email,
@@ -170,6 +177,14 @@ async def reject_pending(
     await db.commit()
     target = await db.get(User, row.user_id)
     if target is not None:
+        from app.models import Notification as _Notif
+        db.add(_Notif(
+            user_id=target.id, kind="docs_rejected",
+            title="HR отклонил документы",
+            body=f"Причина: {reason}. Исправьте и отправьте пакет повторно.",
+            meta={"task_id": row.task_id, "reason": reason},
+        ))
+        await db.commit()
         await notify_rejected(target.email, target.name, row.task_id, reason)
     return OkOut()
 
@@ -234,7 +249,8 @@ async def wifi_requests(
             continue
         has_pw = await db.get(WifiPassword, m.user_id) is not None
         prog = await db.get(Progress, m.user_id)
-        verified = prog is not None and "1-wifi" in normalize_tasks(prog.done_tasks).get("1", [])
+        _done_all = {t for s in normalize_tasks(prog.done_tasks).values() for t in s} if prog else set()
+        verified = "1-wifi" in _done_all
         out.append({
             "user_id": m.user_id,
             "email": u.email,
@@ -314,6 +330,34 @@ async def set_staff(
     return _admin_user_out(target, None, await _lead_email(db, target))
 
 
+@router.patch("/admin/users/{user_id}/staff-role")
+@limiter.limit("20/minute")
+async def set_staff_role(
+    user_id: int,
+    payload: StaffRoleIn,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    staff: User = Depends(require_staff),
+):
+    """Назначить роль staff: hr / sysadmin / admin / null (§2, 5.2).
+    Доступен любому staff (bootstrap первого администратора — вручную в БД).
+    Роль включает разделение HR/сисадмин в заявках (NFR-04)."""
+    if payload.staff_role is not None and payload.staff_role not in ("hr", "sysadmin", "admin"):
+        raise HTTPException(status_code=422, detail="staff_role: допустимы hr, sysadmin, admin или null")
+    if user_id == staff.id and payload.staff_role != staff.staff_role and staff.staff_role == "admin":
+        raise HTTPException(status_code=400, detail="Нельзя снять роль admin с себя")
+    target = await db.get(User, user_id)
+    if target is None:
+        raise HTTPException(status_code=404, detail="Сотрудник не найден")
+    if not target.is_staff and payload.staff_role:
+        raise HTTPException(status_code=400, detail="Сначала выдай staff, затем роль")
+    target.staff_role = payload.staff_role
+    db.add(target)
+    await db.commit()
+    await db.refresh(target)
+    return _admin_user_out(target, None, await _lead_email(db, target))
+
+
 @router.patch("/admin/users/{user_id}/lead", response_model=AdminUserOut)
 @limiter.limit("20/minute")
 async def set_lead(
@@ -349,21 +393,16 @@ async def set_lead(
 
 @router.get("/admin/mpulse-code", response_model=list[MpulseCodeOut])
 @limiter.limit("30/minute")
-async def get_outbox(
+async def mpulse_codes(
     request: Request,
     db: AsyncSession = Depends(get_db),
     staff: User = Depends(require_staff),
 ):
-    rows = (await db.execute(select(OutboxEvent).order_by(OutboxEvent.created_at.desc()).limit(100))).scalars().all()
-    return [{
-        "id": r.id,
-        "kind": r.kind,
-        "payload": r.payload,
-        "status": r.status,
-        "error_msg": r.error_msg,
-        "retries": r.retries,
-        "created_at": r.created_at.isoformat() if r.created_at else ""
-    } for r in rows]
+    """Активные коды MPulse (только staff — код не светить сотрудникам)."""
+    rows = (
+        await db.execute(select(MpulseCode).order_by(desc(MpulseCode.created_at)).limit(20))
+    ).scalars().all()
+    return [_mpulse_out(r) for r in rows]
 
 @router.post("/admin/outbox/{event_id}/retry")
 async def retry_outbox(
@@ -379,17 +418,6 @@ async def retry_outbox(
     evt.error_msg = ""
     await db.commit()
     return {"ok": True}
-@limiter.limit("30/minute")
-async def mpulse_codes(
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-    staff: User = Depends(require_staff),
-):
-    """Активные коды MPulse (только staff — код не светить сотрудникам)."""
-    rows = (
-        await db.execute(select(MpulseCode).order_by(desc(MpulseCode.created_at)).limit(20))
-    ).scalars().all()
-    return [_mpulse_out(r) for r in rows]
 
 
 @router.post("/admin/mpulse-code", response_model=MpulseCodeOut)
@@ -451,7 +479,7 @@ async def get_settings(
     """Настройки из app_settings (контакты ответственных, группы TG, инструкции)."""
     from app.config import settings as _s
 
-    from app.schemas import CONTACT_KEYS, INSTRUCTION_KEYS, INTRO_KEYS, STAGE5_KEYS
+    from app.schemas import CONTACT_KEYS, INSTRUCTION_KEYS, INTRO_KEYS, LETTER_KEYS, STAGE5_KEYS
 
     rows = (await db.execute(select(AppSetting))).scalars().all()
     stored = {r.key: r.value for r in rows}
@@ -459,10 +487,12 @@ async def get_settings(
     instructions = {k: stored.get(k, "") for k in INSTRUCTION_KEYS}
     intro = {k: stored.get(k, "") for k in INTRO_KEYS}
     stage5 = {k: stored.get(k, "") for k in STAGE5_KEYS}
+    letters = {k: stored.get(k, "") for k in LETTER_KEYS}
     return SettingsOut(
         contacts=contacts,
         intro=intro,
         stage5=stage5,
+        letters=letters,
         links={
             "telegram_invite_link": _s.telegram_invite_link,
             "figma_team_url": _s.figma_team_url,
@@ -488,7 +518,14 @@ async def update_setting(
 
     key = payload.key.strip()
     value = payload.value.strip()
-    allowed = set(CONTACT_KEYS) | {"telegram.groups_json"} | set(INSTRUCTION_KEYS)
+    allowed = (
+        set(CONTACT_KEYS)
+        | {"telegram.groups_json"}
+        | set(INSTRUCTION_KEYS)
+        | set(INTRO_KEYS)
+        | set(STAGE5_KEYS)
+        | set(LETTER_KEYS)
+    )
     if key not in allowed:
         raise HTTPException(status_code=400, detail=f"Неизвестный ключ (разрешены: {sorted(allowed)})")
     if key == "telegram.groups_json":

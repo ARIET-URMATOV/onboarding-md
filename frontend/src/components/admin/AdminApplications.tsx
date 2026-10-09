@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Check, History, LoaderCircle, RefreshCw } from 'lucide-react';
 import { api } from '../../api/client';
+import { useToast } from '../ui/ToastProvider';
 import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Label } from '../ui/label';
-import { Alert, AlertDescription } from '../ui/alert';
 import { Badge } from '../ui/badge';
 import { Avatar, AvatarFallback } from '../ui/avatar';
 import { Separator } from '../ui/separator';
@@ -52,9 +52,9 @@ function statusMeta(s: string) {
 const FILTERS = ['', 'new', 'in_review', 'needs_info', 'approved', 'account_created', 'activated'];
 
 export function AdminApplications() {
+  const toast = useToast();
   const [apps, setApps] = useState<ApplicationOut[]>([]);
   const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('');
 
   const [replyReason, setReplyReason] = useState<Record<number, string>>({});
@@ -68,11 +68,11 @@ export function AdminApplications() {
       const data = await api.get<ApplicationOut[]>(`/api/admin/applications${qs}`);
       setApps(data);
     } catch (e: unknown) {
-      setMsg(e instanceof Error ? e.message : 'Ошибка загрузки');
+      toast.error('Ошибка загрузки заявок', e instanceof Error ? e.message : undefined);
     } finally {
       setLoading(false);
     }
-  }, [filterStatus]);
+  }, [filterStatus, toast]);
 
   useEffect(() => {
     void loadApps();
@@ -94,30 +94,31 @@ export function AdminApplications() {
   const handleDecision = async (id: number, decision: string) => {
     const comment = replyReason[id] || (decision === 'approve' ? 'Одобрено' : '');
     if ((decision === 'reject' || decision === 'needs_info') && !comment.trim()) {
-      setMsg('Необходим комментарий (причина)');
+      toast.warning('Необходим комментарий', 'Укажите причину для отклонения / уточнения');
       return;
     }
     try {
       await api.post(`/api/admin/applications/${id}/decision`, { decision, comment });
-      setMsg(`Заявка #${id} — ${decision}`);
+      const toStatus = decision === 'take' ? 'in_review' : decision === 'approve' ? 'approved' : decision === 'reject' ? 'rejected' : 'needs_info';
+      toast.success(`Заявка #${id} обновлена`, `Новое состояние: ${statusMeta(toStatus).label}`);
       await loadApps();
     } catch (e: unknown) {
-      setMsg(e instanceof Error ? e.message : 'Ошибка');
+      toast.error('Ошибка решения', e instanceof Error ? e.message : undefined);
     }
   };
 
   const handleAccountCreated = async (id: number) => {
     const login = adLogin[id];
     if (!login) {
-      setMsg('Введите AD логин');
+      toast.warning('Введите AD логин');
       return;
     }
     try {
       await api.post(`/api/admin/applications/${id}/account`, { ad_login: login });
-      setMsg(`AD логин ${login} выдан заявке #${id}`);
+      toast.success(`AD логин ${login} выдан`, `Заявка #${id} → учётка готова`);
       await loadApps();
     } catch (e: unknown) {
-      setMsg(e instanceof Error ? e.message : 'Ошибка');
+      toast.error('Ошибка выдачи AD', e instanceof Error ? e.message : undefined);
     }
   };
 
@@ -133,12 +134,6 @@ export function AdminApplications() {
           <RefreshCw className={cn(loading && 'animate-spin')} />
         </Button>
       </div>
-
-      {msg && (
-        <Alert>
-          <AlertDescription>{msg}</AlertDescription>
-        </Alert>
-      )}
 
       {apps.map((app) => {
         const meta = statusMeta(app.status);
@@ -196,19 +191,27 @@ export function AdminApplications() {
               )}
 
               {(app.status === 'new' || app.status === 'in_review' || app.status === 'needs_info') && (
-                <div className="rounded-md bg-muted/40 p-3">
+                <div className="rounded-xl border border-primary/25 bg-primary/[0.07] p-3 shadow-[0_0_24px_rgba(37,99,235,0.12)]">
+                  <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.1em] text-primary">
+                    Решение HR
+                  </div>
                   <Textarea
                     value={replyReason[app.id] || ''}
                     onChange={(e) => setReplyReason((p) => ({ ...p, [app.id]: e.target.value }))}
                     placeholder="Комментарий для одобрения / отклонения / уточнения"
-                    className="mb-2 min-h-14"
+                    className="mb-2 min-h-14 bg-background/60"
                   />
                   <div className="flex flex-wrap gap-2">
-                    <Button size="sm" onClick={() => void handleDecision(app.id, 'approve')}>
+                    {app.status === 'new' && (
+                      <Button size="sm" variant="secondary" onClick={() => void handleDecision(app.id, 'take')} className="min-h-[44px]">
+                        Взять в работу
+                      </Button>
+                    )}
+                    <Button size="sm" onClick={() => void handleDecision(app.id, 'approve')} className="min-h-[44px]">
                       <Check /> Одобрить
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => void handleDecision(app.id, 'needs_info')}>Запросить уточнение</Button>
-                    <Button size="sm" variant="destructive" onClick={() => void handleDecision(app.id, 'reject')}>Отклонить</Button>
+                    <Button size="sm" variant="outline" onClick={() => void handleDecision(app.id, 'needs_info')} className="min-h-[44px]">Запросить уточнение</Button>
+                    <Button size="sm" variant="destructive" onClick={() => void handleDecision(app.id, 'reject')} className="min-h-[44px]">Отклонить</Button>
                   </div>
                 </div>
               )}

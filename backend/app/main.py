@@ -68,12 +68,16 @@ async def lifespan(_: FastAPI):
 
         # HOTFIX-2: stage_tasks verification_type=info_read (миграция 026, part 2).
         # Без этого /progress/info-read отвечает 400 на проде, где alembic не накатился.
+        # Документы (1-dogovor/nda/pdp/ip/sn) — manual_hr: их подтверждает HR по запросу.
         try:
             async with engine.begin() as conn:
                 if await _table_exists(conn, "stage_tasks"):
                     await conn.execute(_text(
+                        "UPDATE stage_tasks SET verification_type = 'manual_hr' WHERE id IN ("
+                        "'1-dogovor','1-nda','1-pdp','1-ip','1-sn')"
+                    ))
+                    await conn.execute(_text(
                         "UPDATE stage_tasks SET verification_type = 'info_read' WHERE id IN ("
-                        "'1-dogovor','1-nda','1-pdp','1-ip','1-sn',"
                         "'1-mbusiness','1-accountant','1-wifi','1-proxy',"
                         "'1-jira','1-figma','1-gitlab',"
                         "'1-mpulse','1-mpulse-schedule','1-mpulse-checkin','1-mpulse-code','1-mpulse-news')"
@@ -203,12 +207,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from app.routes import admin, auth, integrations, notifications, progress, services, stages  # noqa: E402
-from app.routes.v2 import applications as v2_applications, public as v2_public
+from app.routes import admin, auth, integrations, notifications, progress, services, stages, stages_admin  # noqa: E402
+from app.routes.v2 import applications as v2_applications, public as v2_public, admin_applications as v2_admin_applications
+from app.routes.v2 import admin_projects as v2_admin_projects, projects as v2_projects
 
 app.include_router(auth.router, prefix="/api", tags=["auth"])
 app.include_router(progress.router, prefix="/api", tags=["progress"])
 app.include_router(stages.router, prefix="/api", tags=["stages"])
+app.include_router(stages_admin.router, prefix="/api", tags=["stages-admin"])
 app.include_router(admin.router, prefix="/api", tags=["admin"])
 app.include_router(integrations.router, prefix="/api", tags=["integrations"])
 app.include_router(services.router, prefix="/api", tags=["services"])
@@ -217,6 +223,9 @@ app.include_router(notifications.router, prefix="/api", tags=["notifications"])
 # V2 Routers
 app.include_router(v2_applications.router, prefix="/api", tags=["v2-applications"])
 app.include_router(v2_public.router, prefix="/api", tags=["v2-public"])
+app.include_router(v2_admin_applications.router, prefix="/api", tags=["v2-admin-applications"])
+app.include_router(v2_projects.router, prefix="/api", tags=["v2-projects"])
+app.include_router(v2_admin_projects.router, prefix="/api", tags=["v2-admin-projects"])
 
 
 @app.websocket("/ws/admin")

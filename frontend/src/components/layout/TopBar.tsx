@@ -75,29 +75,28 @@ export function TopBar() {
   };
 
   return (
+    <>
     <header className={cn(
-      'left-0 right-0 z-40 flex items-center justify-between px-4 transition-colors sm:px-10',
-      isDashboard ? 'absolute top-0 h-[76px] border-b border-white/5 bg-transparent' : 'sticky top-0 h-[68px] border-b border-border bg-background/80 shadow-lg backdrop-blur-xl',
+      'topbar-site fixed left-0 right-0 top-0 z-40 flex items-center justify-between px-4 pt-[env(safe-area-inset-top,0px)] transition-colors sm:px-10',
+      isDashboard ? 'h-[76px] border-b border-white/5 bg-transparent' : 'h-[68px] border-b border-border bg-background/80 shadow-lg backdrop-blur-xl',
     )}>
-      <nav className="flex items-center gap-2">
-        <NavLink
-          to="/dashboard"
-          className={({ isActive }) => cn(
-            'rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:px-4',
-            isActive && 'bg-accent font-semibold text-foreground shadow-inner',
-          )}
-        >
-          Dashboard
-        </NavLink>
-        <NavLink
-          to="/stages"
-          className={({ isActive }) => cn(
-            'rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:px-4',
-            isActive && 'bg-accent font-semibold text-foreground shadow-inner',
-          )}
-        >
-          Onboarding
-        </NavLink>
+      <nav className="flex min-w-0 items-center gap-1 sm:gap-2">
+        {[
+          { to: '/dashboard', label: 'Главная' },
+          { to: '/stages', label: 'Этапы' },
+          { to: '/projects', label: 'Проекты' },
+        ].map((l) => (
+          <NavLink
+            key={l.to}
+            to={l.to}
+            className={({ isActive }) => cn(
+              'min-h-[44px] rounded-lg px-2.5 py-2 text-[13px] font-medium text-muted-foreground transition-all hover:bg-accent hover:text-foreground active:scale-95 sm:px-4 sm:text-sm',
+              isActive && 'bg-accent font-semibold text-foreground shadow-[inset_0_0_0_1px_var(--border-strong)]',
+            )}
+          >
+            {l.label}
+          </NavLink>
+        ))}
       </nav>
 
       <div className="flex items-center gap-2 sm:gap-3.5">
@@ -154,7 +153,7 @@ export function TopBar() {
           </Popover>
         )}
 
-        <div className="hidden min-w-[120px] flex-col gap-1.5 rounded-xl border border-border bg-card/60 px-3.5 py-1.5 backdrop-blur md:flex" title={`${xp} XP · ${progress.done}/5 Tasks Completed`}>
+        <div className="hidden min-w-[120px] flex-col gap-1.5 rounded-xl border border-border bg-card/60 px-3.5 py-1.5 backdrop-blur md:flex" title={`${xp} XP · ${progress.done}/4 Tasks Completed`}>
           <div className="flex items-center justify-between gap-3">
             <span className="inline-flex items-center gap-1 text-[11px] font-bold text-primary">
               <Sparkles className="h-3 w-3" /> Lv.{lvl}
@@ -200,5 +199,8 @@ export function TopBar() {
         </DropdownMenu>
       </div>
     </header>
+    {/* Компенсация fixed-шапки: на дашборде hero уходит под прозрачную шапку, как раньше */}
+    {!isDashboard && <div aria-hidden className="topbar-site h-[calc(68px+env(safe-area-inset-top,0px))] w-full shrink-0" />}
+    </>
   );
 }

@@ -1,35 +1,32 @@
 # XP-источник: БД stages/stage_tasks (хардкод — fallback для тестов/до сида).
 # Фронт стучится GET /api/stages, сервер считает XP только из БД.
 
-# Stage 1 «Документы и доступы» — TZ v1.0: 5 + 0 + 5 + 10 = 20 баллов (task XP).
-# Legacy 1-docs/1-lead/1-mplus/1-jira/1-confluence удалены (аддитивность ломала
-# is_all_complete/compute_xp: старые юзеры 5/5 -> 5/29, бонус xp_reward недостижим).
-# Confluence checklist (8×1) заменён одним тогглером 1-confluence-read ×10.
-# normalize_tasks() отфильтрует legacy ID из done_tasks существующих юзеров.
+# Stage 1 «Скачай приложение» — первый экран после входа (FR-401).
+# Stage 2 «Документы и доступы» — как v1, без шага MPulse (FR-404).
+# Stage 3 «Команда, видео, чек-лист» — объединённые старые 2, 3, 4 (FR-405).
+# Stage 4 «Онбординг в департамент» — задачи зависят от департамента (FR-406).
+# Прелогин-этап «Знакомство с компанией» живёт на публичной странице, а не здесь:
+# после первого входа по AD сразу открыт этап 1.
 _FALLBACK_STAGES: dict[int, dict] = {
-    # Stage 1: Знакомство с компанией (засчитывается при выдаче учётки)
-    1: {"xp_reward": 100, "tasks": {
-        "1-intro": 50,
-    }},
-    # Stage 2: Скачай приложение (бывший шаг из 1 этапа)
-    2: {"xp_reward": 50, "tasks": {
+    # Stage 1: Скачай приложение (MPulse + корпоративные приложения)
+    1: {"xp_reward": 50, "tasks": {
         "1-mpulse": 1, "1-mpulse-schedule": 1, "1-mpulse-checkin": 1, "1-mpulse-code": 1, "1-mpulse-news": 1,
     }},
-    # Stage 3: Документы и доступы (бывший этап 1 без MPulse)
-    3: {"xp_reward": 100, "tasks": {
+    # Stage 2: Документы и доступы (бывший этап 1 без MPulse)
+    2: {"xp_reward": 100, "tasks": {
         "1-dogovor": 1, "1-nda": 1, "1-pdp": 1, "1-ip": 1, "1-sn": 1,
         "1-mbusiness": 0, "1-accountant": 0, "1-wifi": 0, "1-proxy": 0, "1-telegram": 0,
         "1-jira": 0, "1-figma": 0, "1-gitlab": 0,
         "1-confluence-read": 10,
     }},
-    # Stage 4: Команда, видео, чек-лист (объединённые старые 2, 3, 4)
-    4: {"xp_reward": 100, "tasks": {
+    # Stage 3: Команда, видео, чек-лист
+    3: {"xp_reward": 100, "tasks": {
         "2-team-read": 5,
         "3-watch": 5,
         "4-ready": 5,
     }},
-    # Stage 5: Онбординг в департамент
-    5: {"xp_reward": 200, "tasks": {
+    # Stage 4: Онбординг в департамент
+    4: {"xp_reward": 200, "tasks": {
         "5-take": 100, "5-confirm": 100
     }},
 }
@@ -39,9 +36,8 @@ STAGES: dict[int, dict] = _FALLBACK_STAGES
 # verification_type: info_read | manual_hr | manual_staff | technical_code | technical_password | technical_timer
 # responsible_role: подпись ответственного для UI (бекенд делит только employee/staff).
 TASK_META: dict[str, tuple[str, str]] = {
-    "1-intro": ("info_read", "system"),
-    "1-dogovor": ("info_read", "hr"), "1-nda": ("info_read", "hr"),
-    "1-pdp": ("info_read", "hr"), "1-ip": ("info_read", "hr"), "1-sn": ("info_read", "hr"),
+    "1-dogovor": ("manual_hr", "hr"), "1-nda": ("manual_hr", "hr"),
+    "1-pdp": ("manual_hr", "hr"), "1-ip": ("manual_hr", "hr"), "1-sn": ("manual_hr", "hr"),
     "1-mbusiness": ("info_read", "hr"), "1-accountant": ("info_read", "accountant"),
     "1-wifi": ("info_read", "sysadmin"), "1-proxy": ("info_read", "lead"),
     "1-telegram": ("manual_staff", "teamlead"),
@@ -130,7 +126,7 @@ def normalize_tasks(done_tasks: dict | None) -> dict:
     stages = get_stages_sync()
     out = {str(sid): [] for sid in stages}
     if not out:
-        out = {sid: [] for sid in ("1", "2", "3", "4", "5")}
+        out = {sid: [] for sid in ("1", "2", "3", "4")}
     if not isinstance(done_tasks, dict):
         return out
     for sid in out:

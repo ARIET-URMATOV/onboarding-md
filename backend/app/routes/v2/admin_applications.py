@@ -1,11 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from typing import List
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
-from pydantic import BaseModel
 
 from app.database import get_db
-from app.models import CandidateApplication, ApplicationEvent, User, OutboxEvent
+from app.models import ApplicationEvent, CandidateApplication, OutboxEvent, User
+from app.notify import publish
 from app.routes.auth import require_staff
 
 router = APIRouter(prefix="/admin/applications")
@@ -39,13 +41,19 @@ class MetricsOut(BaseModel):
     conversion_rate: float
     avg_hr_hours: float
     avg_sysadmin_hours: float
+    avg_activation_to_complete_hours: float
+    overdue_share: float
 
 @router.get("/metrics", response_model=MetricsOut)
 async def get_metrics(
     db: AsyncSession = Depends(get_db),
     admin_user: User = Depends(require_staff)
 ):
-    """Метрики по воронке онбординга."""
+    """Метрики по воронке онбординга (NFR-10)."""
+    from datetime import datetime, timezone
+
+    from app.models import Progress
+
     apps = (await db.execute(select(CandidateApplication))).scalars().all()
     evts = (await db.execute(select(ApplicationEvent))).scalars().all()
 
@@ -53,18 +61,30 @@ async def get_metrics(
     activated = sum(1 for a in apps if a.status == 'activated')
     conversion_rate = (activated / total * 100) if total > 0 else 0.0
 
+    # HR SLA по умолчанию — 2 рабочих дня (OQ-06 proposal: 48ч).
+    HR_SLA_HOURS = 48.0
+
     hr_times = []
     sys_times = []
+    overdue = 0
+    now = datetime.now(timezone.utc)
 
     for app in apps:
         app_evts = sorted([e for e in evts if e.application_id == app.id], key=lambda x: x.created_at)
-        
+
         # Time from 'new' to 'approved'/'rejected'
         t_new = next((e.created_at for e in app_evts if e.to_status == 'new'), app.created_at)
         t_hr_decision = next((e.created_at for e in app_evts if e.to_status in ['approved', 'rejected']), None)
-        
+
         if t_new and t_hr_decision:
-            hr_times.append((t_hr_decision - t_new).total_seconds() / 3600)
+            hrs = (t_hr_decision - t_new).total_seconds() / 3600
+            hr_times.append(hrs)
+            if hrs > HR_SLA_HOURS:
+                overdue += 1
+        elif t_new:
+            age_h = (now - t_new).total_seconds() / 3600 if t_new.tzinfo else 0.0
+            if age_h > HR_SLA_HOURS and app.status in ('new', 'in_review', 'needs_info'):
+                overdue += 1
 
         # Time from 'approved' to 'account_created'
         t_sys_decision = next((e.created_at for e in app_evts if e.to_status == 'account_created'), None)
@@ -74,11 +94,32 @@ async def get_metrics(
     avg_hr = sum(hr_times) / len(hr_times) if hr_times else 0.0
     avg_sys = sum(sys_times) / len(sys_times) if sys_times else 0.0
 
+    # Time from activation (first AD login) to onboarding completion.
+    act_times = []
+    user_ids = [a.user_id for a in apps if a.user_id]
+    if user_ids:
+        progs = (await db.execute(select(Progress).where(Progress.user_id.in_(user_ids)))).scalars().all()
+        user_by_id = {a.user_id: a for a in apps if a.user_id}
+        for p in progs:
+            a = user_by_id.get(p.user_id)
+            t_act = next(
+                (e.created_at for e in sorted(
+                    [e for e in evts if e.application_id == (a.id if a else -1)],
+                    key=lambda x: x.created_at,
+                ) if e.to_status == 'activated'),
+                None,
+            )
+            if t_act and p.completed_at:
+                act_times.append((p.completed_at - t_act).total_seconds() / 3600)
+    avg_act = sum(act_times) / len(act_times) if act_times else 0.0
+
     return MetricsOut(
         total_applications=total,
         conversion_rate=round(conversion_rate, 1),
         avg_hr_hours=round(avg_hr, 1),
-        avg_sysadmin_hours=round(avg_sys, 1)
+        avg_sysadmin_hours=round(avg_sys, 1),
+        avg_activation_to_complete_hours=round(avg_act, 1),
+        overdue_share=round((overdue / total * 100) if total else 0.0, 1),
     )
 
 @router.get("", response_model=List[ApplicationOut])
@@ -154,25 +195,23 @@ async def hr_decision(
     db: AsyncSession = Depends(get_db),
     admin_user: User = Depends(require_staff)
 ):
-    """Действия HR (approve, reject, request_info)."""
+    """Действия HR (take/approve/reject/needs_info). FR-206 граф, FR-208 причина отказа обязательна."""
     # NFR-04 checks
     if admin_user.staff_role == 'sysadmin':
         raise HTTPException(status_code=403, detail="Только HR может принимать решения")
-        
+
+    from app.routes.v2.applications import TRANSITIONS
+
     app = await db.get(CandidateApplication, app_id)
     if not app:
         raise HTTPException(status_code=404, detail="Заявка не найдена")
-        
-    valid_transitions = {
-        "new": ["approved", "rejected", "needs_info"],
-        "in_review": ["approved", "rejected", "needs_info"],
-        "needs_info": ["rejected"] # Can technically reject if they never answer
-    }
-    
+
     current = app.status
     target = ""
-    
-    if decision_in.decision == "approve":
+
+    if decision_in.decision in ("take", "review"):
+        target = "in_review"
+    elif decision_in.decision == "approve":
         target = "approved"
     elif decision_in.decision == "reject":
         target = "rejected"
@@ -181,8 +220,12 @@ async def hr_decision(
     else:
         raise HTTPException(status_code=400, detail="Invalid decision")
 
-    if target not in valid_transitions.get(current, []):
+    if target not in TRANSITIONS.get(current, []):
         raise HTTPException(status_code=400, detail=f"Cannot transition from {current} to {target}")
+
+    # FR-208: причина отказа обязательна.
+    if target == "rejected" and not (decision_in.comment or "").strip():
+        raise HTTPException(status_code=400, detail="Укажите причину отказа")
 
     app.status = target
     
@@ -206,7 +249,10 @@ async def hr_decision(
     ))
     
     await db.commit()
-    
+
+    # Realtime для /ws/admin (FR-210).
+    publish({"type": "application_updated", "id": app.id, "status": target})
+
     return {"ok": True, "new_status": target}
 
 @router.post("/{app_id}/account")
@@ -250,5 +296,8 @@ async def create_ad_account(
     ))
     
     await db.commit()
-    
+
+    # Realtime для /ws/admin (FR-210).
+    publish({"type": "application_updated", "id": app.id, "status": "account_created"})
+
     return {"ok": True, "ad_login": account_in.ad_login}

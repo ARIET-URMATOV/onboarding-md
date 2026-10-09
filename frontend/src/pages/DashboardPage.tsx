@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowRight, Map as MapIcon, Volume2, VolumeX } from 'lucide-react';
 import { TopBar } from '../components/layout/TopBar';
-import { useOnboarding, getAllStatuses, getProgress } from '../store/useOnboarding';
+import { useOnboarding, getAllStatuses, getProgress, isDemoUser } from '../store/useOnboarding';
 import { STAGES } from '../data/stages';
 import { usePageMeta } from '../hooks/usePageMeta';
 import { SlaBanner } from '../components/ui/SlaBanner';
@@ -23,7 +23,9 @@ function bezier(t: number, p0: number, p1: number, p2: number, p3: number) {
 export function DashboardPage() {
   usePageMeta("Дашборд — MDIGITAL Онбординг", "Твой прогресс онбординга MDIGITAL: текущий этап, опыт и уровень. Продолжай адаптацию в команде.");
   const doneTasks = useOnboarding((s) => s.doneTasks);
-  const statuses = useMemo(() => getAllStatuses(doneTasks), [doneTasks]);
+  const pending = useOnboarding((s) => s.pending);
+  const email = useOnboarding((s) => s.user?.email);
+  const statuses = useMemo(() => getAllStatuses(doneTasks, pending, isDemoUser(email)), [doneTasks, pending, email]);
   const progress = useMemo(() => getProgress(doneTasks), [doneTasks]);
   const xp = useOnboarding((s) => s.xp);
   const lvl = Math.floor(xp / 100) + 1;
@@ -125,7 +127,7 @@ export function DashboardPage() {
     try { if (audioRef.current) { audioRef.current.pause(); audioRef.current.currentTime = 0; } } catch { /* noop */ }
     setOverlayOn(true);
     setPhase('dark');
-    document.body.style.background = '#060B18';
+    document.body.classList.remove('dash-bg');
 
     timersRef.current.push(window.setTimeout(() => setPhase('flight'), 250));
 
@@ -154,7 +156,7 @@ export function DashboardPage() {
         setPhase('done');
         markIntroSeen();
         localStorage.setItem('md_intro_seen', '1');
-        document.body.style.background = '#0A0F1E';
+        document.body.classList.add('dash-bg');
         timersRef.current.push(
           window.setTimeout(() => setOverlayOn(false), 1000),
         );
@@ -166,13 +168,13 @@ export function DashboardPage() {
 
   useEffect(() => {
     if (introSeenRef.current || reduced) {
-      document.body.style.background = '#0A0F1E';
-      return;
+      document.body.classList.add('dash-bg');
+      return () => { document.body.classList.remove('dash-bg'); };
     }
     startIntro();
     return () => {
       clearAll();
-      document.body.style.background = '';
+      document.body.classList.remove('dash-bg');
     };
   }, [reduced, startIntro, clearAll]);
 
@@ -183,7 +185,7 @@ export function DashboardPage() {
     setOverlayOn(false);
     markIntroSeen();
     localStorage.setItem('md_intro_seen', '1');
-    document.body.style.background = '#0A0F1E';
+    document.body.classList.add('dash-bg');
   }, [phase, clearAll, markIntroSeen]);
 
   // пауза аудио при размонтировании/skip
@@ -369,13 +371,13 @@ export function DashboardPage() {
         }
         .k-line:last-child{ background:linear-gradient(90deg, rgba(37,99,235,.65), rgba(96,165,250,.85) 55%, transparent) }
         .k-text{
-          font-family:'Prata',sans-serif; font-weight:600;
+          font-family: var(--font-display); font-weight:600;
           font-size:12.5px; letter-spacing:.20em; text-transform:uppercase;
           color:#60A5FA; text-shadow:0 0 18px rgba(96,165,250,.55), 0 0 32px rgba(37,99,235,.28);
-          padding-left:."52em;
+          padding-left:.52em;
         }
         .h-title{
-          font-family:'Roboto Condensed',sans-serif; font-weight:700;
+          font-family: var(--font-display); font-weight:700;
           font-size:clamp(48px, 8.8vw, 86px); line-height:1; letter-spacing:-.02em;
           color:#F5F0FF; margin:0 0 20px; text-shadow:0 10px 40px rgba(0,0,0,.6);
           filter: drop-shadow(0 0 28px rgba(37,99,235,.18));
@@ -422,7 +424,7 @@ export function DashboardPage() {
         @keyframes ornIn{ from{ opacity:0; transform:translate(-50%,-50%) scaleX(.92) } to{ opacity:.92; transform:translate(-50%,-50%) scaleX(1) } }
         .h-orn svg{ width:100%; height:100%; }
         .h-sub{
-          font-family:'Prata',sans-serif; font-weight:400;
+          font-family: var(--font-sans); font-weight:500;
           font-size:19px; letter-spacing:.02em; color:#DBEAFE; margin:0 auto 36px; max-width:560px;
           text-shadow:0 2px 18px rgba(0,0,0,.45), 0 0 22px rgba(37,99,235,.18);
         }
@@ -436,7 +438,7 @@ export function DashboardPage() {
         }
         .hp-head{
           display:flex; justify-content:space-between; gap:10px; margin-bottom:10px;
-          font-family:'Space Grotesk',sans-serif; font-size:10px; font-weight:500; letter-spacing:.16em; text-transform:uppercase; color:#DBEAFE; opacity:.9;
+          font-family: var(--font-mono); font-size:10px; font-weight:500; letter-spacing:.16em; text-transform:uppercase; color:#DBEAFE; opacity:.9;
         }
         
         .hp-sla{ display:flex; justify-content:center; margin-top:12px; }

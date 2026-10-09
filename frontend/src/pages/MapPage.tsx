@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TopBar } from '../components/layout/TopBar';
 import { STAGES, STAGE_ICONS } from '../data/stages';
-import { useOnboarding, getAllStatuses, getProgress } from '../store/useOnboarding';
+import { useOnboarding, getAllStatuses, getProgress, isDemoUser } from '../store/useOnboarding';
 import type { StageStatus } from '../store/useOnboarding';
 import type { StageId } from '../data/stages';
 import { usePageMeta } from '../hooks/usePageMeta';
@@ -19,11 +19,10 @@ type Step = {
 };
 
 const SHORT: Record<StageId, string> = {
-  1: 'Документы и доступы',
-  2: 'Знакомство с командой и тимлидом',
-  3: 'Видеообращение от руководства',
-  4: 'Проверь доступы и инструменты',
-  5: 'Финальный тест по онбордингу',
+  1: 'Скачай приложение',
+  2: 'Документы и доступы',
+  3: 'Команда, видео и чек-лист',
+  4: 'Онбординг в департамент',
 };
 
 const FNODES = [
@@ -52,7 +51,9 @@ export function MapPage() {
   );
   const nav = useNavigate();
   const doneTasks = useOnboarding((s) => s.doneTasks);
-  const statuses = useMemo(() => getAllStatuses(doneTasks), [doneTasks]);
+  const pending = useOnboarding((s) => s.pending);
+  const email = useOnboarding((s) => s.user?.email);
+  const statuses = useMemo(() => getAllStatuses(doneTasks, pending, isDemoUser(email)), [doneTasks, pending, email]);
   const progress = useMemo(() => getProgress(doneTasks), [doneTasks]);
   const done = progress.done;
   const total = STAGES.length;
@@ -283,7 +284,7 @@ export function MapPage() {
           max-width: 980px;
           margin: 0 auto;
           padding: 12px 12px 40px;
-          font-family: 'Outfit', sans-serif;
+          font-family: var(--font-sans);
         }
 
         .mp-bg {
@@ -570,7 +571,7 @@ export function MapPage() {
 
         .mp-num { font-size: 9px; font-weight: 500; letter-spacing: 0.18em; color: #00F2FE; }
         .mp-name {
-          font-family: 'Outfit', sans-serif;
+          font-family: var(--font-display);
           font-size: 0.92rem;
           font-weight: 700;
           color: #FFFFFF;
@@ -578,7 +579,7 @@ export function MapPage() {
           line-height: 1.2;
         }
         .mp-desc {
-          font-family: 'Outfit', sans-serif;
+          font-family: var(--font-sans);
           font-size: 0.75rem;
           font-weight: 400;
           color: #94A3B8;
@@ -646,7 +647,7 @@ export function MapPage() {
           padding: 12px 28px;
           border: none;
           cursor: pointer;
-          font-family: 'Outfit', sans-serif;
+          font-family: var(--font-sans);
           font-size: 12px;
           font-weight: 700;
           letter-spacing: 0.16em;

@@ -1,4 +1,4 @@
-import { motion } from "framer-motion"
+import { motion, useReducedMotion } from "framer-motion"
 import type { ReactNode } from "react"
 import { cn } from "../../lib/utils"
 
@@ -10,6 +10,10 @@ interface FadeContentProps {
 }
 
 export function FadeContent({ children, className, delay = 0, y = 16 }: FadeContentProps) {
+  const reduceMotion = useReducedMotion()
+  if (reduceMotion) {
+    return <div className={cn(className)}>{children}</div>
+  }
   return (
     <motion.div
       className={cn(className)}

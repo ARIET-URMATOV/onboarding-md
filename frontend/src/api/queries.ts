@@ -21,3 +21,36 @@ export function useStages() {
     placeholderData: FALLBACK,
   });
 }
+
+export interface IntroGoal {
+  title: string;
+  text: string;
+}
+
+export interface IntroGalleryItem {
+  image?: string;
+  label?: string;
+  caption?: string;
+  alt?: string;
+}
+
+export interface IntroContent {
+  title: string;
+  mission: string;
+  values: string[];
+  instruction: string;
+  goals: IntroGoal[];
+  gallery: IntroGalleryItem[];
+}
+
+export function usePublicIntro() {
+  // FR-102: контент этапа 1 редактируется HR в админке.
+  // retry: false — публичная страница обязана рендериться даже без бэкенда,
+  // компонент держит локальные фолбэки на каждый слот.
+  return useQuery<IntroContent>({
+    queryKey: ['public-intro'],
+    queryFn: () => api.get<IntroContent>('/api/public/intro'),
+    retry: false,
+    staleTime: 60_000,
+  });
+}

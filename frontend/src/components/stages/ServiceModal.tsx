@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
+import { Button } from '../ui/button';
 
 interface Props {
   title: string;
@@ -53,7 +54,7 @@ export function ServiceModal({ title, sub, body, onClose, onConfirm, confirmLabe
             <div className="svc-modal-title">{title}</div>
             {sub && <div className="svc-modal-sub">{sub}</div>}
           </div>
-          <button className="svc-modal-x" onClick={onClose} aria-label="Закрыть"><X size={14} /></button>
+          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Закрыть" className="svc-modal-x min-h-[44px] min-w-[44px]"><X size={14} /></Button>
         </div>
         <div className="svc-modal-body-wrap">
           <div className="svc-modal-bar" style={{ height: `${pct}%` }} />
@@ -70,16 +71,15 @@ export function ServiceModal({ title, sub, body, onClose, onConfirm, confirmLabe
         </div>
         <div className="svc-modal-foot">
           {onConfirm ? (
-            <button
-              className="svc-modal-btn"
+            <Button
               disabled={!canConfirm}
-              style={!canConfirm ? { opacity: 0.45, cursor: 'not-allowed' } : undefined}
               onClick={() => { onConfirm(); onClose(); }}
+              className="wv-cta w-full"
             >
               {alreadyDone ? 'Ознакомлен(-а) ✓' : (confirmLabel ?? 'Подтвердить прочтение')}
-            </button>
+            </Button>
           ) : (
-            <button className="svc-modal-btn" onClick={onClose}>Понятно</button>
+            <Button onClick={onClose} className="wv-cta w-full">Понятно</Button>
           )}
         </div>
       </div>

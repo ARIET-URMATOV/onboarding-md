@@ -17,11 +17,19 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def _column_exists(conn, table: str, column: str) -> bool:
-    res = conn.execute(sa.text(
-        "SELECT 1 FROM information_schema.columns "
-        "WHERE table_name=:t AND column_name=:c"
-    ), {"t": table, "c": column})
-    return res.scalar() is not None
+    dialect = conn.engine.dialect.name
+    if dialect == "postgresql":
+        res = conn.execute(sa.text(
+            "SELECT 1 FROM information_schema.columns "
+            "WHERE table_name=:t AND column_name=:c"
+        ), {"t": table, "c": column})
+        return res.scalar() is not None
+    else:
+        res = conn.execute(sa.text(f"PRAGMA table_info({table})"))
+        for row in res:
+            if row[1] == column:
+                return True
+        return False
 
 
 def upgrade() -> None:

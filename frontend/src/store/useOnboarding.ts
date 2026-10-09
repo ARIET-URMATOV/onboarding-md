@@ -37,6 +37,7 @@ interface User {
   avatar: string | null;
   createdAt?: string | null;
   isStaff?: boolean;
+  isLead?: boolean;
   telegramUsername?: string;
   department?: Department | null;
   position?: string | null;
@@ -92,7 +93,7 @@ function wsUrl(path: string): string {
 }
 
 const emptyTasks = (): Record<StageId, string[]> => ({
-  1: [], 2: [], 3: [], 4: [], 5: [],
+  1: [], 2: [], 3: [], 4: [],
 });
 
 // Сервер-авторитетный пересчёт XP (зеркало server/stages_data.py) — для optimistic update
@@ -148,8 +149,9 @@ export const useOnboarding = create<OnboardingState>()((set, get) => ({
         email: me.user.email, 
         name: me.user.name, 
         avatar: me.user.avatar, 
-        createdAt: me.user.created_at, 
-        isStaff: me.user.is_staff ?? false, 
+        createdAt: me.user.created_at,
+        isStaff: me.user.is_staff ?? false,
+        isLead: (me.user as { is_lead?: boolean }).is_lead ?? false,
         telegramUsername: me.user.telegram_username ?? '',
         department: normalizeDepartment(me.user.department),
         position: me.user.position,
@@ -284,7 +286,7 @@ export const useOnboarding = create<OnboardingState>()((set, get) => ({
   },
 
   toggleTask: async (stageId, taskId) => {
-    if (!get().role) throw new Error('Сначала выберите роль');
+    // FR-406: роль/департамент берётся из заявки/AD, ручной выбор не требуется.
     const prevTasks = get().doneTasks;
     const prevXp = get().xp;
     const prevLevel = get().level;
@@ -308,7 +310,7 @@ export const useOnboarding = create<OnboardingState>()((set, get) => ({
   },
 
   completeStage: async (stageId) => {
-    if (!get().role) throw new Error('Сначала выберите роль');
+    // FR-406: без ручного выбора роли.
     const stage = STAGES.find((s) => s.id === stageId);
     if (!stage) return;
     const prevTasks = get().doneTasks;
@@ -317,7 +319,7 @@ export const useOnboarding = create<OnboardingState>()((set, get) => ({
     const cur = prevTasks[stageId] || [];
     const allTaskIds = stage.subTasks.map((t) => t.id);
     const missing = allTaskIds.filter((id) => !cur.includes(id));
-    // Этап 1 закрывается только через scroll-gate всех документов
+    // Этап 1 («Скачай приложение») нельзя закрыть принудительно с невыполненными задачами.
     if (stageId === 1 && missing.length > 0) return;
     const optimistic = { ...prevTasks, [stageId]: allTaskIds };
     const optXp = xpFromTasks(optimistic);
@@ -337,7 +339,7 @@ export const useOnboarding = create<OnboardingState>()((set, get) => ({
   },
 
   uncompleteStage: async (stageId) => {
-    if (!get().role) throw new Error('Сначала выберите роль');
+    // FR-406: без ручного выбора роли.
     const stage = STAGES.find((s) => s.id === stageId);
     if (!stage) return;
     const prevTasks = get().doneTasks;
@@ -397,28 +399,47 @@ export const useOnboarding = create<OnboardingState>()((set, get) => ({
 }));
 
 // Helper selectors
-export function getStageStatus(stageId: StageId, doneTasks: Record<StageId, string[]>): StageStatus {
+// FR-409: задачи в pending (ожидают HR) не блокируют следующий этап —
+// для разблокировки pending считается как выполненное, но статус 'done'
+// только когда всё реально в doneTasks.
+// isDemoFreeNav: демо-режим — свободная навигация по всем этапам без прохождения.
+export function isDemoUser(email: string | undefined | null): boolean {
+  return !!email && email.toLowerCase() === 'demo@mdigital.kg';
+}
+
+export function getStageStatus(
+  stageId: StageId,
+  doneTasks: Record<StageId, string[]>,
+  pending: string[] = [],
+  freeNav: boolean = false,
+): StageStatus {
   const stage = STAGES.find((s) => s.id === stageId);
   if (!stage) return 'locked';
   const allTaskIds = stage.subTasks.map((t) => t.id);
   const completed = doneTasks[stageId] || [];
   if (allTaskIds.every((id) => completed.includes(id))) return 'done';
-  for (let i = 1 as StageId; i <= 5; i = (i + 1) as StageId) {
+  if (freeNav) return 'current';
+  const isUnlocked = (ids: string[], done: string[]) =>
+    ids.every((id) => done.includes(id) || pending.includes(id));
+  for (let i = 1 as StageId; i <= 4; i = (i + 1) as StageId) {
     const s = STAGES.find((st) => st.id === i)!;
     const ids = s.subTasks.map((t) => t.id);
     const d = doneTasks[i] || [];
-    if (!ids.every((id) => d.includes(id))) return i === stageId ? 'current' : 'locked';
+    if (!isUnlocked(ids, d)) return i === stageId ? 'current' : 'locked';
   }
   return 'locked';
 }
 
-export function getAllStatuses(doneTasks: Record<StageId, string[]>): Record<StageId, StageStatus> {
+export function getAllStatuses(
+  doneTasks: Record<StageId, string[]>,
+  pending: string[] = [],
+  freeNav: boolean = false,
+): Record<StageId, StageStatus> {
   return {
-    1: getStageStatus(1, doneTasks),
-    2: getStageStatus(2, doneTasks),
-    3: getStageStatus(3, doneTasks),
-    4: getStageStatus(4, doneTasks),
-    5: getStageStatus(5, doneTasks),
+    1: getStageStatus(1, doneTasks, pending, freeNav),
+    2: getStageStatus(2, doneTasks, pending, freeNav),
+    3: getStageStatus(3, doneTasks, pending, freeNav),
+    4: getStageStatus(4, doneTasks, pending, freeNav),
   };
 }
 

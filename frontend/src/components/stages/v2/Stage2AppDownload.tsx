@@ -5,6 +5,7 @@ import { useServices } from '../../../hooks/useServices';
 import { useOnboarding } from '../../../store/useOnboarding';
 import type { StageId } from '../../../data/stages';
 import { api } from '../../../api/client';
+import { isLocalhost } from '../../../lib/utils';
 import { Button } from '../../ui/button';
 import { Card, CardContent } from '../../ui/card';
 import { Input } from '../../ui/input';
@@ -14,9 +15,16 @@ import { FadeContent } from '../../bits';
 
 const MPULSE_TASK_IDS = ['1-mpulse', '1-mpulse-schedule', '1-mpulse-checkin', '1-mpulse-code', '1-mpulse-news'];
 
+const APP_STORE_URL = 'https://apps.apple.com/us/app/mpulse-kg/id6740697046';
+const PLAY_URL = 'https://play.google.com/store/apps/details?id=kg.pulse.app';
+
+// QR ведёт в стор платформы пользователя (иначе Android получает ссылку на App Store).
+const isIOSDevice = () =>
+  typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
+
 export function Stage2AppDownload({ stageId }: { stageId: StageId }) {
   const done = useOnboarding((s) => s.doneTasks[stageId] || []);
-  const toggleTask = useOnboarding((s) => s.toggleTask);
+  const refreshMe = useOnboarding((s) => s.refreshMe);
   const { services = [] } = useServices();
 
   const mpulseServices = useMemo(() => services.filter((s: { category: string }) => s.category === 'mpulse'), [services]);
@@ -25,6 +33,7 @@ export function Stage2AppDownload({ stageId }: { stageId: StageId }) {
   const [code, setCode] = useState('');
   const [verifying, setVerifying] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const storeUrl = isIOSDevice() ? APP_STORE_URL : PLAY_URL;
 
   const onVerifyMpulse = async (e?: FormEvent) => {
     e?.preventDefault();
@@ -32,10 +41,11 @@ export function Stage2AppDownload({ stageId }: { stageId: StageId }) {
     setVerifying(true);
     setErr(null);
     try {
+      // Бэкенд сам отмечает все 5 MPulse-задач + XP. Только подтягиваем свежий прогресс:
+      // дёргать toggleTask сюда нельзя — он бы поснимал только что зачтённые задачи.
       await api.post('/api/progress/verify-mpulse-code', { code });
-      MPULSE_TASK_IDS.forEach((id) => {
-        if (!done.includes(id)) toggleTask(stageId, id);
-      });
+      setCode('');
+      await refreshMe();
     } catch (err: unknown) {
       setErr(err instanceof Error ? err.message : 'Неверный код');
     } finally {
@@ -63,7 +73,7 @@ export function Stage2AppDownload({ stageId }: { stageId: StageId }) {
 
           <div className="flex flex-wrap items-center gap-5 rounded-xl bg-black/30 p-4">
             <div className="grid shrink-0 place-items-center rounded-lg bg-white p-2">
-              <QRCodeSVG value="https://apps.apple.com/us/app/mpulse-kg/id6740697046" size={80} level="M" />
+              <QRCodeSVG value={storeUrl} size={80} level="M" />
             </div>
             <div>
               <div className="mb-2 text-[13px] font-bold">Скачай с телефона</div>
@@ -79,12 +89,12 @@ export function Stage2AppDownload({ stageId }: { stageId: StageId }) {
                 {mpulseServices.length === 0 && (
                   <>
                     <Button variant="secondary" size="sm" asChild>
-                      <a href="https://apps.apple.com/us/app/mpulse-kg/id6740697046" target="_blank" rel="noopener noreferrer">
+                      <a href={APP_STORE_URL} target="_blank" rel="noopener noreferrer">
                         <Apple /> App Store
                       </a>
                     </Button>
                     <Button variant="secondary" size="sm" asChild>
-                      <a href="https://play.google.com/store/apps/details?id=kg.pulse.app" target="_blank" rel="noopener noreferrer">
+                      <a href={PLAY_URL} target="_blank" rel="noopener noreferrer">
                         <Smartphone /> Google Play
                       </a>
                     </Button>
@@ -103,13 +113,18 @@ export function Stage2AppDownload({ stageId }: { stageId: StageId }) {
               <form onSubmit={onVerifyMpulse} className="flex flex-col gap-2.5">
                 <div className="text-[13px] font-bold">Связать аккаунт</div>
                 <div className="text-xs text-muted-foreground">Зайди в приложение под своим логином AD. В разделе «Онбординг» найди 6-значный код.</div>
+                {isLocalhost() && (
+                  <div className="rounded-lg border border-dashed border-amber-500/40 bg-amber-500/10 px-2.5 py-2 text-[11px] text-amber-200">
+                    DEV: для локального теста используй код батча из «Админка → Коды и интеграции» (дефолт <code className="font-mono">ONBOARD-2026</code>, если таблица пуста)
+                  </div>
+                )}
                 <div className="flex gap-2">
                   <Input
                     value={code}
-                    onChange={(e) => setCode(e.target.value.replace(/[^0-9A-Z]/g, ''))}
+                    onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^0-9A-Z-]/g, ''))}
                     placeholder="КОД"
-                    maxLength={10}
-                    className="font-mono"
+                    maxLength={16}
+                    className="min-w-0 flex-1 font-mono"
                   />
                   <Button type="submit" disabled={verifying || !code} className="shrink-0">
                     {verifying && <LoaderCircle className="animate-spin" />}

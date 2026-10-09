@@ -44,6 +44,8 @@ export function Stage3Video({ onVideoEnded }: Props) {
         <video
           ref={videoRef}
           controls
+          playsInline
+          disablePictureInPicture
           poster={POSTER}
           style={{ width: '100%', display: 'block', borderRadius: 8 }}
         >

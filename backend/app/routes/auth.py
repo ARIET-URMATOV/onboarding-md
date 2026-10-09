@@ -24,6 +24,7 @@ from app.schemas import (
     PasswordChangeIn,
     ProfileIn,
     ProgressOut,
+    RegisterIn,
     UserOut,
 )
 
@@ -93,7 +94,7 @@ async def oidc_callback(
     # 1. Validate state
     state_data = await consume_state(db, payload.state)
     if state_data is None:
-        raise HTTPException(status_code=400, detail="Неверный или использованный state — повторите вход")
+        raise HTTPException(status_code=400, detail="Неверный или использованный state - повторите вход")
 
     # 2. Exchange code for tokens
     try:
@@ -275,6 +276,7 @@ def user_out(user: User) -> UserOut:
         voice_enabled=user.voice_enabled,
         created_at=user.created_at.isoformat() if user.created_at else None,
         is_staff=user.is_staff,
+        is_lead=getattr(user, "is_lead", False) or False,
         telegram_username=user.telegram_username or "",
         department=_parse_department(user.department),
         position=user.position,
@@ -296,18 +298,57 @@ def me_out(user: User, prog: Progress) -> MeOut:
     )
 
 
+@router.post("/register", response_model=MeOut)
+@limiter.limit("20/minute")
+async def register(
+    request: Request, payload: RegisterIn, response: Response, db: AsyncSession = Depends(get_db)
+):
+    """Саморегистрация email/пароль (dev only; в prod — 404 per FR-306)."""
+    if settings.is_production:
+        raise HTTPException(status_code=404, detail="Registration is disabled in production. Use OIDC.")
+    if len(payload.password.encode("utf-8")) > 72:
+        raise HTTPException(status_code=422, detail="Пароль слишком длинный (максимум 72 байта)")
+    email = payload.email.lower().strip()
+    res = await db.execute(select(User).where(User.email == email))
+    if res.scalar_one_or_none() is not None:
+        raise HTTPException(status_code=409, detail="Пользователь с такой почтой уже существует")
+
+    user = User(
+        email=email,
+        password_hash=pwd.hash(payload.password),
+        name=(payload.name or email.split("@")[0]).strip(),
+    )
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+
+    prog = await ensure_progress(db, user)
+    set_auth_cookie(response, create_token(user.id))
+    return me_out(user, prog)
+
+
 @router.post("/login", response_model=MeOut)
 @limiter.limit("20/minute")
 async def login(
     request: Request, payload: LoginIn, response: Response, db: AsyncSession = Depends(get_db)
 ):
-    """Вход через Active Directory (LDAP)."""
+    """Вход через Active Directory (LDAP); в dev fallback на локальный пароль."""
     if settings.is_production:
         raise HTTPException(status_code=404, detail="Password login disabled in production. Use OIDC.")
     try:
         user = ldap_service.authenticate(payload.email, payload.password)
     except LDAPAuthError as e:
-        raise HTTPException(status_code=401, detail=str(e))
+        # Dev fallback ТОЛЬКО когда LDAP не настроен: пользователи, созданные
+        # через /register (демо/тесты). При настроенном LDAP сохраняем исходную
+        # ошибку (фронт различает «сеть» vs «неверный пароль» по тексту).
+        # В prod недостижимо (выше 404) — вход только через AD/OIDC.
+        if settings.ldap_configured:
+            raise HTTPException(status_code=401, detail=str(e))
+        res = await db.execute(select(User).where(User.email == payload.email.lower().strip()))
+        local = res.scalar_one_or_none()
+        if local is None or not pwd.verify(payload.password, local.password_hash):
+            raise HTTPException(status_code=401, detail="Неверная почта или пароль")
+        user = local
 
     prog = await ensure_progress(db, user)
     set_auth_cookie(response, create_token(user.id))
@@ -322,7 +363,7 @@ async def auto_login(
     """SSO-вход по JWT из корпоративного портала (SHARED_SECRET_KEY, TTL 5 мин).
 
     Корппортал подписывает {"email"|"login", "name"?, "exp"} общим секретом.
-    AD-проверки нет: портал — источник истины (см. ADR-007).
+    AD-проверки нет: портал - источник истины (см. ADR-007).
     """
     from fastapi.responses import RedirectResponse
 
@@ -331,9 +372,9 @@ async def auto_login(
     try:
         claims = jwt.decode(token, settings.shared_secret_key, algorithms=[settings.jwt_algorithm])
     except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Ссылка истекла — запросите новую на корпоративном портале")
+        raise HTTPException(status_code=401, detail="Ссылка истекла - запросите новую на корпоративном портале")
     except jwt.PyJWTError:
-        raise HTTPException(status_code=401, detail="Неверная ссылка — запросите новую на корпоративном портале")
+        raise HTTPException(status_code=401, detail="Неверная ссылка - запросите новую на корпоративном портале")
     email = str(claims.get("email") or "").lower().strip()
     if not email and claims.get("login"):
         login = str(claims["login"]).strip()
@@ -373,9 +414,9 @@ async def me(db: AsyncSession = Depends(get_db), user: User = Depends(get_curren
     prog = await ensure_progress(db, user)
     out = me_out(user, prog)
 
-    # SLA status
+    # SLA status (FR-307: от activated/onboarding_started_at, fallback created_at)
     from app.sla import sla_status
-    out.sla = sla_status(user.created_at, prog.completed_at)
+    out.sla = sla_status(user.onboarding_started_at or user.created_at, prog.completed_at)
 
     # Unread notifications count
     out.unread_count = (await db.execute(
@@ -466,10 +507,6 @@ async def demo_login(request: Request, response: Response, db: AsyncSession = De
     """Идемпотентный вход в демо-аккаунт: создаёт его при первом заходе."""
     if settings.is_production:
         raise HTTPException(status_code=404, detail="Demo login is disabled in production")
-
-    - stage: если передан (1-5), прогресс будет настроен так, чтобы этот этап был current.
-      Все предыдущие этапы считаются пройденными.
-    """
     user = await get_demo_user(db)
     if user is None:
         user = User(
@@ -483,17 +520,28 @@ async def demo_login(request: Request, response: Response, db: AsyncSession = De
 
     prog = await ensure_progress(db, user)
 
-    if stage and 1 <= stage <= 5:
+    # Демо без ручного выбора роли (FR-406): направление по умолчанию,
+    # иначе все действия gated by require_role (403) и демо бесполезно.
+    # Реальные сотрудники получают роль из заявки при OIDC-входе.
+    if not user.role:
+        user.role = "frontend"
+        db.add(user)
+        await db.commit()
+
+    if stage and 1 <= stage <= 4:
         from app.stages_data import normalize_tasks, compute_xp
         done = normalize_tasks(prog.done_tasks)
-        # Fetch all tasks from DB for stages before the target stage
+        # Fetch all tasks from DB for stages before the target stage.
+        # Group by stage_id column (NOT by id prefix: legacy '1-*' ids live in stage 2).
         result = await db.execute(
-            sa_text("SELECT id FROM stage_tasks WHERE stage_id < :stage"),
+            sa_text("SELECT id, stage_id FROM stage_tasks WHERE stage_id < :stage"),
             {"stage": stage}
         )
         rows = result.fetchall()
         for row in rows:
-            sid = row.id.split("-")[0]
+            sid = str(row.stage_id)
+            if sid not in ("1", "2", "3", "4"):
+                continue
             if sid not in done:
                 done[sid] = []
             if row.id not in done[sid]:
@@ -515,12 +563,12 @@ async def demo_reset(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Сброс демо-аккаунта в состояние «как новый». Трогает только demo.
+    """Сброс демо-аккаунта в состояние "как новый". Трогает только demo.
 
-    Требует активной демо-сессии (auth required — см. ADR). После сброса
+    Требует активной демо-сессии (auth required - см. ADR). После сброса
     кука перевыпускается, чтобы сессия не протухла. Чистит не только
     Progress, но и связанные демо-данные: pending_requests, wifi_macs,
-    verification_log — иначе бейджи/флаги переживают «сброс».
+    verification_log - иначе бейджи/флаги переживают "сброс".
     """
     if user.email.lower() != settings.demo_email.lower():
         raise HTTPException(status_code=403, detail="Только демо-аккаунт может сбросить демо")
@@ -537,7 +585,7 @@ async def demo_reset(
         await db.commit()
         await db.refresh(demo)
     else:
-        # Связанные строки демо-пользователя — полный wipe.
+        # Связанные строки демо-пользователя - полный wipe.
         from app.models import Notification
         for table in (PendingRequest, WifiMac, VerificationLog, Notification):
             rows = (await db.execute(select(table).where(table.user_id == demo.id))).scalars().all()

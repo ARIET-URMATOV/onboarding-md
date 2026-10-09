@@ -6,7 +6,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 
-STAGE_IDS = ["1", "2", "3", "4", "5"]
+STAGE_IDS = ["1", "2", "3", "4"]
 
 # JSONB на PostgreSQL, JSON на SQLite (тесты)
 FlexibleJSON = JSONB().with_variant(JSON(), "sqlite")
@@ -33,9 +33,11 @@ class User(Base):
     voice_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     is_staff: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     staff_role: Mapped[str | None] = mapped_column(String, nullable=True)
+    is_lead: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     telegram_username: Mapped[str] = mapped_column(Text, nullable=False, default="")
     lead_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    onboarding_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
 
     # AD/LDAP fields
     ad_login: Mapped[str | None] = mapped_column(Text, nullable=True, index=True)
@@ -261,16 +263,6 @@ class OutboxEvent(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 class ApplicationEvent(Base):
-    __tablename__ = "outbox_events"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    kind: Mapped[str] = mapped_column(String, nullable=False, index=True) # "email", "webhook"
-    payload: Mapped[dict] = mapped_column(FlexibleJSON, nullable=False, default=dict)
-    status: Mapped[str] = mapped_column(String, nullable=False, default="pending", index=True) # pending, failed, done
-    error_msg: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    retries: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
     __tablename__ = "application_events"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -280,4 +272,97 @@ class ApplicationEvent(Base):
     author_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     comment: Mapped[str] = mapped_column(Text, nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class EmailVerificationCode(Base):
+    """6-значные коды подтверждения почты кандидата (FR-202, NFR-08).
+
+    Хранятся в БД (а не в памяти), чтобы пережить холодный старт Render
+    и работать на нескольких репликах. Payload — черновик заявки.
+    """
+
+    __tablename__ = "email_verification_codes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    email: Mapped[str] = mapped_column(Text, index=True, nullable=False)
+    code: Mapped[str] = mapped_column(String(6), nullable=False)
+    payload: Mapped[dict] = mapped_column(FlexibleJSON, nullable=False, default=dict)
+    ip: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Department(Base):
+    """Справочник департаментов (OQ-10): Frontend/Backend/Design + расширение из админки."""
+
+    __tablename__ = "departments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    slug: Mapped[str] = mapped_column(String(40), unique=True, index=True, nullable=False)
+    display_name: Mapped[str] = mapped_column(Text, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Project(Base):
+    """Карточка проекта для этапа 6 (FR-502/503)."""
+
+    __tablename__ = "projects"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    client: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    category: Mapped[str] = mapped_column(String(40), nullable=False, default="product")
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    stack: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    stage: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    jira_key: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    jira_component: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    confluence_space: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    links: Mapped[dict] = mapped_column(FlexibleJSON, nullable=False, default=dict)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class ProjectMember(Base):
+    """Назначение сотрудника на проект (FR-501/505)."""
+
+    __tablename__ = "project_members"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    role: Mapped[str] = mapped_column(String(20), nullable=False, default="dev")
+    responsibility: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    contact_tg: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    is_mentor: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
+
+
+class ProjectDoc(Base):
+    """Обязательные/необязательные документы проекта (FR-504)."""
+
+    __tablename__ = "project_docs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    confluence_url: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    is_required: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class ProjectDocRead(Base):
+    """Подтверждения чтения документов проекта (таймер 120с как в этапе 3)."""
+
+    __tablename__ = "project_doc_reads"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    doc_id: Mapped[int] = mapped_column(ForeignKey("project_docs.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    opened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
+    confirmed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 

@@ -45,7 +45,7 @@ def upgrade() -> None:
     # --- stage_tasks: switch doc/access/mpulse tasks to info_read ---
     if _table_exists(conn, "stage_tasks"):
         for tid in INFO_READ_TASKS:
-            op.execute(
+            conn.execute(
                 sa.text("UPDATE stage_tasks SET verification_type = 'info_read' WHERE id = :tid"),
                 {"tid": tid},
             )
@@ -67,7 +67,7 @@ def downgrade() -> None:
             "1-mpulse-news": "technical_code",
         }
         for tid, vtype in revert_map.items():
-            op.execute(
+            conn.execute(
                 sa.text("UPDATE stage_tasks SET verification_type = :vtype WHERE id = :tid"),
                 {"tid": tid, "vtype": vtype},
             )

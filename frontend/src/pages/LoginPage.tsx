@@ -4,6 +4,7 @@ import { ArrowRight, ArrowUpRight, LoaderCircle, TriangleAlert } from 'lucide-re
 import { api, type MeResponse } from '../api/client';
 import { useOnboarding } from '../store/useOnboarding';
 import { usePageMeta } from '../hooks/usePageMeta';
+import { isLocalhost } from '../lib/utils';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
@@ -88,7 +89,7 @@ export function LoginPage() {
                 <path d="M8 17l4 3 4-3" />
               </svg>
             </div>
-            <CardTitle className="font-mono text-base tracking-widest">MDIGITAL ONBOARDING</CardTitle>
+            <CardTitle className="font-display text-base font-bold tracking-widest">MDIGITAL ONBOARDING</CardTitle>
             <CardDescription>Войди, чтобы продолжить путь</CardDescription>
           </CardHeader>
           <CardContent>
@@ -132,6 +133,25 @@ export function LoginPage() {
               </Button>
             </form>
 
+            {isLocalhost() && (
+              <>
+                <div className="my-4 flex items-center gap-3 text-[11px] uppercase tracking-widest text-muted-foreground">
+                  <Separator className="flex-1" /> dev-вход <Separator className="flex-1" />
+                </div>
+                <div className="flex flex-wrap justify-center gap-2">
+                  <Button type="button" variant="secondary" size="sm" onClick={() => { setEmail('hr-local@test.kg'); setPassword('hr123456'); }}>
+                    HR
+                  </Button>
+                  <Button type="button" variant="secondary" size="sm" onClick={() => { setEmail('sa-local@test.kg'); setPassword('sa123456'); }}>
+                    Сисадмин
+                  </Button>
+                  <Button type="button" variant="secondary" size="sm" onClick={() => { setEmail('demo@mdigital.kg'); setPassword('demo1234'); }}>
+                    Демо
+                  </Button>
+                </div>
+              </>
+            )}
+
             {DEMO_ENABLED && (
               <>
                 <div className="my-4 flex items-center gap-3 text-[11px] uppercase tracking-widest text-muted-foreground">
@@ -139,11 +159,11 @@ export function LoginPage() {
                 </div>
                 <Button type="button" variant="outline" className="w-full" onClick={() => onDemo()} disabled={demoLoading}>
                   {demoLoading && <LoaderCircle className="animate-spin" />}
-                  {demoLoading ? 'Входим…' : 'Демо — с начала'}
+                  {demoLoading ? 'Входим…' : 'Демо\u00A0— с\u00A0начала'}
                 </Button>
                 <p className="mb-2 mt-4 text-center text-[11px] uppercase tracking-widest text-muted-foreground">Быстрый старт</p>
                 <div className="flex flex-wrap justify-center gap-2">
-                  {[2, 3, 4, 5].map((stage) => (
+                  {[2, 3, 4].map((stage) => (
                     <Button key={stage} type="button" variant="secondary" size="sm" onClick={() => onDemo(stage)} disabled={demoLoading}>
                       Этап {stage}
                     </Button>

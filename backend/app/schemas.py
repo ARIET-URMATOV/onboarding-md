@@ -54,12 +54,12 @@ class PasswordChangeIn(BaseModel):
 
 
 class TaskIn(BaseModel):
-    stage_id: int = Field(ge=1, le=5)
+    stage_id: int = Field(ge=1, le=4)
     task_id: str = Field(min_length=1, max_length=40)
 
 
 class StageActionIn(BaseModel):
-    stage_id: int = Field(ge=1, le=5)
+    stage_id: int = Field(ge=1, le=4)
     action: str = Field(pattern="^(complete|uncomplete)$")
 
 
@@ -91,6 +91,7 @@ class UserOut(BaseModel):
     voice_enabled: bool
     created_at: str | None = None
     is_staff: bool = False
+    is_lead: bool = False
     telegram_username: str = ""
     department: Department | str | None = None
     position: str | None = None
@@ -156,6 +157,10 @@ class StaffSetIn(BaseModel):
     is_staff: bool
 
 
+class StaffRoleIn(BaseModel):
+    staff_role: str | None = None
+
+
 class LeadSetIn(BaseModel):
     lead_email: str = Field(default="", max_length=120)
 
@@ -176,20 +181,30 @@ CONTACT_KEYS = (
 )
 
 INSTRUCTION_KEYS = ("instruction.accountant",)
-
+INTRO_KEYS = ("intro.title", "intro.mission", "intro.values", "intro.instruction", "intro.goals", "intro.gallery")
+STAGE5_KEYS = ("stage5.frontend", "stage5.backend", "stage5.design")
+# Шаблоны писем кандидату (5.1): плейсхолдеры {{number}}, {{name}}, {{comment}}, {{login}}.
+# Рендерит Batch-A email worker; админка редактирует тексты здесь.
+LETTER_KEYS = (
+    "letter.application_received",
+    "letter.approved",
+    "letter.rejected",
+    "letter.needs_info",
+    "letter.account_created",
+)
 
 class SettingIn(BaseModel):
     key: str = Field(min_length=1, max_length=80)
     value: str = Field(default="", max_length=5000)
-    # groups_json: "merge" (по chat_id, по умолчанию — не затирает чужие)
-    # или "replace" (полная замена, для удаления групп)
     mode: str = Field(default="merge", max_length=16)
-
 
 class SettingsOut(BaseModel):
     contacts: dict[str, str] = {}
     links: dict[str, str] = {}
     instructions: dict[str, str] = {}
+    intro: dict[str, str] = {}
+    stage5: dict[str, str] = {}
+    letters: dict[str, str] = {}
 
 
 class AdminUserOut(BaseModel):
@@ -198,6 +213,9 @@ class AdminUserOut(BaseModel):
     name: str
     role: str | None = None
     is_staff: bool = False
+    staff_role: str | None = None
+    is_lead: bool = False
+    department: str | None = None
     created_at: str | None = None
     done_stage1: list[str] = []
     lead_email: str = ""
@@ -245,8 +263,8 @@ LUCIDE_ICONS = (
     "Hash", "MessageSquare", "ExternalLink", "Download",
 )
 
-VALID_CATEGORIES = ("access", "mpulse", "knowledge")
-VALID_SERVICE_TASK_IDS = ("1-jira", "1-figma", "1-gitlab")
+VALID_CATEGORIES = ("access", "mpulse", "knowledge", "dept")
+VALID_SERVICE_TASK_IDS = ("1-jira", "1-figma", "1-gitlab", "5-take", "5-confirm")
 VALID_ROLES_LIST = ("frontend", "backend", "design")
 
 
@@ -329,9 +347,43 @@ class OidcCallbackIn(BaseModel):
 
 class InfoReadIn(BaseModel):
     """Сотрудник подтвердил прочтение инфо-модалки (scroll-checker → auto-complete)."""
-    stage_id: int = Field(ge=1, le=5)
+    stage_id: int = Field(ge=1, le=4)
     task_id: str = Field(min_length=1, max_length=40)
 
 
 class OkOut(BaseModel):
     ok: bool = True
+
+
+class StageTaskIn(BaseModel):
+    """Создание задачи этапа (FR-407): тексты, XP, тип проверки, департамент."""
+
+    id: str = Field(min_length=1, max_length=40)
+    stage_id: int = Field(ge=1, le=4)
+    title: str = Field(min_length=1, max_length=300)
+    xp: int = Field(ge=0, le=500)
+    sort_order: int = Field(default=0, ge=0)
+    verification_type: str = Field(default="info_read", max_length=40)
+    responsible_role: str = Field(default="", max_length=40)
+    department: str | None = Field(default=None, max_length=40)
+
+
+class StageTaskPatchIn(BaseModel):
+    stage_id: int | None = Field(default=None, ge=1, le=4)
+    title: str | None = Field(default=None, min_length=1, max_length=300)
+    xp: int | None = Field(default=None, ge=0, le=500)
+    sort_order: int | None = Field(default=None, ge=0)
+    verification_type: str | None = Field(default=None, max_length=40)
+    responsible_role: str | None = Field(default=None, max_length=40)
+    department: str | None = Field(default=None, max_length=40)
+
+
+class StageTaskOut(BaseModel):
+    id: str
+    stage_id: int
+    title: str
+    xp: int
+    sort_order: int
+    verification_type: str
+    responsible_role: str
+    department: str | None = None

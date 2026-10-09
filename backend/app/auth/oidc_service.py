@@ -416,9 +416,11 @@ async def upsert_user(db: AsyncSession, claims: OIDCClaims, refresh_token: str |
     app = (await db.execute(stmt)).scalars().first()
     
     if app:
-        # Link and transfer data
+        # Link and transfer data (FR-305, FR-307: SLA от activated)
+        from datetime import datetime, timezone as _tz
         app.status = 'activated'
         app.user_id = user.id
+        user.onboarding_started_at = datetime.now(_tz.utc)
         
         user.department = app.department or user.department
         user.position = app.position or user.position
@@ -428,10 +430,12 @@ async def upsert_user(db: AsyncSession, claims: OIDCClaims, refresh_token: str |
             if mapped_app_role:
                 user.role = mapped_app_role
         
-        # We need to transfer stage1_progress (FR-104)
+        # Этап «Знакомство с компанией» пройден на публичной странице до входа —
+        # в аутентифицированном онбординге его нет (FR-104: прогресс уже учтён заявкой).
+        # Первый открытый этап — 1 «Скачай приложение», прогресс начинается пустым.
         if is_new:
-            prog.done_tasks = {"1": ["1-intro"]}
-            from app.stages_data import compute_xp
+            from app.stages_data import compute_xp, normalize_tasks
+            prog.done_tasks = normalize_tasks({})
             prog.xp = compute_xp(prog.done_tasks)
         
         evt = ApplicationEvent(

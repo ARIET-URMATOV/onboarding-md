@@ -103,7 +103,7 @@ export function ProfilePage() {
               <Button variant="ghost" size="sm" className="w-fit" onClick={() => nav(-1)}>
                 <ArrowLeft /> Назад
               </Button>
-              <CardTitle className="font-mono text-lg tracking-widest">Профиль</CardTitle>
+              <CardTitle className="font-display text-lg font-bold tracking-widest">Профиль</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-6">
               <div className="flex flex-col items-center gap-3">

@@ -1,0 +1,118 @@
+/* ── MPulse WebView shell ─────────────────────────────────────────────
+   Сброс стилей для встраивания онбординга в нативное приложение MPulse
+   через WebView (viewport-fit=cover, notch / safe-area).
+   ОБЛАСТЬ ДЕЙСТВИЯ: только body.wv — класс ставит WebViewScope() на
+   аутентифицированных маршрутах онбординга. Публичный сайт (/intro,
+   /status, /login, /register) этих правил НЕ ВИДИТ вообще.
+   НЕ дублирует Tailwind preflight (box-sizing/margin reset уже там).
+   Шрифты не трогаем — за типографику отвечает styles/theme.css.
+   ───────────────────────────────────────────────────────────────────── */
+
+/* 1. Pull-to-refresh / rubber-band: глобальный overscroll-behavior на html/body
+      ЗАПРЕЩЁН — в связке с overflow-x:hidden (index.css) он съедает wheel-скролл
+      страницы целиком (проверено wheel-тестом в Chromium: и `none`, и `contain`
+      дают scrollY=0 при живом keyboard-скролле). Chaining гасим ТОЛЬКО на
+      внутренних скролл-контейнерах (правила ниже), корень не трогаем. */
+
+/* 2. Запрет выделения текста и callout везде, кроме полей ввода. */
+body.wv *:not(input, textarea, [contenteditable="true"]) {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  word-wrap: break-word;
+}
+body.wv input, body.wv textarea {
+  -webkit-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+}
+
+/* 3. Убираем тап-подсветку и авто-ресайз шрифта на интерактиве. */
+body.wv button, body.wv select, body.wv a {
+  -webkit-touch-callout: none;
+  -webkit-text-size-adjust: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+body.wv a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* 4. Высота под WebView: dvh с откатом на vh ( notch + скрытие chrome ). */
+body.wv, body.wv #root {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* 5. Размерные токены нативной оболочки (переопределяются из MPulse при нужде).
+      Используются вместо жёстких px для отступов под нативные панели. */
+:root {
+  --navbar-size: 56px;
+  --header-size: 56px;
+  --navbar-size-and-safe-area: calc(env(safe-area-inset-bottom, 0px) + var(--navbar-size));
+  --webview-sat: env(safe-area-inset-top, 0px);
+  --webview-sab: env(safe-area-inset-bottom, 0px);
+}
+
+/* 6. Хелперы safe-area для sticky/fixed шапок и нижних панелей. */
+.webview-pt-safe {
+  padding-top: var(--webview-sat);
+}
+.webview-pb-safe {
+  padding-bottom: var(--webview-sab);
+}
+
+/* 7. Embedded-режим (?embedded=1, открыт внутри MPulse):
+      у нативного приложения своя навигация — прячем веб-шапку полностью. */
+body.webview-embedded .topbar-site {
+  display: none !important;
+}
+
+/* 8. App-like эргономика внутри MPulse WebView (только body.wv). */
+/* Запрет pinch-zoom жестами, вертикальный скролл разрешён. */
+body.wv {
+  touch-action: pan-x pan-y;
+}
+/* Отступ снизу под нативную панель НЕ добавляем: у MPulse своя навигация,
+      лишний паддинг только поднимает контент и ломает вёрстку. Safe-area
+      учитывается точечно через .webview-pb-safe там, где нужно. */
+/* Минимальные тап-зоны 44px для всех кликабельных элементов. */
+body.wv button, body.wv a, body.wv [role="button"] {
+  min-height: 44px;
+}
+body.wv nav a {
+  display: inline-flex;
+  align-items: center;
+}
+/* Эффект нажатия на карточках задач (app-like feedback). */
+body.wv .pkg-item, body.wv .task-card {
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+body.wv .pkg-item:active, body.wv .task-card:active {
+  transform: scale(0.98);
+  box-shadow: 0 0 20px rgba(37, 99, 235, 0.35);
+}
+/* Крупные CTA-кнопки на всю ширину в WebView. */
+body.wv .wv-cta {
+  min-height: 52px;
+  font-size: 16px;
+  border-radius: 14px;
+}
+/* Горизонтальные скролл-ленты (команда проекта) без видимого скроллбара. */
+.wv-hscroll {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 8px;
+  scrollbar-width: none;
+}
+.wv-hscroll::-webkit-scrollbar {
+  display: none;
+}
+.wv-hscroll > * {
+  scroll-snap-align: start;
+  flex-shrink: 0;
+}

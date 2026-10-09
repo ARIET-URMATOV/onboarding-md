@@ -43,6 +43,7 @@ if "sqlite" in settings.database_url and ":memory:" in settings.database_url:
     engine_kwargs.pop("pool_size", None)
     engine_kwargs.pop("max_overflow", None)
     engine_kwargs.pop("pool_recycle", None)
+    engine_kwargs.pop("pool_timeout", None)
 
 engine = create_async_engine(settings.database_url, **engine_kwargs)
 SessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)

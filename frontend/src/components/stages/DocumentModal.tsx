@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
+import { Button } from '../ui/button';
 
 export type DocKind =
   | 'docs'
@@ -94,7 +95,7 @@ export function DocumentModal({ kind, open, onClose, onConfirm, alreadyDone }: P
             <div className="doc-h1 font-orbitron">{meta.title}</div>
             <div className="doc-sub">{meta.sub}</div>
           </div>
-          <button className="doc-x" onClick={onClose} aria-label="Закрыть"><X size={16} /></button>
+          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Закрыть" className="doc-x min-h-[44px] min-w-[44px]"><X size={16} /></Button>
         </div>
 
         <div className="doc-progress">
@@ -121,13 +122,13 @@ export function DocumentModal({ kind, open, onClose, onConfirm, alreadyDone }: P
         </div>
 
         <div className="doc-foot">
-          <button
-            className="btn-primary"
+          <Button
             disabled={!canConfirm}
             onClick={() => { onConfirm(); onClose(); }}
+            className="wv-cta w-full"
           >
             {alreadyDone ? 'Ознакомлен(-а) ✓' : 'Подтвердить прочтение'}
-          </button>
+          </Button>
         </div>
       </div>
       <style>{`

@@ -9,6 +9,8 @@ interface MetricsOut {
   conversion_rate: number;
   avg_hr_hours: number;
   avg_sysadmin_hours: number;
+  avg_activation_to_complete_hours: number;
+  overdue_share: number;
 }
 
 export function AdminAnalytics() {
@@ -33,10 +35,12 @@ export function AdminAnalytics() {
     { label: 'Воронка (активировано)', value: metrics.conversion_rate, suffix: '%', tone: 'text-emerald-400' },
     { label: 'Решение HR (SLA)', value: metrics.avg_hr_hours, suffix: ' ч', tone: 'text-sky-400' },
     { label: 'Выдача учётки (SLA)', value: metrics.avg_sysadmin_hours, suffix: ' ч', tone: 'text-violet-400' },
+    { label: 'Активация → завершение', value: metrics.avg_activation_to_complete_hours ?? 0, suffix: ' ч', tone: 'text-amber-400' },
+    { label: 'Просрочка HR-SLA (48ч)', value: metrics.overdue_share ?? 0, suffix: '%', tone: 'text-red-400' },
   ];
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {cards.map((c, i) => (
         <FadeContent key={c.label} delay={i * 0.08}>
           <Card>

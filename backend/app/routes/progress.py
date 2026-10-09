@@ -188,8 +188,8 @@ async def request_verification(
 
     from app.models import PendingRequest
 
-    stage = STAGES.get(1)
-    if payload.task_id not in stage["tasks"]:
+    all_known = {tid for st in STAGES.values() for tid in st["tasks"]}
+    if payload.task_id not in all_known:
         raise HTTPException(status_code=400, detail="Неизвестная задача")
     vt, _rr = task_meta(payload.task_id)
     if vt not in ("manual_hr", "manual_staff"):
@@ -248,11 +248,11 @@ async def request_batch(
 
     from app.models import PendingRequest
 
-    stage = STAGES.get(1)
+    all_known = {tid for st in STAGES.values() for tid in st["tasks"]}
     wanted: list[str] = []
     for raw in payload.task_ids:
         tid = str(raw).strip()
-        if tid not in stage["tasks"]:
+        if tid not in all_known:
             raise HTTPException(status_code=400, detail=f"Неизвестная задача: {tid}")
         vt, _rr = task_meta(tid)
         if vt not in ("manual_hr", "manual_staff"):
@@ -450,9 +450,17 @@ async def verify_docs_batch(
             r.status = "verified"
             db.add(r)
     out = await save_progress(db, prog, tasks)
-    # одно событие на пакет (не 5): один тост + одно письмо за весь Stage
+    # одно событие на пакет (не 5): один тост + одно письмо за весь Stage + in-app колокольчик
+    from app.models import Notification as _Notif
     from app.notify import notify_verified_batch
 
+    db.add(_Notif(
+        user_id=target.id, kind="docs_approved",
+        title="HR подтвердил документы ✓",
+        body=f"Пакет принят (+5 баллов). Продолжайте онбординг.",
+        meta={"task_ids": wanted, "xp": out.xp},
+    ))
+    await db.commit()
     await notify_verified_batch(target.email, wanted, out.xp)
     return out
 
@@ -622,7 +630,7 @@ async def wifi_status(
     res = await db.execute(_select(WifiMac).where(WifiMac.user_id == user.id).limit(1))
     mac_sent = res.scalar_one_or_none() is not None
     prog = await db.get(Progress, user.id)
-    verified = prog is not None and \"1-wifi\" in normalize_tasks(prog.done_tasks).get(_sid_for(\"1-wifi\"), [])
+    verified = prog is not None and "1-wifi" in normalize_tasks(prog.done_tasks).get(_sid_for("1-wifi"), [])
     return {"mac_sent": mac_sent, "verified": verified}
 
 
@@ -650,8 +658,15 @@ async def wifi_password_shown(
     if row is not None:
         try:
             return {"password": decrypt_secret(row.password_encrypted), "mac_sent": True}
-        except ValueError as e:
-            raise HTTPException(status_code=500, detail=str(e))
+        except ValueError:
+            # Ключ шифрования сменился (напр. рестарт без WIFI_ENCRYPTION_KEY):
+            # старый шифр нечитаем — сисадмин должен выпустить пароль заново.
+            raise HTTPException(
+                status_code=410,
+                detail="Пароль не расшифровать (сменился ключ шифрования). Попросите сисадмина выпустить пароль заново.",
+            )
+    if not settings.wifi_password:
+        return {"password": None, "mac_sent": True}
     return {"password": settings.wifi_password, "mac_sent": True}
 
 

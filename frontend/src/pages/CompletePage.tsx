@@ -35,14 +35,14 @@ export function CompletePage() {
         />
         <FadeContent delay={0.25}>
           <p className="mx-auto mb-10 max-w-xl text-[15px] text-muted-foreground">
-            {user?.name?.split(' ')[0] || 'Друг'}, ты прошёл все 5 этапов. Добро пожаловать в команду MDIGITAL!
+            {user?.name?.split(' ')[0] || 'Друг'}, ты прошёл все этапы. Добро пожаловать в команду MDIGITAL!
           </p>
         </FadeContent>
 
         <FadeContent delay={0.3}>
           <Card className="mx-auto mb-12 max-w-xs">
             <CardContent className="pt-6">
-              <div className="text-3xl font-bold text-primary"><ShinyText text="5/5" /></div>
+              <div className="text-3xl font-bold text-primary"><ShinyText text="4/4" /></div>
               <div className="mt-1.5 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">этапов пройдено</div>
             </CardContent>
           </Card>

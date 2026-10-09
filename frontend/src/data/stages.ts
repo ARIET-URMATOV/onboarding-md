@@ -1,4 +1,4 @@
-export type StageId = 1 | 2 | 3 | 4 | 5;
+export type StageId = 1 | 2 | 3 | 4;
 export type Role = 'frontend' | 'backend' | 'design';
 
 export interface SubTask {
@@ -15,30 +15,46 @@ export interface StageDef {
   xpReward: number;
   rewardName: string;
   rewardDesc: string;
-  iconKey: 'docs' | 'team' | 'video' | 'check' | 'test';
+  iconKey: 'mobile' | 'docs' | 'team' | 'video' | 'check' | 'test';
   subTasks: SubTask[];
 }
 
 // Источник — GET /api/stages (БД stages/stage_tasks), этот массив — fallback для тестов/до загрузки
-// Stage 1 «Документы и доступы» TZ v1.0: 5 + 0 + 5 + 10 = 20 XP задач (+150 бонус этапа).
+// Порядок v2 для WebView (MPulse): прелогин-этап «Знакомство с компанией» живёт на
+// публичной странице, аутентифицированный онбординг начинается со «Скачай приложение».
 export const STAGES: StageDef[] = [
   {
     id: 1,
+    title: 'Скачай приложение',
+    shortLabel: 'Приложение',
+    description: 'Установи корпоративное приложение MPulse и свяжи аккаунт: график, check-in/out, новости и уведомления.',
+    xpReward: 50,
+    rewardName: 'Ачивка «На связи»',
+    rewardDesc: 'Откроется после прохождения этапа',
+    iconKey: 'mobile',
+    subTasks: [
+      { id: '1-mpulse', title: 'Установка и авторизация MPulse', xp: 1 },
+      { id: '1-mpulse-schedule', title: 'Выбор рабочего графика', xp: 1 },
+      { id: '1-mpulse-checkin', title: 'Daily check-in/check-out', xp: 1 },
+      { id: '1-mpulse-code', title: 'Ввод проверочного кода', xp: 1 },
+      { id: '1-mpulse-news', title: 'Получение новостей и уведомлений', xp: 1 },
+    ],
+  },
+  {
+    id: 2,
     title: 'Документы и доступы',
     shortLabel: 'Документы',
-    description: 'Подписание документов, получение доступов, настройка MPulse и изучение базы знаний Confluence. Устанавливайте график работы и проходите ознакомление.',
-    xpReward: 150,
+    description: 'Подписание документов, получение доступов и изучение базы знаний Confluence.',
+    xpReward: 100,
     rewardName: 'Ачивка «Старт»',
     rewardDesc: 'Откроется после прохождения этапа',
     iconKey: 'docs',
     subTasks: [
-      // Step 1: Подписание документов (5 баллов, HR-верификация)
       { id: '1-dogovor', title: 'Договор об оказании услуг', xp: 1 },
       { id: '1-nda', title: 'NDA Соглашение о неразглашении', xp: 1 },
       { id: '1-pdp', title: 'Соглашение об обработке персональных данных', xp: 1 },
       { id: '1-ip', title: 'Свидетельство ИП', xp: 1 },
       { id: '1-sn', title: 'Справка о несудимости', xp: 1 },
-      // Step 2: Получение доступов (0 баллов, staff-верификация)
       { id: '1-mbusiness', title: 'MBusiness - открытие', xp: 0 },
       { id: '1-accountant', title: 'Доступ бухгалтеру', xp: 0 },
       { id: '1-wifi', title: 'Доступ к Wi-Fi (MAC адрес)', xp: 0 },
@@ -47,60 +63,29 @@ export const STAGES: StageDef[] = [
       { id: '1-jira', title: 'Доступ к Jira (AD-логин)', xp: 0 },
       { id: '1-figma', title: 'Доступ к Figma (инвайт)', xp: 0 },
       { id: '1-gitlab', title: 'Доступ к GitLab', xp: 0 },
-      // Step 3: Корпоративное приложение MPulse (5 баллов, код)
-      { id: '1-mpulse', title: 'Установка и авторизация MPulse', xp: 1 },
-      { id: '1-mpulse-schedule', title: 'Выбор рабочего графика', xp: 1 },
-      { id: '1-mpulse-checkin', title: 'Daily check-in/check-out', xp: 1 },
-      { id: '1-mpulse-code', title: 'Ввод проверочного кода', xp: 1 },
-      { id: '1-mpulse-news', title: 'Получение новостей и уведомлений', xp: 1 },
-      // Step 4: База знаний Confluence (10 баллов, один тогглер; 5 ссылок + видимый таймер 120с)
       { id: '1-confluence-read', title: 'Я ознакомился(ась)', xp: 10 },
     ],
   },
   {
-    id: 2,
-    title: 'Команда и руководство',
+    id: 3,
+    title: 'Команда, видео и чек-лист',
     shortLabel: 'Команда',
-    description: 'Открой карточки ключевых сотрудников, познакомься с тимлидом и задай первый вопрос.',
-    xpReward: 0,
+    description: 'Знакомство с командой, приветственное видео и чек-лист первого дня.',
+    xpReward: 100,
     rewardName: 'Ачивка «Знакомство»',
     rewardDesc: 'Откроется после прохождения этапа',
     iconKey: 'team',
     subTasks: [
       { id: '2-team-read', title: 'Ознакомился с командой', xp: 5 },
-    ],
-  },
-  {
-    id: 3,
-    title: 'Видеообращение',
-    shortLabel: 'Видео',
-    description: 'Посмотри приветственное видео от руководства. Узнай о миссии, ценностях и планах команды.',
-    xpReward: 0,
-    rewardName: 'Ачивка «Вдохновение»',
-    rewardDesc: 'Откроется после прохождения этапа',
-    iconKey: 'video',
-    subTasks: [
       { id: '3-watch', title: 'Досмотреть видео до конца', xp: 5 },
-    ],
-  },
-  {
-    id: 4,
-    title: 'Тех. чек-лист',
-    shortLabel: 'Чек-лист',
-    description: 'Чек-лист готовности — один лист для проверки.',
-    xpReward: 0,
-    rewardName: 'Ачивка «Готовность»',
-    rewardDesc: 'Откроется после прохождения этапа',
-    iconKey: 'check',
-    subTasks: [
       { id: '4-ready', title: 'Чек-лист пройден', xp: 5 },
     ],
   },
   {
-    id: 5,
-    title: 'Итоговый тест',
-    shortLabel: 'Тест',
-    description: 'Пройди финальный тест по материалам онбординга. Удачи!',
+    id: 4,
+    title: 'Онбординг в департамент',
+    shortLabel: 'Департамент',
+    description: 'Задачи твоего направления: репозиторий, Figma, style guide и финальный тест.',
     xpReward: 200,
     rewardName: 'Ачивка «Мастер»',
     rewardDesc: 'Откроется после прохождения этапа',
@@ -113,6 +98,7 @@ export const STAGES: StageDef[] = [
 ];
 
 export const STAGE_ICONS: Record<StageDef['iconKey'], string> = {
+  mobile: 'M7 2h10a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z M11 18h2',
   docs: 'M9 12h6m-6 4h6m-6-8h6m4 12V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2z',
   team: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M9 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M23 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75',
   video: 'M23 7l-7 5 7 5V7z M1 5h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H1a0 0 0 0 1 0 0V5z',

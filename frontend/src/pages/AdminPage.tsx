@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { Check, LoaderCircle, RefreshCw, X } from 'lucide-react';
+import { Check, LoaderCircle, X } from 'lucide-react';
 import { api } from '../api/client';
 import { useToast } from '../components/ui/ToastProvider';
 import { useOnboarding } from '../store/useOnboarding';
 import { AdminApplications } from '../components/admin/AdminApplications';
 import { AdminAnalytics } from '../components/admin/AdminAnalytics';
 import { AdminOutbox } from '../components/admin/AdminOutbox';
+import { AdminStages } from '../components/admin/AdminStages';
+import { AdminProjects } from '../components/admin/AdminProjects';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
@@ -16,7 +18,8 @@ import { Checkbox } from '../components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Alert, AlertDescription } from '../components/ui/alert';
 import { Badge } from '../components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { Tabs, TabsContent } from '../components/ui/tabs';
+import { AdminShell, adminNav, type AdminTabId } from '../components/admin/AdminShell';
 import { Skeleton } from '../components/ui/skeleton';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -31,6 +34,9 @@ interface AdminUser {
   name: string;
   role: string | null;
   is_staff: boolean;
+  staff_role: string | null;
+  is_lead: boolean;
+  department: string | null;
   created_at: string | null;
   done_stage1: string[];
   lead_email: string;
@@ -118,7 +124,7 @@ export function AdminPage() {
   const [audit, setAudit] = useState<AuditRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [tab, setTab] = useState<'applications' | 'analytics' | 'outbox' | 'pending' | 'users' | 'audit' | 'codes' | 'wifi' | 'settings' | 'services'>('applications');
+  const [tab, setTab] = useState<'applications' | 'analytics' | 'outbox' | 'pending' | 'users' | 'audit' | 'codes' | 'wifi' | 'settings' | 'services' | 'stages' | 'projects'>('applications');
   const [taskFilter, setTaskFilter] = useState<string>('all');
   const [contacts, setContacts] = useState<Record<string, string>>({});
   const [wifiReqs, setWifiReqs] = useState<{ user_id: number; email: string; name: string; mac: string; sent_at: string | null; has_password: boolean; verified: boolean }[]>([]);
@@ -154,7 +160,7 @@ export function AdminPage() {
     try {
       const [w, s, svcs, v2apps] = await Promise.all([
         api.get<{ user_id: number; email: string; name: string; mac: string; sent_at: string | null; has_password: boolean; verified: boolean }[]>('/api/admin/wifi-requests'),
-        api.get<{ contacts: Record<string, string>; instructions: Record<string, string>; intro: Record<string, string>; stage5: Record<string, string> }>('/api/admin/settings'),
+        api.get<{ contacts: Record<string, string>; instructions: Record<string, string>; intro: Record<string, string>; stage5: Record<string, string>; letters: Record<string, string> }>('/api/admin/settings'),
         api.get<{ key: string; title: string; subtitle: string; url: string; icon_key: string; category: string; task_id: string | null; roles: string[]; sort_order: number; is_visible: boolean; open_new_tab: boolean; extra: Record<string, string>; details: string }[]>('/api/admin/services'),
         api.get<any[]>('/api/admin/applications?status=new'),
       ]);
@@ -165,13 +171,14 @@ export function AdminPage() {
       if (s.instructions) setContacts((prev) => ({ ...prev, ...s.instructions }));
       if (s.intro) setContacts((prev) => ({ ...prev, ...s.intro }));
       if (s.stage5) setContacts((prev) => ({ ...prev, ...s.stage5 }));
+      if (s.letters) setContacts((prev) => ({ ...prev, ...s.letters }));
     } catch { /* ignore */ }
   }, []);
 
   const saveContact = async (key: string) => {
     try {
-      const r = await api.patch<{ contacts: Record<string, string>; instructions: Record<string, string>; intro: Record<string, string>; stage5: Record<string, string> }>('/api/admin/settings', { key, value: contacts[key] ?? '' });
-      setContacts({ ...r.contacts, ...r.instructions, ...r.intro, ...r.stage5 });
+      const r = await api.patch<{ contacts: Record<string, string>; instructions: Record<string, string>; intro: Record<string, string>; stage5: Record<string, string>; letters: Record<string, string> }>('/api/admin/settings', { key, value: contacts[key] ?? '' });
+      setContacts({ ...r.contacts, ...r.instructions, ...r.intro, ...r.stage5, ...(r.letters ?? {}) });
       setMsg(`✓ ${key} сохранён`);
     } catch (e) {
       setMsg(e instanceof Error ? e.message : 'Ошибка сохранения');
@@ -430,7 +437,9 @@ export function AdminPage() {
     }
   };
 
-  if (!user?.isStaff) return <Navigate to="/dashboard" replace />;
+  if (!user?.isStaff && !user?.isLead) return <Navigate to="/dashboard" replace />;
+  // Лид без staff видит только вкладку «Этапы» своего департамента (FR-407).
+  const isLeadOnly = !user?.isStaff && !!user?.isLead;
 
   const renderTasks = (u: AdminUser) => {
     const tasks = [...DOC_TASKS, ...ACCESS_TASKS].filter((t) => u.done_stage1.includes(t));
@@ -446,47 +455,26 @@ export function AdminPage() {
     );
   };
 
-  const TABS = [
-    { id: 'applications', label: 'Заявки V2', count: v2Pending },
-    { id: 'analytics', label: 'Аналитика', count: 0 },
-    { id: 'outbox', label: 'Очередь (Outbox)', count: 0 },
-    { id: 'pending', label: 'Ожидают', count: pending.length },
-    { id: 'users', label: 'Сотрудники', count: 0 },
-    { id: 'audit', label: 'Журнал', count: audit.length },
-    { id: 'codes', label: 'Коды и ссылки', count: 0 },
-    { id: 'wifi', label: 'Wi-Fi запросы', count: 0 },
-    { id: 'services', label: 'Сервисы', count: svcList.length },
-    { id: 'settings', label: 'Настройки', count: 0 },
-  ] as const;
+  const groups = adminNav({
+    applications: v2Pending, pending: pending.length, audit: audit.length, services: svcList.length,
+  }).map((g) => ({
+    ...g,
+    items: g.items.filter((it) => !isLeadOnly || it.id === 'stages'),
+  }));
+  const activeTab: AdminTabId = (isLeadOnly ? 'stages' : tab) as AdminTabId;
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-3 py-4 pb-20 sm:px-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <h1 className="text-lg font-extrabold tracking-tight">HR-панель · Этап 1 «Документы и доступы»</h1>
-        <Badge variant="outline" className={cn(liveOn ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300' : 'text-muted-foreground')} title={liveOn ? 'Live-подключение активно' : 'Live недоступен, polling 15с'}>
-          {liveOn ? '● live' : '○ polling'}
-        </Badge>
-      </div>
-
-      <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
-        <div className="flex items-start gap-2">
-          <TabsList className="flex h-auto flex-wrap justify-start">
-            {TABS.map((t) => (
-              <TabsTrigger key={t.id} value={t.id} className="gap-1.5">
-                {t.label}
-                {t.count > 0 && (
-                  <Badge variant="secondary" className="h-5 min-w-5 bg-primary/15 px-1 text-[10px] text-primary">{t.count}</Badge>
-                )}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-          <Button type="button" size="sm" variant="ghost" onClick={() => { load(); loadExtras(); }} disabled={loading} className="shrink-0">
-            <RefreshCw className={cn(loading && 'animate-spin')} />
-          </Button>
-        </div>
-
+    <AdminShell
+      groups={groups}
+      active={activeTab}
+      onChange={(id) => setTab(id)}
+      liveOn={liveOn}
+      onRefresh={() => { load(); loadExtras(); }}
+      refreshing={loading}
+    >
+      <Tabs value={activeTab} onValueChange={(v) => setTab(v as typeof tab)}>
         {msg && (
-          <Alert className="mt-3 border-emerald-500/30 bg-emerald-500/10">
+          <Alert className="mb-3 border-emerald-500/30 bg-emerald-500/10">
             <AlertDescription className="text-emerald-200">{msg}</AlertDescription>
           </Alert>
         )}
@@ -494,6 +482,8 @@ export function AdminPage() {
         <TabsContent value="applications" className="mt-4"><AdminApplications /></TabsContent>
         <TabsContent value="analytics" className="mt-4"><AdminAnalytics /></TabsContent>
         <TabsContent value="outbox" className="mt-4"><AdminOutbox /></TabsContent>
+        <TabsContent value="stages" className="mt-4"><AdminStages /></TabsContent>
+        <TabsContent value="projects" className="mt-4"><AdminProjects /></TabsContent>
 
       <TabsContent value="pending" className="mt-4">
         <div className="flex flex-col gap-3">
@@ -517,18 +507,27 @@ export function AdminPage() {
             const docRows = g.rows.filter((r) => DOC_TASKS.includes(r.task_id));
             return (
               <FadeContent key={g.user_id}>
-                <Card className="border-primary/30 bg-primary/5">
+                <Card className="border-amber-500/30 bg-amber-500/[0.05] shadow-[0_0_24px_rgba(251,191,36,0.08)]">
                   <CardContent className="flex flex-col gap-3 pt-5">
                     <div className="flex items-center gap-3">
-                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary text-sm font-extrabold text-primary-foreground">
+                      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-primary text-base font-extrabold text-primary-foreground">
                         {(g.name || g.email).slice(0, 1).toUpperCase()}
                       </span>
-                      <div>
-                        <b className="text-sm">{g.name}</b>
-                        <div className="text-xs text-muted-foreground">{g.email} · отправлено {first.created_at ? ago(first.created_at) : '—'}</div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <b className="text-sm">{g.name}</b>
+                          <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-[10px] text-amber-300">Документы · ждёт решения</Badge>
+                        </div>
+                        <div className="text-xs text-muted-foreground">{g.email}</div>
+                        <div className="text-[11px] text-muted-foreground">
+                          🕐 {first.created_at ? new Date(first.created_at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'}
+                          {' '}({first.created_at ? ago(first.created_at) : '—'})
+                        </div>
                       </div>
                     </div>
-                    <p className="text-xs text-muted-foreground">Пакет документов на физическую проверку — сверьте 5 пунктов, затем подтвердите:</p>
+                    <p className="rounded-xl border border-border bg-card/60 p-3 text-xs leading-relaxed">
+                      Сотрудник заполнил документы и отправил пакет на проверку: договор, NDA, согласие на ПД, свидетельство ИП, справка о несудимости. Сверьте оригиналы, затем подтвердите или отмените с причиной.
+                    </p>
                     <ul className="flex flex-col gap-1.5">
                       {DOC_TASKS.map((tid) => {
                         const sent = docRows.some((r) => r.task_id === tid);
@@ -542,19 +541,20 @@ export function AdminPage() {
                         );
                       })}
                     </ul>
-                    <div className="flex flex-wrap gap-2">
-                      <Button type="button" size="sm" onClick={() => verifyBatch(g.user_id)}>
-                        <Check /> Подтвердить получение и проверку документов
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <Button type="button" onClick={() => verifyBatch(g.user_id)} className="min-h-[48px] flex-1">
+                        <Check /> Approve
                       </Button>
-                      <Button type="button" size="sm" variant="destructive" onClick={() => { setRejectFor(rejectFor === g.user_id ? null : g.user_id); setRejectReason(''); }}>
-                        Отклонить
+                      <Button type="button" variant="destructive" onClick={() => { setRejectFor(rejectFor === g.user_id ? null : g.user_id); setRejectReason(''); }} className="min-h-[48px] flex-1">
+                        Отменить
                       </Button>
                     </div>
                     {rejectFor === g.user_id && (
-                      <div className="flex flex-col gap-2">
-                        <Textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} placeholder="Причина отклонения (мин 10 символов), например: не хватает справки о несудимости" rows={2} />
-                        <Button type="button" size="sm" variant="destructive" onClick={() => rejectBatch(g.user_id)} disabled={rejectReason.trim().length < 10}>
-                          Отклонить пакет
+                      <div className="flex flex-col gap-2 rounded-xl border border-destructive/30 bg-destructive/5 p-3">
+                        <Label className="text-xs font-bold text-destructive">Причина отмены * (обязательно, мин 10 символов)</Label>
+                        <Textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} placeholder="Например: не хватает справки о несудимости, договор подписан не там…" rows={3} className="bg-background/60" />
+                        <Button type="button" variant="destructive" onClick={() => rejectBatch(g.user_id)} disabled={rejectReason.trim().length < 10} className="min-h-[48px]">
+                          Подтвердить отмену
                         </Button>
                       </div>
                     )}
@@ -699,6 +699,16 @@ export function AdminPage() {
                 <Textarea value={contacts['intro.instruction'] ?? ''} onChange={(e) => setContacts((p) => ({ ...p, 'intro.instruction': e.target.value }))} rows={3} />
                 <div><Button type="button" size="sm" variant="outline" onClick={() => saveContact('intro.instruction')}>Сохранить инструкцию</Button></div>
               </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Цели компании (JSON array)</Label>
+                <Textarea value={contacts['intro.goals'] ?? ''} onChange={(e) => setContacts((p) => ({ ...p, 'intro.goals': e.target.value }))} rows={3} className="font-mono text-xs" placeholder='[{"title":"Цель","text":"Описание"}]' />
+                <div><Button type="button" size="sm" variant="outline" onClick={() => saveContact('intro.goals')}>Сохранить цели</Button></div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Галерея активности (JSON array)</Label>
+                <Textarea value={contacts['intro.gallery'] ?? ''} onChange={(e) => setContacts((p) => ({ ...p, 'intro.gallery': e.target.value }))} rows={4} className="font-mono text-xs" placeholder='[{"image":"/gallery/conf1.jpg","label":"Конференция","caption":"...","alt":"..."}]' />
+                <div><Button type="button" size="sm" variant="outline" onClick={() => saveContact('intro.gallery')}>Сохранить галерею</Button></div>
+              </div>
             </CardContent>
           </Card>
 
@@ -726,6 +736,34 @@ export function AdminPage() {
               })}
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Шаблоны писем кандидату (5.1)</CardTitle>
+              <CardDescription>Плейсхолдеры: {'{{number}}'} — номер заявки, {'{{name}}'} — имя, {'{{comment}}'} — комментарий HR, {'{{login}}'} — логин AD. Отправку выполняет email worker (Batch A).</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              {[
+                { key: 'letter.application_received', label: 'Заявка получена (номер заявки)' },
+                { key: 'letter.approved', label: 'Заявка одобрена' },
+                { key: 'letter.rejected', label: 'Отказ (с причиной)' },
+                { key: 'letter.needs_info', label: 'Запрос уточнения' },
+                { key: 'letter.account_created', label: 'Учётка AD создана (логин)' },
+              ].map((l) => (
+                <div key={l.key} className="space-y-2">
+                  <Label className="text-xs font-bold">{l.label} <span className="font-mono font-normal text-muted-foreground">{l.key}</span></Label>
+                  <Textarea
+                    value={contacts[l.key] ?? ''}
+                    onChange={(e) => setContacts((p) => ({ ...p, [l.key]: e.target.value }))}
+                    rows={3}
+                    className="font-mono text-xs"
+                    placeholder="Текст письма с {{плейсхолдерами}}…"
+                  />
+                  <div><Button type="button" size="sm" variant="outline" onClick={() => saveContact(l.key)}>Сохранить шаблон</Button></div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
         </div>
       </TabsContent>
 
@@ -749,7 +787,7 @@ export function AdminPage() {
                 <Select value={svcForm.category} onValueChange={(v) => setSvcForm((p) => ({ ...p, category: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {['access','mpulse','knowledge'].map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    {['access','mpulse','knowledge','dept'].map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 <Select value={svcForm.task_id ?? ''} onValueChange={(v) => setSvcForm((p) => ({ ...p, task_id: v || null }))}>
@@ -857,6 +895,9 @@ export function AdminPage() {
                   <div className="flex flex-wrap items-center gap-2 text-sm">
                     <b>{u.name}</b> <span className="text-xs text-muted-foreground">{u.email}</span>
                     {u.is_staff && <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-300">staff</Badge>}
+                    {u.staff_role && <Badge variant="secondary" className="text-[10px]">{u.staff_role}</Badge>}
+                    {u.is_lead && <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/10 text-emerald-300">лид{u.department ? ` · ${u.department}` : ''}</Badge>}
+                    {u.department && !u.is_lead && <Badge variant="outline" className="text-[10px]">{u.department}</Badge>}
                   </div>
                   <div className="text-xs text-muted-foreground">Stage 1: {u.done_stage1.length} задач · Лид: {u.lead_email || '— (глобальный)'}</div>
                   {renderTasks(u)}
@@ -879,6 +920,41 @@ export function AdminPage() {
                   <div className="flex flex-wrap gap-2">
                     <Button type="button" size="sm" variant="outline" onClick={() => toggleStaff(u)}>
                       {u.is_staff ? 'Снять staff' : 'Дать staff'}
+                    </Button>
+                    {u.is_staff && (
+                      <Select
+                        value={u.staff_role ?? 'none'}
+                        onValueChange={async (v) => {
+                          try {
+                            const updated = await api.patch<AdminUser>(`/api/admin/users/${u.id}/staff-role`, { staff_role: v === 'none' ? null : v });
+                            setUsers((prev) => prev.map((x) => (x.id === u.id ? updated : x)));
+                            setMsg(`✓ Роль ${u.email}: ${updated.staff_role ?? '—'}`);
+                          } catch (err) {
+                            setMsg(err instanceof Error ? err.message : 'Ошибка');
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="h-9 w-[150px] text-xs" aria-label="Роль staff">
+                          <SelectValue placeholder="роль: —" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">роль: —</SelectItem>
+                          <SelectItem value="hr">👔 HR — заявки</SelectItem>
+                          <SelectItem value="sysadmin">🛠 Сисадмин — AD/Wi-Fi</SelectItem>
+                          <SelectItem value="admin">★ Admin — всё</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                    <Button type="button" size="sm" variant="outline" onClick={async () => {
+                      try {
+                        const updated = await api.patch<AdminUser>(`/api/admin/users/${u.id}/is-lead`, { is_lead: !u.is_lead });
+                        setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, is_lead: updated.is_lead } : x)));
+                        setMsg(`✓ Лид департамента ${u.email}: ${updated.is_lead ? 'да' : 'нет'}`);
+                      } catch (err) {
+                        setMsg(err instanceof Error ? err.message : 'Ошибка');
+                      }
+                    }}>
+                      {u.is_lead ? 'Снять лида' : 'Сделать лидом'}
                     </Button>
                     <Button type="button" size="sm" variant="outline" onClick={() => genWifiPassword(u)}>
                       Wi-Fi пароль
@@ -1019,6 +1095,6 @@ export function AdminPage() {
       </TabsContent>
 
       </Tabs>
-    </div>
+    </AdminShell>
   );
 }

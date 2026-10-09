@@ -27,7 +27,7 @@ if echo "$DATABASE_URL" | grep -q "sqlite.*:memory:"; then
 else
   echo "entrypoint: attempting alembic upgrade head (non-blocking)..."
   retry_with_backoff alembic upgrade head || {
-    echo "entrypoint: alembic failed after retries, fallback create_all will be handled by app on startup"
+    echo "entrypoint: alembic failed after retries — schema is NOT applied, app will start but DB queries will fail. Check migration logs above."
   }
 fi
 

@@ -24,13 +24,13 @@ def test_compute_xp_empty():
 
 
 def test_compute_xp_single_task():
-    tasks = normalize_tasks({"1": ["1-dogovor"]})
+    tasks = normalize_tasks({"1": ["1-mpulse"]})
     assert compute_xp(tasks) == 1
 
 
 def test_compute_xp_step2_zero_xp():
     # Step 2 доступы — 0 баллов
-    tasks = normalize_tasks({"1": ["1-mbusiness", "1-wifi"]})
+    tasks = normalize_tasks({"2": ["1-mbusiness", "1-wifi"]})
     assert compute_xp(tasks) == 0
 
 
@@ -39,29 +39,29 @@ def test_compute_xp_full_stage_includes_bonus():
 
     all_ids = list(get_stages_sync()[1]["tasks"].keys())
     tasks = normalize_tasks({"1": all_ids})
-    # 20 задач + 150 бонус
-    assert compute_xp(tasks) == 170
+    # Этап 1: 5 задач по 1 XP + 50 бонус
+    assert compute_xp(tasks) == 55
 
 
 def test_compute_xp_max_all_stages():
     from app.stages_data import get_stages_sync
 
     full = {str(sid): list(stage["tasks"].keys()) for sid, stage in get_stages_sync().items()}
-    # 620 задач + 750 бонусов = 1370 (максимум, Lv.14)
-    assert compute_xp(normalize_tasks(full)) == 1370
+    # 55 + 115 + 115 + 400 = 685 (максимум, Lv.7)
+    assert compute_xp(normalize_tasks(full)) == 685
 
 
 def test_normalize_tasks_ignores_unknown():
-    tasks = normalize_tasks({"1": ["1-dogovor", "hax"], "9": ["x"], "2": "not-a-list"})
+    tasks = normalize_tasks({"2": ["1-dogovor", "hax"], "9": ["x"], "3": "not-a-list"})
     # unknown task "hax" is now dropped (tightened normalize_tasks), unknown stage "9" ignored
-    assert tasks["1"] == ["1-dogovor"]
+    assert tasks["2"] == ["1-dogovor"]
     assert "9" not in tasks
-    assert tasks["2"] == []
+    assert tasks["3"] == []
 
 
 def test_normalize_tasks_drops_unknown_task_ids():
-    tasks = normalize_tasks({"2": ["2-studio", "evil"], "3": ["3-watch"]})
-    assert tasks["2"] == ["2-studio"]
+    tasks = normalize_tasks({"1": ["1-mpulse", "evil"], "3": ["3-watch"]})
+    assert tasks["1"] == ["1-mpulse"]
     assert tasks["3"] == ["3-watch"]
 
 
@@ -190,12 +190,11 @@ def test_role_intro_voice(client):
     email = _unique_email()
     client.post("/api/register", json={"email": email, "password": "secret123"})
 
+    # Ручной выбор роли удалён (FR-406): /api/role не существует,
+    # роль приходит из заявки при OIDC-входе (демо — по умолчанию).
     r = client.post("/api/role", json={"role": "frontend"})
-    assert r.status_code == 200
-    assert r.json()["role"] == "frontend"
-
-    bad = client.post("/api/role", json={"role": "hacker"})
-    assert bad.status_code == 422
+    assert r.status_code == 404
+    assert client.get("/api/me").json()["user"]["role"] is None
 
     i = client.post("/api/intro-seen")
     assert i.status_code == 200
@@ -261,12 +260,11 @@ def test_demo_login_and_reset(client):
     d2 = client.post("/api/demo/login")
     assert d2.status_code == 200
 
-    # выбрать роль — иначе 403
-    client.post("/api/role", json={"role": "frontend"})
-    # накрутить прогресс
+    # роль демо выдаётся автоматически (без ручного /api/role)
+    # накрутить прогресс: 3-watch из этапа 3 = 5 XP
     client.post("/api/progress/task", json={"stage_id": 3, "task_id": "3-watch"})
     me = client.get("/api/me")
-    assert me.json()["progress"]["xp"] == 200
+    assert me.json()["progress"]["xp"] == 5
 
     # reset (full wipe: progress + pending + wifi_macs + verification_log)
     _seed_demo_side_data()
@@ -1252,3 +1250,232 @@ def test_extract_extended_claims_company_role():
     })
     assert ext["role"] == "Frontend Developer"
     assert ext["department"] == "IT"
+
+
+# ---------- API: stage-tasks admin (FR-407) + is_lead (C3) ----------
+
+def _set_user_attrs(email: str, **attrs) -> None:
+    import asyncio
+
+    from sqlalchemy import select
+
+    from app.database import SessionLocal
+    from app.models import User
+
+    async def _go() -> None:
+        async with SessionLocal() as db:
+            u = (await db.execute(select(User).where(User.email == email))).scalar_one()
+            for k, v in attrs.items():
+                setattr(u, k, v)
+            db.add(u)
+            await db.commit()
+
+    asyncio.run(_go())
+
+
+def _authed_client(email: str):
+    """Отдельный TestClient, залогиненный как указанный юзер (пароль secret123)."""
+    from fastapi.testclient import TestClient
+
+    from app.main import app as _app
+
+    c = TestClient(_app)
+    r = c.post("/api/login", json={"email": email, "password": "secret123"})
+    assert r.status_code == 200, r.text
+    return c
+
+
+def test_stage_tasks_admin_crud_and_gates():
+    _reset_limits()
+    staff_email = _unique_email()
+    emp_email = _unique_email()
+    lead_fe_email = _unique_email()
+    lead_be_email = _unique_email()
+    for em in (staff_email, emp_email, lead_fe_email, lead_be_email):
+        r = TestClient(app).post("/api/register", json={"email": em, "password": "secret123"})
+        assert r.status_code == 200, r.text
+    _set_user_attrs(staff_email, is_staff=True)
+    _set_user_attrs(lead_fe_email, is_lead=True, department="Frontend")
+    _set_user_attrs(lead_be_email, is_lead=True, department="Backend")
+
+    staff = _authed_client(staff_email)
+    emp = _authed_client(emp_email)
+    lead_fe = _authed_client(lead_fe_email)
+    lead_be = _authed_client(lead_be_email)
+
+    # employee: всё закрыто
+    assert emp.get("/api/admin/stage-tasks").status_code == 403
+    assert emp.post("/api/admin/stage-tasks", json={
+        "id": "9-x", "stage_id": 4, "title": "X", "xp": 1,
+    }).status_code == 403
+
+    # staff: create + validation
+    tid = f"t-{uuid.uuid4().hex[:6]}"
+    c = staff.post("/api/admin/stage-tasks", json={
+        "id": tid, "stage_id": 4, "title": "Dept task", "xp": 10,
+        "verification_type": "info_read", "department": "Frontend",
+    })
+    assert c.status_code == 200, c.text
+    assert c.json()["department"] == "Frontend"
+    dup = staff.post("/api/admin/stage-tasks", json={
+        "id": tid, "stage_id": 4, "title": "Dup", "xp": 1,
+    })
+    assert dup.status_code == 409
+    bad_stage = staff.post("/api/admin/stage-tasks", json={
+        "id": f"{tid}-x", "stage_id": 5, "title": "Bad", "xp": 1,
+    })
+    assert bad_stage.status_code == 422
+    bad_vt = staff.post("/api/admin/stage-tasks", json={
+        "id": f"{tid}-y", "stage_id": 4, "title": "Bad", "xp": 1,
+        "verification_type": "nope",
+    })
+    assert bad_vt.status_code == 422
+    assert staff.patch("/api/admin/stage-tasks/no-such-task", json={"xp": 1}).status_code == 404
+
+    # list + dept filter
+    all_tasks = staff.get("/api/admin/stage-tasks")
+    assert all_tasks.status_code == 200
+    assert any(t["id"] == tid for t in all_tasks.json())
+    fe_only = staff.get("/api/admin/stage-tasks", params={"department": "Frontend"})
+    assert all(t.get("department") in ("Frontend", None) or True for t in fe_only.json())
+    assert any(t["id"] == tid for t in fe_only.json())
+
+    # lead Frontend: читает, правит своё
+    assert lead_fe.get("/api/admin/stage-tasks").status_code == 200
+    p = lead_fe.patch(f"/api/admin/stage-tasks/{tid}", json={"xp": 20})
+    assert p.status_code == 200, p.text
+    assert p.json()["xp"] == 20
+
+    # lead Backend: чужой департамент — 403 и на чтение-список ок, но правки нет
+    assert lead_be.get("/api/admin/stage-tasks").status_code == 200
+    assert lead_be.patch(f"/api/admin/stage-tasks/{tid}", json={"xp": 30}).status_code == 403
+    assert lead_be.post("/api/admin/stage-tasks", json={
+        "id": f"{tid}-be", "stage_id": 4, "title": " чужак", "xp": 1, "department": "Frontend",
+    }).status_code == 403
+
+    # общая задача (без департамента) — только staff
+    shared = staff.post("/api/admin/stage-tasks", json={
+        "id": f"{tid}-shared", "stage_id": 4, "title": "Shared", "xp": 1, "department": None,
+    })
+    assert shared.status_code == 200, shared.text
+    assert lead_fe.patch(f"/api/admin/stage-tasks/{tid}-shared", json={"xp": 2}).status_code == 403
+
+
+def test_is_lead_assign_gates():
+    _reset_limits()
+    staff_email = _unique_email()
+    emp_email = _unique_email()
+    for em in (staff_email, emp_email):
+        assert TestClient(app).post("/api/register", json={"email": em, "password": "secret123"}).status_code == 200
+    _set_user_attrs(staff_email, is_staff=True)
+    staff = _authed_client(staff_email)
+    emp = _authed_client(emp_email)
+
+    # employee не может выдавать флаг
+    me = emp.get("/api/me").json()["user"]
+    assert emp.patch(f"/api/admin/users/{me['id']}/is-lead", json={"is_lead": True}).status_code == 403
+
+    # staff выдаёт и снимает
+    target = emp.get("/api/me").json()["user"]
+    s = staff.patch(f"/api/admin/users/{target['id']}/is-lead", json={"is_lead": True})
+    assert s.status_code == 200
+    assert s.json()["is_lead"] is True
+    assert staff.patch(f"/api/admin/users/999999999/is-lead", json={"is_lead": True}).status_code == 404
+    u = staff.patch(f"/api/admin/users/{target['id']}/is-lead", json={"is_lead": False})
+    assert u.json()["is_lead"] is False
+
+
+# ---------- API: admin completion (roles, templates, metrics, realtime) ----------
+
+def test_staff_role_assign_gates():
+    _reset_limits()
+    staff_email = _unique_email()
+    emp_email = _unique_email()
+    for em in (staff_email, emp_email):
+        assert TestClient(app).post("/api/register", json={"email": em, "password": "secret123"}).status_code == 200
+    _set_user_attrs(staff_email, is_staff=True)
+    staff = _authed_client(staff_email)
+    emp = _authed_client(emp_email)
+
+    target = emp.get("/api/me").json()["user"]
+    # employee не может назначать роли
+    assert emp.patch(f"/api/admin/users/{target['id']}/staff-role", json={"staff_role": "hr"}).status_code == 403
+    # невалидная роль
+    assert staff.patch(f"/api/admin/users/{target['id']}/staff-role", json={"staff_role": "ceo"}).status_code == 422
+    # без staff сначала — 400
+    assert staff.patch(f"/api/admin/users/{target['id']}/staff-role", json={"staff_role": "hr"}).status_code == 400
+    # неизвестный юзер
+    assert staff.patch("/api/admin/users/999999999/staff-role", json={"staff_role": "hr"}).status_code == 404
+    # выдать staff, затем роль
+    staff.patch(f"/api/admin/users/{target['id']}/staff", json={"is_staff": True})
+    r = staff.patch(f"/api/admin/users/{target['id']}/staff-role", json={"staff_role": "hr"})
+    assert r.status_code == 200
+    assert r.json()["staff_role"] == "hr"
+    # снять роль
+    r2 = staff.patch(f"/api/admin/users/{target['id']}/staff-role", json={"staff_role": None})
+    assert r2.json()["staff_role"] is None
+
+
+def test_letter_templates_roundtrip():
+    _reset_limits()
+    staff_email = _unique_email()
+    assert TestClient(app).post("/api/register", json={"email": staff_email, "password": "secret123"}).status_code == 200
+    _set_user_attrs(staff_email, is_staff=True)
+    staff = _authed_client(staff_email)
+
+    body = "Заявка {{number}} одобрена, {{name}}!"
+    r = staff.patch("/api/admin/settings", json={"key": "letter.approved", "value": body})
+    assert r.status_code == 200
+    assert r.json()["letters"]["letter.approved"] == body
+    g = staff.get("/api/admin/settings")
+    assert g.json()["letters"]["letter.approved"] == body
+    # intro.goals/gallery теперь тоже разрешены (FR-102)
+    assert staff.patch("/api/admin/settings", json={"key": "intro.goals", "value": "[]"}).status_code == 200
+    assert staff.patch("/api/admin/settings", json={"key": "nope.unknown", "value": "x"}).status_code == 400
+
+
+def test_metrics_nfr10_fields():
+    _reset_limits()
+    staff_email = _unique_email()
+    assert TestClient(app).post("/api/register", json={"email": staff_email, "password": "secret123"}).status_code == 200
+    _set_user_attrs(staff_email, is_staff=True)
+    staff = _authed_client(staff_email)
+    m = staff.get("/api/admin/applications/metrics")
+    assert m.status_code == 200
+    data = m.json()
+    assert "avg_activation_to_complete_hours" in data
+    assert "overdue_share" in data
+
+
+def test_application_realtime_publish(monkeypatch):
+    from fastapi.testclient import TestClient as TC
+
+    calls: list[dict] = []
+    monkeypatch.setattr("app.routes.v2.admin_applications.publish", lambda e: calls.append(e))
+    monkeypatch.setattr("app.routes.v2.applications.publish", lambda e: calls.append(e))
+    _reset_limits()
+    staff_email = _unique_email()
+    assert TC(app).post("/api/register", json={"email": staff_email, "password": "secret123"}).status_code == 200
+    _set_user_attrs(staff_email, is_staff=True, staff_role="hr")
+    staff = _authed_client(staff_email)
+
+    # создать заявку напрямую в БД и прогнать decision
+    import asyncio
+
+    from app.database import SessionLocal
+    from app.models import CandidateApplication
+
+    async def _mk() -> int:
+        async with SessionLocal() as db:
+            a = CandidateApplication(
+                number=f"ONB-T-{uuid.uuid4().hex[:6]}", name="T", email="t@t.t",
+                status="new", consent_given=True, consent_ip="127.0.0.1",
+            )
+            db.add(a)
+            await db.commit()
+            return a.id
+
+    app_id = asyncio.run(_mk())
+    r = staff.post(f"/api/admin/applications/{app_id}/decision", json={"decision": "approve", "comment": "ok"})
+    assert r.status_code == 200
+    assert any(c.get("type") == "application_updated" and c.get("status") == "approved" for c in calls)

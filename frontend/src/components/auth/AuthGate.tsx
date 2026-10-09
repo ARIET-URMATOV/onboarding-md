@@ -1,8 +1,22 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useOnboarding } from '../../store/useOnboarding';
 import { useMe } from '../../api/queries';
 import type { JSX } from 'react';
+
+// Safety net: if /api/me never settles (dead backend / hung proxy),
+// don't trap the user on the boot splash forever.
+const BOOT_TIMEOUT_MS = 8000;
+
+function useBootTimeout(active: boolean) {
+  const [timedOut, setTimedOut] = useState(false);
+  useEffect(() => {
+    if (!active) return;
+    const t = window.setTimeout(() => setTimedOut(true), BOOT_TIMEOUT_MS);
+    return () => window.clearTimeout(t);
+  }, [active]);
+  return timedOut;
+}
 
 function BootLoader() {
   return (
@@ -31,6 +45,8 @@ export function AuthGate({ children }: { children: JSX.Element }) {
   const user = useOnboarding((s) => s.user);
   const loc = useLocation();
 
+  const timedOut = useBootTimeout(!hydrated);
+
   useEffect(() => {
     if (data && !hydrated) hydrate(data);
     if (isError && !hydrated) {
@@ -38,6 +54,11 @@ export function AuthGate({ children }: { children: JSX.Element }) {
     }
   }, [data, isError, hydrated, hydrate]);
 
+  if (timedOut && !hydrated) {
+    // Backend unreachable: fail open to login instead of hanging forever.
+    useOnboarding.setState({ hydrated: true });
+    return <Navigate to="/login" state={{ from: loc }} replace />;
+  }
   if (isLoading && !hydrated) return <BootLoader />;
   if (!hydrated) return <BootLoader />;
   if (!user) return <Navigate to="/login" state={{ from: loc }} replace />;
@@ -45,8 +66,8 @@ export function AuthGate({ children }: { children: JSX.Element }) {
 }
 
 export function RequireRole({ children }: { children: JSX.Element }) {
-  const role = useOnboarding((s) => s.role);
-  if (!role) return <Navigate to="/role" replace />;
+  // FR-406: департамент подставляется из заявки/AD, ручного выбора роли нет.
+  // Оставлен как pass-through для совместимости старых импортов.
   return children;
 }
 
@@ -56,6 +77,8 @@ export function GuestOnly({ children }: { children: JSX.Element }) {
   const hydrated = useOnboarding((s) => s.hydrated);
   const user = useOnboarding((s) => s.user);
 
+  const timedOut = useBootTimeout(!hydrated);
+
   useEffect(() => {
     if (data && !hydrated) hydrate(data);
     if (isError && !hydrated) {
@@ -63,6 +86,11 @@ export function GuestOnly({ children }: { children: JSX.Element }) {
     }
   }, [data, isError, hydrated, hydrate]);
 
+  if (timedOut && !hydrated) {
+    // Backend unreachable: fail open to the public page instead of hanging forever.
+    // If /api/me resolves late with a user, hydration will redirect to /dashboard then.
+    useOnboarding.setState({ hydrated: true });
+  }
   if (isLoading && !hydrated) return <BootLoader />;
   if (!hydrated) return <BootLoader />;
   if (user) return <Navigate to="/dashboard" replace />;

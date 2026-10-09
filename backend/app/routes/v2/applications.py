@@ -1,26 +1,44 @@
 import random
 import string
-from datetime import datetime, timezone, timedelta
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
-from sqlalchemy import select
+from datetime import datetime, timedelta, timezone
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from pydantic import BaseModel, EmailStr
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.database import get_db
-from app.models import CandidateApplication, ApplicationEvent, OutboxEvent
 from app.limiter import limiter
-from pydantic import BaseModel, EmailStr
+from app.models import ApplicationEvent, CandidateApplication, EmailVerificationCode, OutboxEvent
+from app.notify import publish
 
 router = APIRouter(prefix="/applications")
+
+# FR-206: граф статусов. Переходы вне схемы запрещены на бэкенде.
+TRANSITIONS: dict[str, list[str]] = {
+    "new": ["in_review", "rejected"],
+    "in_review": ["needs_info", "approved", "rejected"],
+    "needs_info": ["in_review", "rejected"],
+    "approved": ["account_created"],
+    "account_created": ["activated"],
+    "rejected": [],
+    "activated": [],
+}
+
+REJECT_RETRY_DAYS = 30
+
 
 def utcnow():
     return datetime.now(timezone.utc)
 
+
 def generate_ticket_number() -> str:
-    # Basic fallback generator ONB-YYYY-NNNN
-    # Ideally integrated with ServiceDesk
+    # Fallback ONB-ГГГГ-NNNN; при появлении ServiceDesk сюда встанет его номер.
     year = utcnow().year
     suffix = ''.join(random.choices(string.digits, k=4))
     return f"ONB-{year}-{suffix}"
+
 
 # Schemas
 class ApplicationIn(BaseModel):
@@ -33,25 +51,26 @@ class ApplicationIn(BaseModel):
     lead_name: str
     consent_given: bool
 
+
 class VerifyEmailIn(BaseModel):
     email: EmailStr
     code: str
+
 
 class StatusIn(BaseModel):
     number: str
     email: EmailStr
 
+
 class ReplyIn(BaseModel):
     email: EmailStr
     reply: str
 
-# In-memory code store for MVP/Prototype (in production, use Redis or DB table)
-_verification_codes = {}
 
 @router.post("")
 @limiter.limit("5/hour")
 async def create_draft_application(
-    req: Request,
+    request: Request,
     app_in: ApplicationIn,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db)
@@ -59,118 +78,160 @@ async def create_draft_application(
     if not app_in.consent_given:
         raise HTTPException(status_code=400, detail="Consent is required")
 
-    # Check if active application already exists
+    email = str(app_in.email).lower().strip()
+
+    # FR-204: одна активная заявка на email — показываем статус существующей.
     stmt = select(CandidateApplication).where(
-        CandidateApplication.email == app_in.email,
+        CandidateApplication.email == email,
         CandidateApplication.status.notin_(["rejected", "activated"])
     )
     existing = (await db.execute(stmt)).scalars().first()
     if existing:
-        raise HTTPException(status_code=400, detail="Активная заявка уже существует. Проверь статус.")
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "msg": "Активная заявка уже существует. Проверь статус.",
+                "number": existing.number,
+                "status": existing.status,
+            },
+        )
+
+    # FR-208: повтор после отказа — только через 30 дней.
+    rej_stmt = (
+        select(CandidateApplication)
+        .where(CandidateApplication.email == email, CandidateApplication.status == "rejected")
+        .order_by(CandidateApplication.updated_at.desc())
+        .limit(1)
+    )
+    last_rej = (await db.execute(rej_stmt)).scalars().first()
+    if last_rej and last_rej.updated_at:
+        upd = last_rej.updated_at
+        if upd.tzinfo is None:
+            upd = upd.replace(tzinfo=timezone.utc)
+        if (utcnow() - upd).days < REJECT_RETRY_DAYS:
+            raise HTTPException(status_code=400, detail="Повторная заявка возможна через 30 дней после отказа.")
 
     code = ''.join(random.choices(string.digits, k=6))
-    _verification_codes[app_in.email] = {
-        "code": code,
-        "expires": utcnow() + timedelta(minutes=15),
-        "data": app_in.model_dump(),
-        "ip": req.client.host if req.client else "",
-        "attempts": 0
-    }
 
-    # Queue an outbox event for the email
+    # NFR-08: коды в БД, а не в памяти — переживают холодный старт / реплики.
+    await db.execute(delete(EmailVerificationCode).where(EmailVerificationCode.email == email))
+    db.add(EmailVerificationCode(
+        email=email,
+        code=code,
+        payload=app_in.model_dump(),
+        ip=request.client.host if request.client else "",
+        attempts=0,
+        expires_at=utcnow() + timedelta(minutes=15),
+    ))
+
+    # Письмо уходит через outbox (Phase X — реальный SMTP-воркер).
     db.add(OutboxEvent(
         kind="email",
         payload={
-            "to": app_in.email,
+            "to": email,
             "subject": "Код подтверждения MDIGITAL",
             "body": f"Ваш код: {code}. Действителен 15 минут."
         }
     ))
     await db.commit()
 
-    return {"ok": True, "msg": "Verification code sent"}
+    # DEV-only: вернуть код в ответе, чтобы не лезть в БД при локальном тесте.
+    # В production поле отсутствует.
+    out: dict = {"ok": True, "msg": "Verification code sent"}
+    if not settings.is_production:
+        out["dev_code"] = code
+    return out
+
 
 @router.post("/verify-email")
 @limiter.limit("15/hour")
 async def verify_email(
-    req: Request,
+    request: Request,
     verify_in: VerifyEmailIn,
     db: AsyncSession = Depends(get_db)
 ):
-    record = _verification_codes.get(verify_in.email)
+    email = str(verify_in.email).lower().strip()
+    stmt = select(EmailVerificationCode).where(EmailVerificationCode.email == email)
+    record = (await db.execute(stmt)).scalars().first()
     if not record:
         raise HTTPException(status_code=400, detail="Код не найден или истёк")
-    
-    if record["expires"] < utcnow():
-        del _verification_codes[verify_in.email]
+
+    exp = record.expires_at
+    if exp.tzinfo is None:
+        exp = exp.replace(tzinfo=timezone.utc)
+    if exp < utcnow():
+        await db.delete(record)
+        await db.commit()
         raise HTTPException(status_code=400, detail="Срок действия кода истёк")
-        
-    if record["code"] != verify_in.code:
-        record["attempts"] += 1
-        if record["attempts"] >= 5:
-            del _verification_codes[verify_in.email]
+
+    if record.code != verify_in.code.strip():
+        record.attempts += 1
+        if record.attempts >= 5:
+            await db.delete(record)
+            await db.commit()
             raise HTTPException(status_code=400, detail="Слишком много попыток. Запросите код заново.")
+        await db.commit()
         raise HTTPException(status_code=400, detail="Неверный код")
-        
-    data = record["data"]
+
+    data = dict(record.payload or {})
     parsed_date = None
-    if data["planned_date"]:
+    if data.get("planned_date"):
         try:
             parsed_date = datetime.strptime(data["planned_date"], "%Y-%m-%d").replace(tzinfo=timezone.utc)
         except ValueError:
             pass
 
     ticket_number = generate_ticket_number()
-    
-    # Create the application
+
     application = CandidateApplication(
         number=ticket_number,
-        name=data["name"],
-        email=data["email"],
-        phone=data["phone"],
-        department=data["department"],
-        position=data["position"],
+        name=data.get("name", ""),
+        email=email,
+        phone=data.get("phone", ""),
+        department=data.get("department"),
+        position=data.get("position"),
         planned_date=parsed_date,
-        lead_name=data["lead_name"],
-        consent_given=data["consent_given"],
-        consent_ip=record["ip"],
+        lead_name=data.get("lead_name", ""),
+        consent_given=bool(data.get("consent_given")),
+        consent_ip=record.ip,
         status="new",
         email_verified_at=utcnow()
     )
     db.add(application)
     await db.flush()
 
-    # Log event
-    evt = ApplicationEvent(
+    db.add(ApplicationEvent(
         application_id=application.id,
         from_status="",
         to_status="new",
         comment="Заявка создана и подтверждена почта"
-    )
-    db.add(evt)
+    ))
+    await db.delete(record)
     await db.commit()
 
-    del _verification_codes[verify_in.email]
+    # Realtime: новая заявка для /ws/admin (FR-210).
+    publish({"type": "application_new", "number": ticket_number})
 
     return {"ticket_number": ticket_number}
+
 
 @router.post("/status")
 @limiter.limit("10/hour")
 async def check_status(
-    req: Request,
+    request: Request,
     status_in: StatusIn,
     db: AsyncSession = Depends(get_db)
 ):
+    # NFR-01: одинаковый ответ при «нет заявки» и «неверный email» — без утечки.
     stmt = select(CandidateApplication).where(
-        CandidateApplication.number == status_in.number,
-        CandidateApplication.email == status_in.email
+        CandidateApplication.number == status_in.number.strip(),
+        CandidateApplication.email == str(status_in.email).lower().strip()
     )
     application = (await db.execute(stmt)).scalars().first()
-    
+
     if not application:
         raise HTTPException(status_code=404, detail="Заявка не найдена")
-        
-    # Get the latest comment from HR if status is needs_info or rejected
+
     comment = ""
     if application.status in ["needs_info", "rejected"]:
         evt_stmt = select(ApplicationEvent).where(
@@ -187,33 +248,40 @@ async def check_status(
         "comment": comment
     }
 
+
 @router.post("/{number}/reply")
+@limiter.limit("10/hour")
 async def reply_to_needs_info(
     number: str,
     reply_in: ReplyIn,
+    request: Request,
     db: AsyncSession = Depends(get_db)
 ):
     stmt = select(CandidateApplication).where(
-        CandidateApplication.number == number,
-        CandidateApplication.email == reply_in.email
+        CandidateApplication.number == number.strip(),
+        CandidateApplication.email == str(reply_in.email).lower().strip()
     )
     application = (await db.execute(stmt)).scalars().first()
-    
+
     if not application:
         raise HTTPException(status_code=404, detail="Заявка не найдена")
-        
+
     if application.status != "needs_info":
         raise HTTPException(status_code=400, detail="Заявка не ожидает уточнения")
 
+    if "in_review" not in TRANSITIONS.get(application.status, []):
+        raise HTTPException(status_code=400, detail="Переход запрещён")
+
     application.status = "in_review"
-    
-    evt = ApplicationEvent(
+
+    db.add(ApplicationEvent(
         application_id=application.id,
         from_status="needs_info",
         to_status="in_review",
-        comment=f"Ответ кандидата: {reply_in.reply}"
-    )
-    db.add(evt)
+        comment=f"Ответ кандидата: {reply_in.reply[:500]}"
+    ))
     await db.commit()
-    
+
+    publish({"type": "application_updated", "id": application.id, "status": "in_review"})
+
     return {"ok": True}

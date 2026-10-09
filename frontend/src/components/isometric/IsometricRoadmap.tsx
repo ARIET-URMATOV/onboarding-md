@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowRight, Check, LayoutDashboard, Lock, Map as MapIcon, Sparkles, FileText, Users, Video, ListChecks, ClipboardCheck, Trophy } from 'lucide-react';
+import { ArrowRight, Check, LayoutDashboard, Lock, Map as MapIcon, Sparkles, FileText, Smartphone, ListChecks, FlaskConical, Trophy } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { Button } from '../ui/button';
@@ -17,7 +17,7 @@ import type { StageId } from '../../data/stages';
 import type { StageStatus } from '../../store/useOnboarding';
 import { useOnboarding } from '../../store/useOnboarding';
 import { useStages } from '../../api/queries';
-import { Stage1Prelogin } from '../stages/v2/Stage1Prelogin';
+import { useEmbedded } from '../../hooks/useEmbedded';
 import { Stage2AppDownload } from '../stages/v2/Stage2AppDownload';
 import { Stage3Docs } from '../stages/v2/Stage3Docs';
 import { Stage4TeamVideoChecklist } from '../stages/v2/Stage4Combined';
@@ -36,6 +36,7 @@ const TABS: { id: string; label: string; path?: string; Icon: typeof LayoutDashb
 
 export function IsometricRoadmap({ statuses, done }: Props) {
   const nav = useNavigate();
+  const embedded = useEmbedded();
   const { data: stagesData } = useStages();
   const STAGES = stagesData ?? FALLBACK_STAGES;
   const doneTasks = useOnboarding((s) => s.doneTasks);
@@ -45,21 +46,21 @@ export function IsometricRoadmap({ statuses, done }: Props) {
   const [searchParams] = useSearchParams();
   const [selected, setSelected] = useState<StageId>(() => {
     const q = Number(searchParams.get('stage')) as StageId;
-    if (q >= 1 && q <= 5 && statuses[q] !== 'locked') return q;
-    for (let i = 1 as StageId; i <= 5; i = (i + 1) as StageId) {
+    if (q >= 1 && q <= 4 && statuses[q] !== 'locked') return q;
+    for (let i = 1 as StageId; i <= 4; i = (i + 1) as StageId) {
       if (statuses[i] === 'current') return i;
     }
     return 1;
   });
   useEffect(() => {
     const q = Number(searchParams.get('stage')) as StageId;
-    if (q >= 1 && q <= 5 && statuses[q] !== 'locked') setSelected(q);
+    if (q >= 1 && q <= 4 && statuses[q] !== 'locked') setSelected(q);
   }, [searchParams, statuses]);
   // keep selected in sync when status changes (e.g. after completion)
   useEffect(() => {
     if (statuses[selected] === 'locked') {
       // fallback to current
-      for (let i = 1 as StageId; i <= 5; i = (i + 1) as StageId) if (statuses[i] === 'current') { setSelected(i); return; }
+      for (let i = 1 as StageId; i <= 4; i = (i + 1) as StageId) if (statuses[i] === 'current') { setSelected(i); return; }
     }
   }, [statuses, selected]);
 
@@ -75,11 +76,11 @@ export function IsometricRoadmap({ statuses, done }: Props) {
   const selDoneTasks = useMemo(() => STAGES.find((s) => s.id === selected)!.subTasks, [selected]);
   const selDoneIds = doneTasks[selected] || [];
   const allDoneForGate = sel.subTasks.every((t) => selDoneIds.includes(t.id));
-  const hasNext = selected < 5;
+  const hasNext = selected < 4;
 
-  // finale when 5/5
+  // finale when 4/4
   useEffect(() => {
-    if (done === 5 && prevDoneRef.current < 5) {
+    if (done === 4 && prevDoneRef.current < 4) {
       setTimeout(() => setFinale(true), 500);
       const end = Date.now() + 1800;
       const colors = ['#2563EB', '#1E3A8A', '#3B82F6', '#3B82F6'];
@@ -114,7 +115,7 @@ export function IsometricRoadmap({ statuses, done }: Props) {
   const prevStatusesRef = useRef(statuses);
   useEffect(() => {
     const prev = prevStatusesRef.current;
-    for (let i = 1 as StageId; i <= 5; i = (i + 1) as StageId) {
+    for (let i = 1 as StageId; i <= 4; i = (i + 1) as StageId) {
       if (prev[i] === 'locked' && statuses[i] !== 'locked') {
         setUnlockingId(i);
         setTimeout(() => setUnlockingId(null), 1400);
@@ -143,8 +144,8 @@ export function IsometricRoadmap({ statuses, done }: Props) {
   };
   const handleNext = () => {
     const next = (selected + 1) as StageId;
-    if (next <= 5 && statuses[next] !== 'locked') setSelected(next);
-    else if (next <= 5) {
+    if (next <= 4 && statuses[next] !== 'locked') setSelected(next);
+    else if (next <= 4) {
       // try to trigger complete then jump
       setSelected(next);
     }
@@ -158,6 +159,7 @@ export function IsometricRoadmap({ statuses, done }: Props) {
           <img src="/mdigital-logo.svg" alt="logo" width={100} />
         </div>
 
+        {!embedded && (
         <motion.div className="mb-3 flex gap-2" initial="hidden" animate="visible" variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.06 } } }}>
           {TABS.map((t) => (
             <motion.span
@@ -170,12 +172,13 @@ export function IsometricRoadmap({ statuses, done }: Props) {
             </motion.span>
           ))}
         </motion.div>
+        )}
 
         <div className="mb-3">
           <Separator className="mb-2 bg-primary/30" />
           <div className="flex justify-between font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
             <span>Прогресс</span>
-            <span className="font-bold text-primary"><CountUp to={done} />/5</span>
+            <span className="font-bold text-primary"><CountUp to={done} />/4</span>
           </div>
         </div>
 
@@ -238,7 +241,7 @@ export function IsometricRoadmap({ statuses, done }: Props) {
           {STAGES.map((s) => {
             const st = statuses[s.id];
             const isOn = selected === s.id && st !== 'locked';
-            const StageIcon = [FileText, Users, Video, ListChecks, ClipboardCheck][s.id - 1] ?? FileText;
+            const StageIcon = [Smartphone, FileText, ListChecks, FlaskConical][s.id - 1] ?? Smartphone;
             return (
               <button
                 key={s.id}
@@ -294,26 +297,21 @@ export function IsometricRoadmap({ statuses, done }: Props) {
             <p className="gr-desc">{sel.description}</p>
 
             {selected === 1 && selStatus !== 'locked' && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.12 }}>
-                <Stage1Prelogin stageId={selected} />
-              </motion.div>
-            )}
-            {selected === 2 && selStatus !== 'locked' && (
               <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
                 <Stage2AppDownload stageId={selected} />
               </motion.div>
             )}
-            {selected === 3 && selStatus !== 'locked' && (
+            {selected === 2 && selStatus !== 'locked' && (
               <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
                 <Stage3Docs stageId={selected} />
               </motion.div>
             )}
-            {selected === 4 && selStatus !== 'locked' && (
+            {selected === 3 && selStatus !== 'locked' && (
               <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
                 <Stage4TeamVideoChecklist stageId={selected} onVideoEnded={setVideoEnded} />
               </motion.div>
             )}
-            {selected === 5 && selStatus !== 'locked' && (
+            {selected === 4 && selStatus !== 'locked' && (
               <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
                 <Stage5Dept stageId={selected} />
               </motion.div>
@@ -366,26 +364,26 @@ export function IsometricRoadmap({ statuses, done }: Props) {
               </div>
             )}
 
-            {selected === 3 && selStatus === 'current' && !allDoneForGate && (
+            {selected === 2 && selStatus === 'current' && !allDoneForGate && (
               <Alert className="mb-2.5 border-dashed border-primary/40 bg-primary/5">
                 <AlertDescription className="text-xs text-primary">Открой каждый документ и пролистай до конца — иначе этап не засчитается.</AlertDescription>
               </Alert>
             )}
 
             <div className="gr-tasksLabel font-mono" style={{ marginTop: 16 }}>
-              {selected === 3 ? 'Шаги этапа' : 'Задачи этапа'}
+              {selected === 2 ? 'Шаги этапа' : 'Задачи этапа'}
             </div>
             <div className="flex flex-wrap items-center gap-1.5 pt-3">
-              {selected === 3 ? (
+              {selected === 2 ? (
                 (() => {
-                  const d3 = (doneTasks[3] || []);
+                  const d2 = (doneTasks[2] || []);
                   const steps = [
                     { label: 'Документы', ids: ['1-dogovor','1-nda','1-pdp','1-ip','1-sn'], hint: '5 документов' },
                     { label: 'Доступы', ids: ['1-mbusiness','1-accountant','1-wifi','1-proxy','1-telegram','1-jira','1-figma','1-gitlab'], hint: '8 сервисов' },
                     { label: 'Confluence', ids: ['1-confluence-read'], hint: '1 задача' },
                   ];
                   return steps.map((s, i) => {
-                    const done = s.ids.every((id) => d3.includes(id)) || selStatus === 'done';
+                    const done = s.ids.every((id) => d2.includes(id)) || selStatus === 'done';
                     return (
                       <motion.span
                         key={s.label}
@@ -420,7 +418,7 @@ export function IsometricRoadmap({ statuses, done }: Props) {
                 })
               )}
               <span className="ml-1 text-[10px] text-muted-foreground">
-                {selected === 3 ? '3 шага' : `${selDoneTasks.length} задач${selDoneTasks.length === 1 ? 'а' : selDoneTasks.length < 5 ? 'и' : ''}`}
+                {selected === 2 ? '3 шага' : `${selDoneTasks.length} задач${selDoneTasks.length === 1 ? 'а' : selDoneTasks.length < 5 ? 'и' : ''}`}
               </span>
             </div>
           </div>
@@ -623,7 +621,7 @@ export function IsometricRoadmap({ statuses, done }: Props) {
         @media (min-width:861px){
           .gm-root{
             grid-template-columns:380px 1fr; gap:14px;
-            height:calc(100vh - 60px - 18px - 40px); min-height:480px;
+            height:calc(100vh - 60px - 18px - 40px); height:calc(100dvh - 60px - 18px - 40px); min-height:480px;
             border-radius:18px; overflow:hidden;
           }
           .gm-left{

@@ -1,4 +1,4 @@
-"""SLA-мониторинг Stage 1: 7 дней с users.created_at (TZ п.10).
+"""SLA-мониторинг: 7 дней с users.onboarding_started_at (FR-307), fallback created_at.
 
 sla_status() — синхронный хелпер для /me.
 sla_loop()   — фоновая asyncio-задача: in-app уведомления сотруднику + руководителю.
@@ -65,7 +65,7 @@ async def _find_overdue(db) -> list[dict]:
         done1 = set(normalize_tasks(prog.done_tasks).get("1", [])) if prog else set()
         if all_ids <= done1:
             continue
-        created = u.created_at
+        created = u.onboarding_started_at or u.created_at
         if created.tzinfo is None:
             created = created.replace(tzinfo=timezone.utc)
         now = datetime.now(timezone.utc)

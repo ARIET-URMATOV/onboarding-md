@@ -3,11 +3,14 @@ import {
   BadgeCheck, ChevronDown, ChevronRight, ClipboardCheck, FileCheck,
   FileText, FolderCheck, IdCard, KeyRound, Send, ShieldCheck, Wifi,
   Link as LinkIcon, Smartphone, Apple, BookOpen, Globe, Lock, MessageSquare, ExternalLink, Download,
-  CircleCheck, Check, Copy, Info,
+  CircleCheck, Check, Copy, Info, Hourglass, XCircle,
 } from 'lucide-react';
 import type { StageId } from '../../../data/stages';
 import { useOnboarding } from '../../../store/useOnboarding';
 import { SlaBanner } from '../../ui/SlaBanner';
+import { Button } from '../../ui/button';
+import { Input } from '../../ui/input';
+import { Label } from '../../ui/label';
 import { DocumentModal, type DocKind } from '../DocumentModal';
 import { useToast } from '../../ui/ToastProvider';
 import { api } from '../../../api/client';
@@ -49,13 +52,86 @@ function ServiceIcon({ icon_key, size = 16 }: { icon_key: string; size?: number 
   return <Ico size={size} />;
 }
 
+const DOC_IDS = ['1-dogovor', '1-nda', '1-pdp', '1-ip', '1-sn'];
+
 export function Stage3Docs({ stageId }: Props) {
   const done = useOnboarding((s) => s.doneTasks[stageId] || []);
   const refreshMe = useOnboarding((s) => s.refreshMe);
+  const fetchPending = useOnboarding((s) => s.fetchPending);
+  const pendingTasks = useOnboarding((s) => s.pending);
+  const rejectedTasks = useOnboarding((s) => s.rejected);
   const connectLive = useOnboarding((s) => s.connectLive);
   const user = useOnboarding((s) => s.user);
   const myRole = useOnboarding((s) => s.role);
   const toast = useToast();
+
+  // Локальные отметки «ознакомился» — XP не начисляют, только разблокируют кнопку отправки HR.
+  const readKey = `docs-read-${user?.email ?? 'anon'}`;
+  const [readDocs, setReadDocs] = useState<string[]>(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem(readKey) || '[]');
+      return Array.isArray(raw) ? raw.filter((x) => typeof x === 'string') : [];
+    } catch { return []; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(readKey, JSON.stringify(readDocs)); } catch { /* ignore */ }
+  }, [readKey, readDocs]);
+  const markDocRead = (kind: DocKind) => {
+    const tid = (docToTask as Record<string, string>)[kind];
+    if (tid && DOC_IDS.includes(tid)) setReadDocs((p) => (p.includes(tid) ? p : [...p, tid]));
+  };
+  const [sendingDocs, setSendingDocs] = useState(false);
+  const sendDocsForReview = async () => {
+    setSendingDocs(true);
+    try {
+      await api.post('/api/progress/request-batch', { task_ids: DOC_IDS });
+      toast.success('Запрос отправлен HR', 'Уведомление о решении придёт в колокольчик');
+      await refreshMe();
+      await fetchPending();
+    } catch (e) {
+      toast.error('Не удалось отправить', e instanceof Error ? e.message : undefined);
+    } finally {
+      setSendingDocs(false);
+    }
+  };
+  const docsPending = DOC_IDS.some((id) => pendingTasks.includes(id));
+  const docsRejected = rejectedTasks.filter((r) => DOC_IDS.includes(r.task_id));
+
+  // ── Wi-Fi: MAC-адрес + персональный пароль от сисадмина ──
+  const [mac, setMac] = useState('');
+  const [macSent, setMacSent] = useState(false);
+  const [wifiPw, setWifiPw] = useState<string | null>(null);
+  const [wifiBusy, setWifiBusy] = useState(false);
+  const loadWifi = async () => {
+    try {
+      const st = await api.get<{ mac_sent: boolean; verified: boolean }>('/api/wifi-status');
+      setMacSent(st.mac_sent);
+      if (st.mac_sent) {
+        const pw = await api.get<{ password: string | null }>('/api/wifi-password');
+        setWifiPw(pw.password);
+      }
+    } catch { /* не критично */ }
+  };
+  useEffect(() => { void loadWifi(); }, [user?.email]);
+  const submitMac = async () => {
+    const clean = mac.trim().toUpperCase();
+    if (!/^([0-9A-F]{2}[:-]){5}[0-9A-F]{2}$/.test(clean)) {
+      toast.warning('Неверный MAC-адрес', 'Формат: AA:BB:CC:DD:EE:FF');
+      return;
+    }
+    setWifiBusy(true);
+    try {
+      await api.post('/api/wifi-mac', { mac: clean });
+      setMac('');
+      await refreshMe();
+      await loadWifi();
+      toast.success('MAC отправлен', 'Сисадмин выдаст персональный пароль — он появится здесь');
+    } catch (e) {
+      toast.error('Не удалось отправить', e instanceof Error ? e.message : undefined);
+    } finally {
+      setWifiBusy(false);
+    }
+  };
 
   const [open, setOpen] = useState<DocKind | null>(null);
   const [openInfo, setOpenInfo] = useState<{ title: string; sub?: string; body: string; taskId?: string } | null>(null);
@@ -126,9 +202,19 @@ export function Stage3Docs({ stageId }: Props) {
   useEffect(() => () => { if (autoTimer.current) window.clearTimeout(autoTimer.current); }, []);
   useEffect(() => () => { if (tgCopyTimer.current) clearTimeout(tgCopyTimer.current); }, []);
 
+  // Timestamp-based: throttled/suspended WebView timers must not under-count.
+  // Counts real elapsed foreground seconds (capped per tick), background time excluded.
+  const lastTick = useRef<number>(0);
   useEffect(() => {
     if (!confOpenedAt || step3ExplicitDone) return;
-    const id = setInterval(() => { if (!document.hidden) setConfVisibleSec((v) => v + 1); }, 1000);
+    lastTick.current = Date.now();
+    const id = setInterval(() => {
+      const now = Date.now();
+      if (document.hidden) { lastTick.current = now; return; }
+      const dt = Math.min(15, Math.max(0, (now - lastTick.current) / 1000));
+      lastTick.current = now;
+      if (dt > 0) setConfVisibleSec((v) => v + dt);
+    }, 1000);
     return () => clearInterval(id);
   }, [confOpenedAt, step3ExplicitDone]);
 
@@ -286,36 +372,57 @@ export function Stage3Docs({ stageId }: Props) {
     <div className="stage-content s1-steps">
       <SlaBanner />
 
-      {/* ── Шаг 1 ── */}
+      {/* ── Шаг 1: подписание документов — верификация по запросу HR ── */}
       <section className={`s1-step ${effectiveOpen === 1 ? 'open' : ''}`}>
-        <StepHeader n={1} title="Подписание документов" reward="5 баллов" desc="Откройте каждый документ, ознакомьтесь и подтвердите прочтение" open={effectiveOpen === 1} done={step1Done} onToggle={() => toggleStep(1)} />
+        <StepHeader n={1} title="Подписание документов" reward="5 баллов" desc="Откройте каждый документ, изучите что нужно, затем отправьте пакет на проверку HR" open={effectiveOpen === 1} done={step1Done} onToggle={() => toggleStep(1)} />
         <div className="s1-step-body">
         <div className="pkg-card">
           <div className="pkg-head">
             <span className="pkg-ico"><FolderCheck size={20} /></span>
             <div>
               <div className="pkg-title">Пакет документов</div>
-              <div className="pkg-sub">Откройте каждый документ и подтвердите прочтение</div>
+              <div className="pkg-sub">Нажмите на документ, чтобы узнать что нужно подготовить</div>
             </div>
           </div>
           <ul className="pkg-list">
             {DOCS_PACKAGE.map((d, i) => {
-              const st = done.includes(d.id) ? 'done' : 'todo';
+              const verified = done.includes(d.id);
+              const read = verified || readDocs.includes(d.id);
               return (
-                <li key={d.id} className={`pkg-item ${st}`}>
-                  <button type="button" className="pkg-item-row" onClick={() => setOpen(d.kind)}>
+                <li key={d.id} className={`pkg-item ${verified ? 'done' : ''}`}>
+                  <div className="pkg-item-row" onClick={() => setOpen(d.kind)} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen(d.kind); } }}>
                     <span className="pkg-item-ico"><d.Icon size={15} /></span>
                     <span className="pkg-item-body"><b>{i + 1}. {d.title}</b><span>{d.sub}</span></span>
-                    <span className="pkg-item-st">{st === 'done' ? <CircleCheck size={16} /> : <span className="pkg-dot" />}</span>
-                  </button>
+                    <span className="pkg-item-st">
+                      {verified
+                        ? <CircleCheck size={16} />
+                        : read
+                          ? <span className="inline-flex min-h-[22px] items-center rounded-full border border-sky-500/40 bg-sky-500/10 px-2 text-[10px] font-bold text-sky-300">прочитан</span>
+                          : <ChevronRight size={16} className="text-muted-foreground" />}
+                    </span>
+                  </div>
                 </li>
               );
             })}
           </ul>
           {step1Done ? (
-            <div className="pkg-status done"><CircleCheck size={20} /><div><b>Выполнено — шаг 1 пройден</b><span>+5 баллов начислено</span></div></div>
+            <div className="pkg-status done"><CircleCheck size={20} /><div><b>Документы подтверждены HR ✓</b><span>+5 баллов начислено</span></div></div>
+          ) : docsPending ? (
+            <div className="pkg-status pending"><Hourglass size={20} /><div><b>Запрос отправлен — ожидаем HR</b><span>Уведомление о решении придёт в колокольчик</span></div></div>
+          ) : docsRejected.length > 0 ? (
+            <div className="flex flex-col gap-2">
+              <div className="pkg-status rejected"><XCircle size={20} /><div><b>HR отклонил пакет</b><span>{docsRejected[0]?.note || 'Без комментария'}</span></div></div>
+              <Button type="button" onClick={() => void sendDocsForReview()} disabled={sendingDocs} className="wv-cta w-full">
+                {sendingDocs ? 'Отправляем…' : 'Исправил — отправить повторно'}
+              </Button>
+            </div>
           ) : (
-            <div className="pkg-hint">Откройте каждый документ и подтвердите прочтение</div>
+            <div className="flex flex-col gap-2">
+              <div className="pkg-hint">Прочитано {readDocs.filter((id) => DOC_IDS.includes(id)).length}/{DOCS_PACKAGE.length} — откройте все документы, затем отправьте пакет HR</div>
+              <Button type="button" onClick={() => void sendDocsForReview()} disabled={sendingDocs || !DOC_IDS.every((id) => readDocs.includes(id))} className="wv-cta w-full">
+                <Send size={16} /> {sendingDocs ? 'Отправляем…' : 'Отправить на проверку HR'}
+              </Button>
+            </div>
           )}
         </div>
         </div>
@@ -332,7 +439,7 @@ export function Stage3Docs({ stageId }: Props) {
               <div className="dc-title">MBusiness — открытие {isTaskDone('1-mbusiness') && <span className="dc-badge">выполнено</span>}</div>
               <div className="dc-sub">Нажмите чтобы узнать подробнее</div>
             </div>
-            <button type="button" className="dc-info-icon" onClick={(e) => { e.stopPropagation(); setOpenInfo(INFO_MODALS.mbusiness); }} aria-label="Подробнее"><Info size={14} /></button>
+            <Button variant="ghost" size="icon" className="dc-info-icon" onClick={(e) => { e.stopPropagation(); setOpenInfo(INFO_MODALS.mbusiness); }} aria-label="Подробнее"><Info size={14} /></Button>
           </div>
           <div className="doc-card svc-card" onClick={() => !isTaskDone('1-accountant') && setOpenInfo(INFO_MODALS.accountant)} style={{ cursor: isTaskDone('1-accountant') ? 'default' : 'pointer' }}>
             <div className="dc-icon"><ClipboardCheck size={16} /></div>
@@ -340,7 +447,7 @@ export function Stage3Docs({ stageId }: Props) {
               <div className="dc-title">Доступ бухгалтеру {isTaskDone('1-accountant') && <span className="dc-badge">выполнено</span>}</div>
               <div className="dc-sub">Нажмите чтобы узнать подробнее</div>
             </div>
-            <button type="button" className="dc-info-icon" onClick={(e) => { e.stopPropagation(); setOpenInfo(INFO_MODALS.accountant); }} aria-label="Подробнее"><Info size={14} /></button>
+            <Button variant="ghost" size="icon" className="dc-info-icon" onClick={(e) => { e.stopPropagation(); setOpenInfo(INFO_MODALS.accountant); }} aria-label="Подробнее"><Info size={14} /></Button>
           </div>
           <div className="doc-card svc-card" onClick={() => !isTaskDone('1-proxy') && setOpenInfo(INFO_MODALS.proxy)} style={{ cursor: isTaskDone('1-proxy') ? 'default' : 'pointer' }}>
             <div className="dc-icon"><KeyRound size={16} /></div>
@@ -348,7 +455,7 @@ export function Stage3Docs({ stageId }: Props) {
               <div className="dc-title">Прокси-карта и Face ID {isTaskDone('1-proxy') && <span className="dc-badge">выполнено</span>}</div>
               <div className="dc-sub">Нажмите чтобы узнать подробнее</div>
             </div>
-            <button type="button" className="dc-info-icon" onClick={(e) => { e.stopPropagation(); setOpenInfo(INFO_MODALS.proxy); }} aria-label="Подробнее"><Info size={14} /></button>
+            <Button variant="ghost" size="icon" className="dc-info-icon" onClick={(e) => { e.stopPropagation(); setOpenInfo(INFO_MODALS.proxy); }} aria-label="Подробнее"><Info size={14} /></Button>
           </div>
           <div className="doc-card tg-card">
               <div className={`dc-icon ${isTaskDone('1-telegram') ? 'dc-done' : ''}`}>{isTaskDone('1-telegram') ? <CircleCheck size={16} /> : <Send size={16} />}</div>
@@ -377,7 +484,7 @@ export function Stage3Docs({ stageId }: Props) {
                         ))}
                       </div>
                       <div className="tg-btn-row">
-                        <button type="button" className="tg-btn-primary" onClick={handleTgAutoAdd} disabled={tgAdding}>{tgAdding ? 'Добавляем…' : 'Добавить меня в группы'}</button>
+                        <Button type="button" onClick={handleTgAutoAdd} disabled={tgAdding} className="wv-cta">{tgAdding ? 'Добавляем…' : 'Добавить меня в группы'}</Button>
                         <a href={`https://t.me/onboarding_admin_bot?start=uid_${user?.id ?? ''}`} target="_blank" rel="noopener noreferrer" className="tg-btn-secondary" onClick={e => e.stopPropagation()}>Открыть бота →</a>
                       </div>
                     </>
@@ -388,7 +495,7 @@ export function Stage3Docs({ stageId }: Props) {
                 <div className="tg-greet-title">Шаблон приветствия:</div>
                 <div className="tg-greet-wrap">
                   <textarea className="wifi-input tg-textarea" rows={2} value={tgGreet} onChange={e => setTgGreet(e.target.value)} onClick={e => e.stopPropagation()} aria-label="Текст приветствия" />
-                  <button type="button" className={`tg-copy-inside${tgCopied ? ' tg-copied' : ''}`} onClick={handleTgCopy} title="Копировать">{tgCopied ? <Check size={13} /> : <Copy size={13} />}</button>
+                  <Button variant="ghost" size="icon" className={`tg-copy-inside${tgCopied ? ' tg-copied' : ''}`} onClick={handleTgCopy} title="Копировать" aria-label="Копировать">{tgCopied ? <Check size={13} /> : <Copy size={13} />}</Button>
                 </div>
               </div>
               {tgInvites.length > 0 && (
@@ -399,7 +506,7 @@ export function Stage3Docs({ stageId }: Props) {
               )}
               {tgMsg && <div className={tgMsg.includes('✓') ? 'wifi-ok' : 'wifi-err'}>{tgMsg}</div>}
             </div>
-            <button type="button" className="dc-info-icon" onClick={(e) => { e.stopPropagation(); setOpenInfo(INFO_MODALS.telegram); }} aria-label="Подробнее"><Info size={14} /></button>
+            <Button variant="ghost" size="icon" className="dc-info-icon" onClick={(e) => { e.stopPropagation(); setOpenInfo(INFO_MODALS.telegram); }} aria-label="Подробнее"><Info size={14} /></Button>
           </div>
           {accessServices.map((s) => (
             <div key={s.key} className="doc-card svc-card" onClick={() => s.task_id && !isTaskDone(s.task_id) && handleInfoRead(s.task_id)} style={{ cursor: s.task_id && !isTaskDone(s.task_id) ? 'pointer' : 'default' }}>
@@ -408,21 +515,48 @@ export function Stage3Docs({ stageId }: Props) {
                 <div className="dc-title">{s.title} {s.task_id && isTaskDone(s.task_id) && <span className="dc-badge">выполнено</span>}</div>
                 <div className="dc-sub">{s.subtitle}</div>
                 {s.url ? (
-                  <button type="button" className="svc-open-btn" onClick={(e) => { e.stopPropagation(); window.open(s.url, '_blank', 'noopener,noreferrer'); if (s.task_id && !isTaskDone(s.task_id)) handleInfoRead(s.task_id); }}>
+                  <Button type="button" size="sm" variant="secondary" onClick={(e) => { e.stopPropagation(); window.open(s.url, '_blank', 'noopener,noreferrer'); if (s.task_id && !isTaskDone(s.task_id)) handleInfoRead(s.task_id); }} className="min-h-[44px]">
                     <ExternalLink size={14} /> Открыть — {s.title}
-                  </button>
+                  </Button>
                 ) : <span className="wifi-err">Ссылка не настроена</span>}
               </div>
-              {s.details && <button type="button" className="dc-info-icon" onClick={(e) => { e.stopPropagation(); setOpenInfo({ title: s.title, sub: s.subtitle, body: s.details, taskId: s.task_id ?? undefined }); }} aria-label="Подробнее"><Info size={14} /></button>}
+              {s.details && <Button variant="ghost" size="icon" className="dc-info-icon" onClick={(e) => { e.stopPropagation(); setOpenInfo({ title: s.title, sub: s.subtitle, body: s.details, taskId: s.task_id ?? undefined }); }} aria-label="Подробнее"><Info size={14} /></Button>}
             </div>
           ))}
           <div className="doc-card wifi-card" onClick={() => !isTaskDone('1-wifi') && setOpen('wifi')} style={{ cursor: isTaskDone('1-wifi') ? 'default' : 'pointer' }}>
             <div className={`dc-icon ${isTaskDone('1-wifi') ? 'dc-done' : ''}`}>{isTaskDone('1-wifi') ? <CircleCheck size={16} /> : <Wifi size={16} />}</div>
             <div className="dc-body" style={{ flex: 1 }}>
               <div className="dc-title">Доступ к Wi-Fi (Закрытая сеть) {isTaskDone('1-wifi') && <span className="dc-badge">готово</span>}</div>
-              <div className="dc-sub">Откройте инструкцию по подключению к корпоративному Wi-Fi</div>
+              <div className="dc-sub">Отправьте MAC-адрес — сисадмин выдаст персональный пароль</div>
+              <div className="mt-2 flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
+                {!macSent ? (
+                  <>
+                    <Label className="text-[11px] text-muted-foreground">MAC-адрес ноутбука</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        value={mac}
+                        onChange={(e) => setMac(e.target.value)}
+                        placeholder="AA:BB:CC:DD:EE:FF"
+                        className="min-h-[48px] flex-1 font-mono text-base"
+                      />
+                      <Button type="button" onClick={() => void submitMac()} disabled={wifiBusy} className="min-h-[48px] shrink-0">
+                        {wifiBusy ? '…' : 'Отправить'}
+                      </Button>
+                    </div>
+                  </>
+                ) : wifiPw ? (
+                  <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/[0.07] p-3">
+                    <div className="text-[11px] text-muted-foreground">Ваш персональный пароль Wi-Fi:</div>
+                    <code className="font-mono text-base font-bold text-emerald-300">{wifiPw}</code>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.07] p-3 text-xs text-amber-200">
+                    MAC получен. Ожидайте пароль от сисадмина — он появится здесь.
+                  </div>
+                )}
+              </div>
             </div>
-            <button type="button" className="dc-info-icon" onClick={(e) => { e.stopPropagation(); if (!isTaskDone('1-wifi')) setOpen('wifi'); }} aria-label="Подробнее"><Info size={14} /></button>
+            <Button variant="ghost" size="icon" className="dc-info-icon" onClick={(e) => { e.stopPropagation(); if (!isTaskDone('1-wifi')) setOpen('wifi'); }} aria-label="Подробнее"><Info size={14} /></Button>
           </div>
         </div>
         </div>
@@ -448,9 +582,9 @@ export function Stage3Docs({ stageId }: Props) {
           })}
         </div>
         <div className="cf-progress">Открыто {confClickedCount}/{confTotal} · видимое чтение {Math.floor(confVisibleSec / 60)}:{String(confVisibleSec % 60).padStart(2, '0')} / 2:00</div>
-        <button type="button" className={`cf-confirm ${step3ExplicitDone ? 'done' : ''}`} onClick={handleConfluenceConfirm} disabled={confConfirming || step3ExplicitDone || !confReady}>
+        <Button type="button" onClick={handleConfluenceConfirm} disabled={confConfirming || step3ExplicitDone || !confReady} className="wv-cta w-full">
           {confConfirming ? 'Фиксируем…' : step3ExplicitDone ? 'Ознакомление зафиксировано ✓' : confReady ? 'Я ознакомился(-ась)' : `Откройте все страницы и читайте (${confClickedCount}/${confTotal}, ${Math.floor(confRemain / 60)}:${String(confRemain % 60).padStart(2, '0')})`}
-        </button>
+        </Button>
         {confMsg && <div className="wifi-err">{confMsg}</div>}
         <div className="cf-hint">Таймер идёт только пока вкладка открыта — свернули, поставили на паузу</div>
         </div>
@@ -462,8 +596,8 @@ export function Stage3Docs({ stageId }: Props) {
           kind={open}
           open={open !== null}
           onClose={() => setOpen(null)}
-          alreadyDone={(docToTask as Record<string, string>)[open] ? done.includes((docToTask as Record<string, string>)[open]) : false}
-          onConfirm={() => { const tid = (docToTask as Record<string, string>)[open]; if (tid) handleInfoRead(tid); }}
+          alreadyDone={(docToTask as Record<string, string>)[open] ? (done.includes((docToTask as Record<string, string>)[open]) || readDocs.includes((docToTask as Record<string, string>)[open])) : false}
+          onConfirm={() => markDocRead(open)}
         />
       )}
       {openInfo && (
