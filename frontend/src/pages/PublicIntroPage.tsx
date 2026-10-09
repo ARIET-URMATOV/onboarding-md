@@ -77,7 +77,7 @@ export function PublicIntroPage() {
       <header className="fixed left-0 right-0 top-0 z-50 bg-[#060B14]/70 backdrop-blur-xl border-b border-white/5 transition-all w-full">
         <div className="flex w-full items-center justify-between py-3 sm:py-4 px-8 max-w-[1440px] mx-auto">
           <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex items-center transition-opacity hover:opacity-80" aria-label="MDigital — наверх">
-           <img src={companyLogo} alt="MDigital" className="h-5 sm:h-8 w-auto" />
+           <img src={companyLogo} alt="MDigital" className="h-4 sm:h-6 w-auto" />
           </button>
           <nav className="hidden items-center gap-8 md:flex">
             {NAV_LINKS.map((l) => (
@@ -166,6 +166,7 @@ export function PublicIntroPage() {
                 density={4}
                 color="#0015ff"
                 highlightColor="#afc1e9"
+                fontSize="clamp(2.5rem, 8vw, 5.5rem)"
                 scatter={190}
                 gatherDuration={1600}
                 stagger={420}
@@ -173,7 +174,6 @@ export function PublicIntroPage() {
                 repelRadius={120}
                 idleDrift={0.8}
                 trigger="mount"
-                fontSize="clamp(3.5rem, 15vw, 10rem)"
                 fontWeight={800}
                 fontFamily="Unbounded"
                 glow
@@ -612,7 +612,7 @@ export function PublicIntroPage() {
         <div className="max-w-[1440px] mx-auto grid w-full grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-12">
           <div>
             <div className="flex items-center gap-3 mb-6">
-           <img src={companyLogo} alt="MDigital Logo" className="h-6 sm:h-8 w-auto" />
+           <img src={companyLogo} alt="MDigital Logo" className="h-4 sm:h-6 w-auto" />
             </div>
             <p className="text-sm leading-relaxed text-white/60 max-w-sm">
               Трансформируем бизнес через технологии. Создаем надежные IT-инфраструктуры и цифровые продукты для корпоративного сектора.

@@ -200,7 +200,7 @@ export function ApplicationFormPage() {
             className="flex items-center transition-opacity hover:opacity-80"
             aria-label="MDigital — на главную"
           >
-            <img src={companyLogo} alt="MDigital" className="h-5 sm:h-8 w-auto" />
+            <img src={companyLogo} alt="MDigital" className="h-4 sm:h-6 w-auto" />
           </button>
           <Button
             variant="ghost"

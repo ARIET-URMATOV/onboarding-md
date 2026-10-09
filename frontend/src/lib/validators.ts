@@ -36,11 +36,13 @@ export function normalizePhoneDigits(raw: string): string {
   return digits.slice(0, KG_PHONE_DIGITS);
 }
 
-/** Format national digits for display: "508100165" -> "+996 508 100 165" (partial groups ok). */
+/** Format national digits for display: "508100165" -> "508 100 165" (partial groups ok, max 9 digits).
+ * No country prefix — the input already shows a +996 block on the left. */
 export function formatPhoneDisplay(digits: string): string {
   if (!digits) return '';
-  const parts = [digits.slice(0, 3), digits.slice(3, 6), digits.slice(6, 9)].filter(Boolean);
-  return `${KG_PHONE_PREFIX} ${parts.join(' ')}`;
+  const clean = digits.replace(/\D/g, '').slice(0, KG_PHONE_DIGITS);
+  const parts = [clean.slice(0, 3), clean.slice(3, 6), clean.slice(6, 9)].filter(Boolean);
+  return parts.join(' ');
 }
 
 /** E.164 for the backend: "+996508100165". */

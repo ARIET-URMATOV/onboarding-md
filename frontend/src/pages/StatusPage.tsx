@@ -122,7 +122,7 @@ export function StatusPage() {
       <header className="sticky top-0 z-50 bg-[#060B14]/70 backdrop-blur-xl border-b border-white/5 transition-all w-full">
         <div className="flex w-full items-center justify-between py-3 sm:py-4 px-8 max-w-[1440px] mx-auto">
           <button onClick={() => nav('/intro')} className="flex items-center transition-opacity hover:opacity-80" aria-label="MDigital — на главную">
-           <img src={companyLogo} alt="MDigital" className="h-5 sm:h-8 w-auto" />
+           <img src={companyLogo} alt="MDigital" className="h-4 sm:h-6 w-auto" />
           </button>
           <Button variant="ghost" className="h-10 px-4 sm:px-6 text-sm rounded-full text-white/70 hover:text-white hover:bg-white/5" onClick={() => nav('/intro')}>
             На главную
