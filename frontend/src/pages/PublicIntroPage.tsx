@@ -37,8 +37,21 @@ const FALLBACK_TITLE = 'Добро пожаловать в';
 const FALLBACK_MISSION =
   'Мы создаём цифровое будущее, разрабатывая инновационные финтех-решения, такие как MBusiness и MPulse. Твоя роль здесь очень важна.';
 const FALLBACK_VALUES = ['Скорость', 'Инновации', 'Ответственность', 'Команда'];
-const FALLBACK_INSTRUCTION =
-  'Заполни заявку, чтобы получить доступ к корпоративной сети и начать онбординг. Решение HR занимает до 2 рабочих дней. Как только мы будем готовы, ты получишь логин AD и пароль на указанную личную почту.';
+const FALLBACK_INSTRUCTION = '';
+const FALLBACK_STEPS = [
+  {
+    title: 'Подача заявки',
+    text: 'Заполните форму: ФИО, личная почта, телефон, департамент, должность, планируемая дата выхода и руководитель. Также нужно дать согласие на обработку персональных данных. Затем подтвердите почту 6-значным кодом из письма (он действует 15 минут). После этого вы получите номер заявки: он появится на экране и придёт на вашу личную почту. Мы рассматриваем заявку в течение 2 рабочих дней и сообщаем решение на вашу личную почту. Статус можно проверить на этой странице по номеру заявки и почте. Если нам понадобятся уточнения, мы напишем вам, и вы сможете дополнить заявку по ссылке из письма.',
+  },
+  {
+    title: 'Рабочая учётная запись',
+    text: 'Если заявка одобрена, системный администратор создаёт вашу рабочую учётную запись. Когда она готова, на личную почту приходит письмо с логином, временным паролем и ссылкой для входа.',
+  },
+  {
+    title: 'Вход в систему',
+    text: 'Откройте ссылку из письма и войдите с рабочей учётной записью. При первом входе нужно заменить временный пароль на свой. Знакомство с компанией засчитается автоматически, а департамент, должность и руководитель подставятся из вашей заявки. Дальше вас ждут остальные этапы онбординга, первый из них: установка приложения MPulse. На прохождение отводится 7 дней с момента первого входа.',
+  },
+];
 const FALLBACK_GOALS = [
   { title: 'Доступный финтех', text: 'Делаем банковские сервисы понятными — MBusiness для бизнеса, MPulse для каждого сотрудника и клиента.' },
   { title: 'Скорость без хаоса', text: 'Быстрые решения, короткие циклы, ответственность за результат с первого дня.' },
@@ -582,9 +595,25 @@ export function PublicIntroPage() {
                     className="font-display text-3xl sm:text-4xl md:text-5xl font-bold leading-tight tracking-tight text-white mb-6"
                     delay={0.1}
                   />
-                  <p className="text-lg text-white/60 leading-relaxed max-w-xl">
-                    {instruction}
-                  </p>
+                  {instruction ? (
+                    <p className="text-lg text-white/60 leading-relaxed max-w-xl">
+                      {instruction}
+                    </p>
+                  ) : (
+                    <ol className="flex flex-col gap-5 max-w-xl">
+                      {FALLBACK_STEPS.map((s, i) => (
+                        <li key={s.title} className="flex gap-4">
+                          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary text-sm font-extrabold text-primary-foreground">
+                            {i + 1}
+                          </span>
+                          <div>
+                            <div className="mb-1 text-base font-bold text-white">{s.title}</div>
+                            <p className="text-[15px] leading-relaxed text-white/60">{s.text}</p>
+                          </div>
+                        </li>
+                      ))}
+                    </ol>
+                  )}
                 </div>
                 <div className="flex flex-col gap-4 w-full lg:w-auto lg:min-w-[280px]">
                   <Button
