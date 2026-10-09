@@ -166,7 +166,7 @@ export function PublicIntroPage() {
                 density={4}
                 color="#0015ff"
                 highlightColor="#afc1e9"
-                fontSize="clamp(2.5rem, 8vw, 5.5rem)"
+                fontSize="clamp(3rem, 11vw, 7.5rem)"
                 scatter={190}
                 gatherDuration={1600}
                 stagger={420}
