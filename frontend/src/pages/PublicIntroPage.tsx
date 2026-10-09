@@ -513,7 +513,7 @@ export function PublicIntroPage() {
                   <div className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-2xl bg-white/5 border border-white/10 text-white font-mono font-bold text-base sm:text-lg">2</div>
                   <div>
                     <h4 className="text-lg font-bold text-white mb-2">Рабочая учетная запись</h4>
-                    <p className="text-white/60 leading-relaxed text-sm sm:text-base">Мы создаём вашу учётную запись. Когда она готова, вы получаете письмо с логином. Временный пароль придёт отдельно в сообщении от HR в Telegram.</p>
+                    <p className="text-white/60 leading-relaxed text-sm sm:text-base">Мы создаём вашу учётную запись. Когда она готова, вы получаете письмо с логином и временным паролем.</p>
                   </div>
                 </div>
 
